@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Blueprint, FeatureGenerator } from "@tylix/generator";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function ensurePackageJson(baseDir) {
   const pkgPath = path.join(baseDir, "package.json");
@@ -11,6 +14,21 @@ async function ensurePackageJson(baseDir) {
       JSON.stringify({ name: "tylix-app", version: "0.1.0", type: "module" }, null, 2)
     );
   }
+}
+
+async function ensureOrmLinked(baseDir) {
+  const nodeModulesTylix = path.join(baseDir, "node_modules", "@tylix");
+  const ormLinkPath = path.join(nodeModulesTylix, "orm");
+
+  const alreadyLinked = await fs.access(ormLinkPath).then(() => true).catch(() => false);
+  if (alreadyLinked) return;
+
+  await fs.mkdir(nodeModulesTylix, { recursive: true });
+
+  // Resolve the real @tylix/orm package location relative to this CLI package
+  const ormSourcePath = path.resolve(__dirname, "../../../orm");
+
+  await fs.symlink(ormSourcePath, ormLinkPath, "dir");
 }
 
 export async function makeFeature(name, fieldArgs = []) {
@@ -26,6 +44,7 @@ export async function makeFeature(name, fieldArgs = []) {
 
   const baseDir = process.cwd();
   await ensurePackageJson(baseDir);
+  await ensureOrmLinked(baseDir);
 
   const generator = new FeatureGenerator();
   const results = await generator.generate(blueprint, baseDir);

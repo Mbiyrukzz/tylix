@@ -8,6 +8,8 @@
  * Do not edit this section.
  */
 
+import { Model } from "@tylix/orm";
+
 export class {{Model}} extends Model {
     static table = "{{table}}";
 

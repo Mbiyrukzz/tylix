@@ -4,12 +4,20 @@ import { makeMigration } from "./commands/makeMigration.js";
 import { makeController } from "./commands/makeController.js";
 import { makeFeature } from "./commands/makeFeature.js";
 import { migrate } from "./commands/migrate.js";
+import { dev } from "./commands/dev.js";
 
 const [, , command, ...rest] = process.argv;
 
 async function main() {
   if (command === "migrate") {
     await migrate();
+    return;
+  }
+
+  if (command === "dev") {
+    const portArg = rest.find((a) => a.startsWith("--port="));
+    const port = portArg ? Number(portArg.split("=")[1]) : 3000;
+    await dev({ port });
     return;
   }
 
@@ -24,7 +32,7 @@ async function main() {
   const handler = COMMANDS[command];
   if (!handler) {
     console.error(`Unknown command: ${command}`);
-    console.error(`Available commands: migrate, ${Object.keys(COMMANDS).join(", ")}`);
+    console.error(`Available commands: dev, migrate, ${Object.keys(COMMANDS).join(", ")}`);
     process.exit(1);
   }
 
