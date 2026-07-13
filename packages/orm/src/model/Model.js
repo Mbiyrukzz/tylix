@@ -3,6 +3,7 @@ import { ConnectionManager } from "./ConnectionManager.js";
 export class Model {
   static table = null;
   static fillable = [];
+  static timestamps = true;
 
   static getTable() {
     if (!this.table) {
@@ -29,13 +30,21 @@ export class Model {
       throw new Error(`No fillable fields provided for ${this.name}.create()`);
     }
 
-    const columns = fields.join(", ");
-    const placeholders = fields.map(() => "?").join(", ");
-    const values = fields.map((f) => data[f]);
+    const values = { ...Object.fromEntries(fields.map((f) => [f, data[f]])) };
+
+    if (this.timestamps) {
+      const now = new Date().toISOString();
+      values.created_at = now;
+      values.updated_at = now;
+    }
+
+    const columns = Object.keys(values);
+    const placeholders = columns.map(() => "?").join(", ");
+    const columnValues = Object.values(values);
 
     const result = await adapter.run(
-      `INSERT INTO ${this.getTable()} (${columns}) VALUES (${placeholders})`,
-      values
+      `INSERT INTO ${this.getTable()} (${columns.join(", ")}) VALUES (${placeholders})`,
+      columnValues
     );
 
     return this.find(result.lastInsertRowid);
@@ -49,12 +58,20 @@ export class Model {
       throw new Error(`No fillable fields provided for ${this.name}.update()`);
     }
 
-    const setClause = fields.map((f) => `${f} = ?`).join(", ");
-    const values = fields.map((f) => data[f]);
+    const values = { ...Object.fromEntries(fields.map((f) => [f, data[f]])) };
+
+    if (this.timestamps) {
+      values.updated_at = new Date().toISOString();
+    }
+
+    const setClause = Object.keys(values)
+      .map((f) => `${f} = ?`)
+      .join(", ");
+    const columnValues = Object.values(values);
 
     await adapter.run(
       `UPDATE ${this.getTable()} SET ${setClause} WHERE id = ?`,
-      [...values, id]
+      [...columnValues, id]
     );
 
     return this.find(id);

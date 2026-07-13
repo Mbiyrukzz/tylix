@@ -23,7 +23,9 @@ beforeEach(async () => {
     CREATE TABLE posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
-      body TEXT
+      body TEXT,
+      created_at TEXT,
+      updated_at TEXT
     )
   `);
   ConnectionManager.setAdapter(adapter);
@@ -40,6 +42,13 @@ test("create() inserts a row and returns it", async () => {
   assert.equal(post.title, "Hello Tylix");
   assert.equal(post.body, "First post");
   assert.ok(post.id);
+});
+
+test("create() populates created_at and updated_at", async () => {
+  const post = await Post.create({ title: "Timestamped", body: "..." });
+  assert.ok(post.created_at, "created_at should be set");
+  assert.ok(post.updated_at, "updated_at should be set");
+  assert.ok(!Number.isNaN(Date.parse(post.created_at)), "created_at should be a valid date string");
 });
 
 test("all() returns every row", async () => {
@@ -59,6 +68,15 @@ test("update() modifies a row and returns the updated version", async () => {
   const created = await Post.create({ title: "Original", body: "..." });
   const updated = await Post.update(created.id, { title: "Updated" });
   assert.equal(updated.title, "Updated");
+});
+
+test("update() bumps updated_at without changing created_at", async () => {
+  const created = await Post.create({ title: "Original", body: "..." });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const updated = await Post.update(created.id, { title: "Changed" });
+
+  assert.equal(updated.created_at, created.created_at);
+  assert.notEqual(updated.updated_at, created.updated_at);
 });
 
 test("delete() removes a row", async () => {
