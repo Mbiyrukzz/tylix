@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import { makeModel } from "./commands/makeModel.js";
 import { makeMigration } from "./commands/makeMigration.js";
+import { makeController } from "./commands/makeController.js";
 
 const [, , command, subject, ...rest] = process.argv;
 
 const COMMANDS = {
   "make:model": makeModel,
   "make:migration": makeMigration,
+  "make:controller": makeController,
 };
 
 async function main() {
