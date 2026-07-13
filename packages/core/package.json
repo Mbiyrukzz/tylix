@@ -1,0 +1,13 @@
+{
+  "name": "@tylix/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "@tylix/orm": "*",
+    "@tylix/shared": "*"
+  }
+}
