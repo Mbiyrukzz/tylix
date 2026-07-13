@@ -1,5 +1,17 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { Blueprint, FeatureGenerator } from "@tylix/generator";
+
+async function ensurePackageJson(baseDir) {
+  const pkgPath = path.join(baseDir, "package.json");
+  const exists = await fs.access(pkgPath).then(() => true).catch(() => false);
+  if (!exists) {
+    await fs.writeFile(
+      pkgPath,
+      JSON.stringify({ name: "tylix-app", version: "0.1.0", type: "module" }, null, 2)
+    );
+  }
+}
 
 export async function makeFeature(name, fieldArgs = []) {
   const blueprint = new Blueprint(name);
@@ -12,8 +24,10 @@ export async function makeFeature(name, fieldArgs = []) {
 
   blueprint.timestamps().api().crud();
 
-  const generator = new FeatureGenerator();
   const baseDir = process.cwd();
+  await ensurePackageJson(baseDir);
+
+  const generator = new FeatureGenerator();
   const results = await generator.generate(blueprint, baseDir);
 
   console.log(`\n✔ Feature "${blueprint.name}" created:\n`);

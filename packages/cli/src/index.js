@@ -3,22 +3,28 @@ import { makeModel } from "./commands/makeModel.js";
 import { makeMigration } from "./commands/makeMigration.js";
 import { makeController } from "./commands/makeController.js";
 import { makeFeature } from "./commands/makeFeature.js";
+import { migrate } from "./commands/migrate.js";
 
-const [, , command, subject, ...rest] = process.argv;
-
-const COMMANDS = {
-  "make:model": makeModel,
-  "make:migration": makeMigration,
-  "make:controller": makeController,
-  "make:feature": makeFeature,
-};
+const [, , command, ...rest] = process.argv;
 
 async function main() {
-  const handler = COMMANDS[command];
+  if (command === "migrate") {
+    await migrate();
+    return;
+  }
 
+  const [subject, ...fieldArgs] = rest;
+  const COMMANDS = {
+    "make:model": makeModel,
+    "make:migration": makeMigration,
+    "make:controller": makeController,
+    "make:feature": makeFeature,
+  };
+
+  const handler = COMMANDS[command];
   if (!handler) {
     console.error(`Unknown command: ${command}`);
-    console.error(`Available commands: ${Object.keys(COMMANDS).join(", ")}`);
+    console.error(`Available commands: migrate, ${Object.keys(COMMANDS).join(", ")}`);
     process.exit(1);
   }
 
@@ -27,7 +33,7 @@ async function main() {
     process.exit(1);
   }
 
-  await handler(subject, rest);
+  await handler(subject, fieldArgs);
 }
 
 main().catch((err) => {

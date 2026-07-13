@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@tylix/generator": "*",
+    "@tylix/orm": "*",
     "@tylix/shared": "*"
   }
 }
