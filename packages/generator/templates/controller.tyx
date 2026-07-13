@@ -9,6 +9,7 @@
  */
 
 import { {{Model}} } from "../models/{{Model}}.js";
+import { validate{{Model}} } from "../validators/{{Model}}Validator.js";
 
 export class {{Model}}Controller {
     async index(req, res) {
@@ -25,11 +26,21 @@ export class {{Model}}Controller {
     }
 
     async store(req, res) {
+        const result = validate{{Model}}(req.body);
+        if (!result.valid) {
+            return res.status(422).json({ errors: result.errors });
+        }
+
         const {{modelLower}} = await {{Model}}.create(req.body);
         return res.status(201).json({{modelLower}});
     }
 
     async update(req, res) {
+        const result = validate{{Model}}(req.body);
+        if (!result.valid) {
+            return res.status(422).json({ errors: result.errors });
+        }
+
         const {{modelLower}} = await {{Model}}.update(req.params.id, req.body);
         return res.json({{modelLower}});
     }

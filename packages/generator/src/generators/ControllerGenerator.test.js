@@ -6,7 +6,7 @@ import path from "node:path";
 import { Blueprint } from "../blueprint/Blueprint.js";
 import { ControllerGenerator } from "./ControllerGenerator.js";
 
-test("generates a PostController with CRUD methods", async () => {
+test("generates a PostController with CRUD methods and validation calls", async () => {
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "tylix-test-"));
 
   const blueprint = new Blueprint("Post").field("title", "string");
@@ -18,11 +18,14 @@ test("generates a PostController with CRUD methods", async () => {
 
   assert.match(path.basename(outputPath), /^PostController\.js$/);
   assert.match(content, /import \{ Post \} from "\.\.\/models\/Post\.js";/);
+  assert.match(content, /import \{ validatePost \} from "\.\.\/validators\/PostValidator\.js";/);
   assert.match(content, /export class PostController/);
   assert.match(content, /async index\(req, res\)/);
   assert.match(content, /const posts = await Post\.all\(\);/);
   assert.match(content, /async show\(req, res\)/);
   assert.match(content, /async store\(req, res\)/);
+  assert.match(content, /const result = validatePost\(req\.body\)/);
+  assert.match(content, /res\.status\(422\)\.json\(\{ errors: result\.errors \}\)/);
   assert.match(content, /async update\(req, res\)/);
   assert.match(content, /async destroy\(req, res\)/);
 

@@ -3,16 +3,19 @@ import { writeFile } from "@tylix/shared";
 import { ModelGenerator } from "./ModelGenerator.js";
 import { MigrationGenerator } from "./MigrationGenerator.js";
 import { ControllerGenerator } from "./ControllerGenerator.js";
+import { ValidatorGenerator } from "./ValidatorGenerator.js";
 
 export class FeatureGenerator {
   constructor({
     modelGenerator = new ModelGenerator(),
     migrationGenerator = new MigrationGenerator(),
     controllerGenerator = new ControllerGenerator(),
+    validatorGenerator = new ValidatorGenerator(),
   } = {}) {
     this.modelGenerator = modelGenerator;
     this.migrationGenerator = migrationGenerator;
     this.controllerGenerator = controllerGenerator;
+    this.validatorGenerator = validatorGenerator;
   }
 
   async generate(blueprint, baseDir) {
@@ -26,6 +29,11 @@ export class FeatureGenerator {
     results.migration = await this.migrationGenerator.generate(
       blueprint,
       path.join(baseDir, "database", "migrations")
+    );
+
+    results.validator = await this.validatorGenerator.generate(
+      blueprint,
+      path.join(baseDir, "app", "validators")
     );
 
     results.controller = await this.controllerGenerator.generate(
@@ -45,6 +53,7 @@ export class FeatureGenerator {
       table: blueprint.tableName,
       model: blueprint.name,
       controller: `${blueprint.name}Controller`,
+      validator: `validate${blueprint.name}`,
       fields: blueprint.fields,
       permissions: [
         `${blueprint.name.toLowerCase()}.view`,
