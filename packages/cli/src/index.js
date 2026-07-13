@@ -2,6 +2,7 @@
 import { makeModel } from "./commands/makeModel.js";
 import { makeMigration } from "./commands/makeMigration.js";
 import { makeController } from "./commands/makeController.js";
+import { makeFeature } from "./commands/makeFeature.js";
 
 const [, , command, subject, ...rest] = process.argv;
 
@@ -9,6 +10,7 @@ const COMMANDS = {
   "make:model": makeModel,
   "make:migration": makeMigration,
   "make:controller": makeController,
+  "make:feature": makeFeature,
 };
 
 async function main() {
