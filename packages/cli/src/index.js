@@ -1,21 +1,29 @@
 #!/usr/bin/env node
 import { makeModel } from "./commands/makeModel.js";
+import { makeMigration } from "./commands/makeMigration.js";
 
 const [, , command, subject, ...rest] = process.argv;
 
+const COMMANDS = {
+  "make:model": makeModel,
+  "make:migration": makeMigration,
+};
+
 async function main() {
-  if (command === "make:model") {
-    if (!subject) {
-      console.error("Usage: tylix make:model <Name> [field:type ...]");
-      process.exit(1);
-    }
-    await makeModel(subject, rest);
-    return;
+  const handler = COMMANDS[command];
+
+  if (!handler) {
+    console.error(`Unknown command: ${command}`);
+    console.error(`Available commands: ${Object.keys(COMMANDS).join(", ")}`);
+    process.exit(1);
   }
 
-  console.error(`Unknown command: ${command}`);
-  console.error("Available commands: make:model");
-  process.exit(1);
+  if (!subject) {
+    console.error(`Usage: tylix ${command} <Name> [field:type ...]`);
+    process.exit(1);
+  }
+
+  await handler(subject, rest);
 }
 
 main().catch((err) => {
