@@ -1,0 +1,6 @@
+export default {
+  database: {
+    driver: "sqlite",
+    filename: "database.sqlite",
+  },
+};
