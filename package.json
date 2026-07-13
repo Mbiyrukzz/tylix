@@ -1,0 +1,24 @@
+{
+  "name": "tylix-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Laravel of JavaScript",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "homepage": "https://github.com/Mbiyrukzz/tylix#readme"
+}
