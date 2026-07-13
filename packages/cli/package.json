@@ -1,0 +1,13 @@
+{
+  "name": "@tylix/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "bin": {
+    "tylix": "./src/index.js"
+  },
+  "dependencies": {
+    "@tylix/generator": "*",
+    "@tylix/shared": "*"
+  }
+}
