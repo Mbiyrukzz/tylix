@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { Blueprint, FeatureGenerator } from "@tylix/generator";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// __dirname is packages/cli/src/commands, so 3 levels up is packages/
+const MONOREPO_PACKAGES = path.resolve(__dirname, "../../..");
 
 async function ensurePackageJson(baseDir) {
   const pkgPath = path.join(baseDir, "package.json");
@@ -16,16 +18,20 @@ async function ensurePackageJson(baseDir) {
   }
 }
 
-async function ensureOrmLinked(baseDir) {
+async function ensureTylixPackagesLinked(baseDir) {
   const nodeModulesTylix = path.join(baseDir, "node_modules", "@tylix");
-  const ormLinkPath = path.join(nodeModulesTylix, "orm");
-
-  const alreadyLinked = await fs.access(ormLinkPath).then(() => true).catch(() => false);
-  if (alreadyLinked) return;
-
   await fs.mkdir(nodeModulesTylix, { recursive: true });
-  const ormSourcePath = path.resolve(__dirname, "../../../orm");
-  await fs.symlink(ormSourcePath, ormLinkPath, "dir");
+
+  const neededPackages = ["shared", "orm"];
+
+  for (const pkg of neededPackages) {
+    const linkPath = path.join(nodeModulesTylix, pkg);
+    const alreadyLinked = await fs.access(linkPath).then(() => true).catch(() => false);
+    if (alreadyLinked) continue;
+
+    const sourcePath = path.join(MONOREPO_PACKAGES, pkg);
+    await fs.symlink(sourcePath, linkPath, "dir");
+  }
 }
 
 export async function makeFeature(name, fieldArgs = []) {
@@ -47,7 +53,7 @@ export async function makeFeature(name, fieldArgs = []) {
 
   const baseDir = process.cwd();
   await ensurePackageJson(baseDir);
-  await ensureOrmLinked(baseDir);
+  await ensureTylixPackagesLinked(baseDir);
 
   const generator = new FeatureGenerator();
   const results = await generator.generate(blueprint, baseDir);
