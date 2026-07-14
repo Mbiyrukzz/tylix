@@ -50,3 +50,21 @@ test("generates a CommentController that supports ?include=post", async () => {
 
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
+
+test("generates a PostController that supports ?include=comments", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "tylix-test-"));
+
+  const blueprint = new Blueprint("Post")
+    .field("title", "string")
+    .hasMany("Comment");
+
+  const generator = new ControllerGenerator();
+  const outputPath = await generator.generate(blueprint, tmpDir);
+
+  const content = await fs.readFile(outputPath, "utf-8");
+
+  assert.match(content, /if \(req\.query\.include === "comments"\)/);
+  assert.match(content, /post\.comments = await Post\.comments\(post\);/);
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});

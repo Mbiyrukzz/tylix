@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { Blueprint, FeatureGenerator } from "@tylix/generator";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// __dirname is packages/cli/src/commands, so 3 levels up is packages/
 const MONOREPO_PACKAGES = path.resolve(__dirname, "../../..");
 
 async function ensurePackageJson(baseDir) {
@@ -38,14 +37,20 @@ export async function makeFeature(name, fieldArgs = []) {
   const blueprint = new Blueprint(name);
 
   for (const arg of fieldArgs) {
-    const [fieldName, fieldType = "string", modifier] = arg.split(":");
+    const [fieldName, fieldType = "string", third] = arg.split(":");
 
     if (fieldType === "belongsTo") {
       blueprint.belongsTo(fieldName);
       continue;
     }
 
-    const options = modifier === "unique" ? { unique: true } : {};
+    if (fieldType === "hasMany") {
+      // syntax: comments:hasMany:Comment  -> third segment is the target model
+      blueprint.hasMany(third || fieldName);
+      continue;
+    }
+
+    const options = third === "unique" ? { unique: true } : {};
     blueprint.field(fieldName, fieldType, options);
   }
 

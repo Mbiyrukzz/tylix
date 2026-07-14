@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFile } from "@tylix/shared";
+import { writeFile, pluralize } from "@tylix/shared";
 import { TemplateEngine } from "../templates/TemplateEngine.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -16,12 +16,23 @@ export class ControllerGenerator {
     if (relations.length === 0) return "";
 
     const branches = relations
-      .filter((rel) => rel.type === "belongsTo")
       .map((rel) => {
-        const relationName = rel.model.charAt(0).toLowerCase() + rel.model.slice(1);
-        return `        if (req.query.include === "${relationName}") {
+        if (rel.type === "belongsTo") {
+          const relationName = rel.model.charAt(0).toLowerCase() + rel.model.slice(1);
+          return `        if (req.query.include === "${relationName}") {
             ${modelLower}.${relationName} = await ${Model}.${relationName}(${modelLower});
         }`;
+        }
+
+        if (rel.type === "hasMany") {
+          const relatedLower = rel.model.charAt(0).toLowerCase() + rel.model.slice(1);
+          const relationName = pluralize(relatedLower);
+          return `        if (req.query.include === "${relationName}") {
+            ${modelLower}.${relationName} = await ${Model}.${relationName}(${modelLower});
+        }`;
+        }
+
+        return "";
       })
       .join("\n");
 
