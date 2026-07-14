@@ -15,12 +15,6 @@ const COLUMN_TYPES = {
 
 const ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
-/**
- * MySQL's DATETIME columns reject ISO 8601 strings (the format Model.js
- * always produces via new Date().toISOString()). Converts them to
- * MySQL's "YYYY-MM-DD HH:MM:SS" format transparently, so Model.js and
- * every other adapter can stay driver-agnostic.
- */
 export function toMysqlDateTime(value) {
   if (typeof value === "string" && ISO_DATETIME_PATTERN.test(value)) {
     return value.slice(0, 19).replace("T", " ");
@@ -71,6 +65,25 @@ export class MysqlAdapter extends DatabaseAdapter {
     this.ensureConnected();
     const converted = params.map(toMysqlDateTime);
     const [rows] = await this.connection.execute(sql, converted);
+    return rows;
+  }
+
+  async count(table) {
+    this.ensureConnected();
+    const [rows] = await this.connection.execute(`SELECT COUNT(*) as count FROM ${table}`);
+    return Number(rows[0].count);
+  }
+
+  async paginate(table, limit, offset) {
+    this.ensureConnected();
+    // mysql2 does not support ? placeholders for LIMIT/OFFSET reliably
+    // across versions, so these are inlined after being forced to
+    // integers here (never from raw user input) to avoid injection.
+    const safeLimit = Number.isInteger(limit) ? limit : parseInt(limit, 10);
+    const safeOffset = Number.isInteger(offset) ? offset : parseInt(offset, 10);
+    const [rows] = await this.connection.execute(
+      `SELECT * FROM ${table} ORDER BY id ASC LIMIT ${safeLimit} OFFSET ${safeOffset}`
+    );
     return rows;
   }
 

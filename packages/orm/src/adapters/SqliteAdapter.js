@@ -20,9 +20,6 @@ export class SqliteAdapter extends DatabaseAdapter {
   }
 
   async connect() {
-    // Imported lazily so node:sqlite's experimental warning only fires
-    // when SQLite is actually the active driver, not whenever @tylix/orm
-    // is loaded (e.g. while using Postgres, MySQL, or MongoDB instead).
     const { DatabaseSync } = await import("node:sqlite");
     this.db = new DatabaseSync(this.filename);
     return this;
@@ -57,6 +54,18 @@ export class SqliteAdapter extends DatabaseAdapter {
     this.ensureConnected();
     const stmt = this.db.prepare(sql);
     return stmt.all(...params);
+  }
+
+  async count(table) {
+    this.ensureConnected();
+    const row = this.db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get();
+    return row.count;
+  }
+
+  async paginate(table, limit, offset) {
+    this.ensureConnected();
+    const stmt = this.db.prepare(`SELECT * FROM ${table} ORDER BY id ASC LIMIT ? OFFSET ?`);
+    return stmt.all(limit, offset);
   }
 
   columnType(logicalType) {

@@ -13,20 +13,11 @@ const COLUMN_TYPES = {
   timestamp: "TIMESTAMP",
 };
 
-/**
- * Rewrites SQLite-style "?" placeholders into Postgres-style "$1, $2, ..."
- * positional placeholders, so Model.js and the migration runner can stay
- * driver-agnostic and never need to know which placeholder style is active.
- */
 export function toPositionalPlaceholders(sql) {
   let index = 0;
   return sql.replace(/\?/g, () => `$${++index}`);
 }
 
-/**
- * If an INSERT statement has no RETURNING clause, append one so we can
- * hand back an id the same way SqliteAdapter's lastInsertRowid does.
- */
 export function ensureReturningId(sql) {
   const isInsert = /^\s*INSERT\s+INTO/i.test(sql);
   const hasReturning = /RETURNING/i.test(sql);
@@ -67,7 +58,6 @@ export class PostgresAdapter extends DatabaseAdapter {
     this.ensureConnected();
     const finalSql = toPositionalPlaceholders(ensureReturningId(sql));
     const result = await this.pool.query(finalSql, params);
-
     const lastInsertRowid = result.rows[0]?.id;
     return { ...result, lastInsertRowid };
   }
@@ -83,6 +73,21 @@ export class PostgresAdapter extends DatabaseAdapter {
     this.ensureConnected();
     const finalSql = toPositionalPlaceholders(sql);
     const result = await this.pool.query(finalSql, params);
+    return result.rows;
+  }
+
+  async count(table) {
+    this.ensureConnected();
+    const result = await this.pool.query(`SELECT COUNT(*) as count FROM ${table}`);
+    return Number(result.rows[0].count);
+  }
+
+  async paginate(table, limit, offset) {
+    this.ensureConnected();
+    const result = await this.pool.query(
+      `SELECT * FROM ${table} ORDER BY id ASC LIMIT $1 OFFSET $2`,
+      [limit, offset]
+    );
     return result.rows;
   }
 

@@ -1,13 +1,6 @@
 import { MongoClient } from "mongodb";
 import { DatabaseAdapter } from "./DatabaseAdapter.js";
 
-/**
- * MongoAdapter does NOT implement a general SQL engine. Tylix only ever
- * generates a small, fixed set of query shapes (from Model.js and the
- * migration runner). This function recognizes those exact shapes and
- * returns a structured description; anything else throws clearly rather
- * than silently doing the wrong thing.
- */
 export function parseQuery(sql) {
   const trimmed = sql.trim().replace(/\s+/g, " ");
 
@@ -54,9 +47,6 @@ export class MongoAdapter extends DatabaseAdapter {
     this.dbName = database;
     this.client = null;
     this.db = null;
-    // Mongo has no auto-increment; Tylix simulates integer ids with a
-    // per-collection counter so generated code (which expects numeric
-    // ids like SQL databases return) keeps working unchanged.
     this.counters = {};
   }
 
@@ -165,7 +155,6 @@ export class MongoAdapter extends DatabaseAdapter {
     }
 
     if (query.type === "findOne") {
-      // Used by hasMany: "SELECT * FROM comments WHERE post_id = ?"
       return this.db
         .collection(query.table)
         .find({ [query.field]: params[0] }, { projection: { _id: 0 } })
@@ -175,10 +164,23 @@ export class MongoAdapter extends DatabaseAdapter {
     throw new Error(`all() cannot handle query type "${query.type}"`);
   }
 
+  async count(table) {
+    this.ensureConnected();
+    return this.db.collection(table).countDocuments();
+  }
+
+  async paginate(table, limit, offset) {
+    this.ensureConnected();
+    return this.db
+      .collection(table)
+      .find({}, { projection: { _id: 0 } })
+      .sort({ id: 1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray();
+  }
+
   columnType() {
-    // Mongo is schemaless; migrations become no-ops via createTable(),
-    // so this is never actually consulted, but must exist to satisfy
-    // the DatabaseAdapter interface.
     return null;
   }
 }

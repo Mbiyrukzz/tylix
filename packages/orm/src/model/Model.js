@@ -17,6 +17,26 @@ export class Model {
     return adapter.all(`SELECT * FROM ${this.getTable()}`);
   }
 
+  static async paginate({ page = 1, limit = 20 } = {}) {
+    const adapter = ConnectionManager.getAdapter();
+    const safePage = Math.max(1, Math.floor(page));
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
+    const offset = (safePage - 1) * safeLimit;
+
+    const total = await adapter.count(this.getTable());
+    const data = await adapter.paginate(this.getTable(), safeLimit, offset);
+
+    return {
+      data,
+      meta: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
+
   static async find(id) {
     const adapter = ConnectionManager.getAdapter();
     return adapter.get(`SELECT * FROM ${this.getTable()} WHERE id = ?`, [id]);
@@ -83,10 +103,6 @@ export class Model {
     return true;
   }
 
-  /**
-   * Loads the parent row a belongsTo relation points to.
-   * e.g. Comment.belongsTo(row, "post_id", Post) -> the Post row
-   */
   static async belongsTo(row, foreignKey, RelatedModel) {
     if (!row || row[foreignKey] === undefined || row[foreignKey] === null) {
       return null;
@@ -94,10 +110,6 @@ export class Model {
     return RelatedModel.find(row[foreignKey]);
   }
 
-  /**
-   * Loads all child rows pointing at this row via a foreign key.
-   * e.g. Post.hasMany(row, Comment, "post_id") -> array of Comment rows
-   */
   static async hasMany(row, RelatedModel, foreignKey) {
     const adapter = ConnectionManager.getAdapter();
     return adapter.all(

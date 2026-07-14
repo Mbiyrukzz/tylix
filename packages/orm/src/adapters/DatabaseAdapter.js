@@ -1,8 +1,9 @@
 /**
  * Base contract every Tylix database adapter must implement.
- * Concrete adapters (SqliteAdapter, PostgresAdapter, MysqlAdapter...)
- * extend this and implement each method. Model and the migration
- * runner only ever talk to this interface, never to a specific driver.
+ * Concrete adapters (SqliteAdapter, PostgresAdapter, MysqlAdapter,
+ * MongoAdapter...) extend this and implement each method. Model and the
+ * migration runner only ever talk to this interface, never to a specific
+ * driver.
  */
 export class DatabaseAdapter {
   async connect() {
@@ -25,12 +26,22 @@ export class DatabaseAdapter {
     throw new Error("all() not implemented");
   }
 
-  /**
-   * Returns the driver-specific SQL type for a logical Tylix column type.
-   * "increments" is special: it must produce a full auto-incrementing
-   * primary key column definition (fragment includes the column name).
-   */
   columnType(logicalType) {
     throw new Error("columnType() not implemented");
+  }
+
+  /**
+   * Returns the total row/document count for a table/collection.
+   */
+  async count(table) {
+    throw new Error("count() not implemented");
+  }
+
+  /**
+   * Returns a page of rows/documents for a table/collection, ordered by
+   * insertion order (id ascending for SQL, natural order for Mongo).
+   */
+  async paginate(table, limit, offset) {
+    throw new Error("paginate() not implemented");
   }
 }
