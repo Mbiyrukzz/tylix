@@ -28,6 +28,25 @@ test("generates a PostController with CRUD methods and validation calls", async 
   assert.match(content, /res\.status\(422\)\.json\(\{ errors: result\.errors \}\)/);
   assert.match(content, /async update\(req, res\)/);
   assert.match(content, /async destroy\(req, res\)/);
+  assert.doesNotMatch(content, /req\.query\.include/);
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
+
+test("generates a CommentController that supports ?include=post", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "tylix-test-"));
+
+  const blueprint = new Blueprint("Comment")
+    .field("content", "text")
+    .belongsTo("Post");
+
+  const generator = new ControllerGenerator();
+  const outputPath = await generator.generate(blueprint, tmpDir);
+
+  const content = await fs.readFile(outputPath, "utf-8");
+
+  assert.match(content, /if \(req\.query\.include === "post"\)/);
+  assert.match(content, /comment\.post = await Comment\.post\(comment\);/);
 
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
