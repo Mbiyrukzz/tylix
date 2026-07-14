@@ -37,3 +37,16 @@ test("toJSON returns a plain serializable object", () => {
   assert.equal(json.table, "posts");
   assert.equal(json.options.api, true);
 });
+
+test("belongsTo() adds a foreign key field and records relation metadata", () => {
+  const bp = new Blueprint("Comment").belongsTo("Post");
+  assert.equal(bp.fields.length, 1);
+  assert.deepEqual(bp.fields[0], { name: "post_id", type: "integer" });
+  assert.deepEqual(bp.relations, [{ type: "belongsTo", model: "Post", foreignKey: "post_id" }]);
+});
+
+test("belongsTo() accepts a custom foreignKey", () => {
+  const bp = new Blueprint("Comment").belongsTo("Post", { foreignKey: "article_id" });
+  assert.equal(bp.fields[0].name, "article_id");
+  assert.equal(bp.relations[0].foreignKey, "article_id");
+});
