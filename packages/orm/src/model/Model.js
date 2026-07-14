@@ -1,4 +1,5 @@
 import { ConnectionManager } from "./ConnectionManager.js";
+import { QueryBuilder } from "../query/QueryBuilder.js";
 
 export class Model {
   static table = null;
@@ -12,9 +13,21 @@ export class Model {
     return this.table;
   }
 
+  static getAdapter() {
+    return ConnectionManager.getAdapter();
+  }
+
   static async all() {
     const adapter = ConnectionManager.getAdapter();
     return adapter.all(`SELECT * FROM ${this.getTable()}`);
+  }
+
+  /**
+   * Returns a QueryBuilder for fluent filtering:
+   *   await Post.query().where("status", "published").orderBy("created_at", "DESC").get()
+   */
+  static query() {
+    return new QueryBuilder(this);
   }
 
   static async paginate({ page = 1, limit = 20 } = {}) {
