@@ -18,6 +18,26 @@ export class ModelGenerator {
       .join("\n");
   }
 
+  formatRelationMethods(relations = []) {
+    if (relations.length === 0) return "";
+
+    const methods = relations
+      .map((rel) => {
+        if (rel.type === "belongsTo") {
+          const methodName = rel.model.charAt(0).toLowerCase() + rel.model.slice(1);
+          return `
+    static async ${methodName}(row) {
+        const { ${rel.model} } = await import("./${rel.model}.js");
+        return this.belongsTo(row, "${rel.foreignKey}", ${rel.model});
+    }`;
+        }
+        return "";
+      })
+      .join("\n");
+
+    return `\n${methods}\n`;
+  }
+
   async generate(blueprint, outputDir) {
     const template = await fs.readFile(TEMPLATE_PATH, "utf-8");
 
@@ -25,6 +45,7 @@ export class ModelGenerator {
       Model: blueprint.name,
       table: blueprint.tableName,
       fillable: this.formatFillable(blueprint.fields),
+      relationMethods: this.formatRelationMethods(blueprint.relations),
     });
 
     const outputPath = path.join(outputDir, `${blueprint.name}.js`);

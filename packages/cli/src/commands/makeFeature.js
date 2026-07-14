@@ -24,10 +24,7 @@ async function ensureOrmLinked(baseDir) {
   if (alreadyLinked) return;
 
   await fs.mkdir(nodeModulesTylix, { recursive: true });
-
-  // Resolve the real @tylix/orm package location relative to this CLI package
   const ormSourcePath = path.resolve(__dirname, "../../../orm");
-
   await fs.symlink(ormSourcePath, ormLinkPath, "dir");
 }
 
@@ -36,6 +33,12 @@ export async function makeFeature(name, fieldArgs = []) {
 
   for (const arg of fieldArgs) {
     const [fieldName, fieldType = "string", modifier] = arg.split(":");
+
+    if (fieldType === "belongsTo") {
+      blueprint.belongsTo(fieldName);
+      continue;
+    }
+
     const options = modifier === "unique" ? { unique: true } : {};
     blueprint.field(fieldName, fieldType, options);
   }
@@ -52,6 +55,7 @@ export async function makeFeature(name, fieldArgs = []) {
   console.log(`\n✔ Feature "${blueprint.name}" created:\n`);
   console.log(`  Model:      ${path.relative(baseDir, results.model)}`);
   console.log(`  Migration:  ${path.relative(baseDir, results.migration)}`);
+  console.log(`  Validator:  ${path.relative(baseDir, results.validator)}`);
   console.log(`  Controller: ${path.relative(baseDir, results.controller)}`);
   console.log(`  Manifest:   ${path.relative(baseDir, results.manifest)}`);
   console.log();

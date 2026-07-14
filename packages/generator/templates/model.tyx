@@ -16,4 +16,5 @@ export class {{Model}} extends Model {
     static fillable = [
 {{fillable}}
     ];
+{{relationMethods}}
 }
