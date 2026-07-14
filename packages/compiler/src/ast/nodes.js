@@ -1,0 +1,64 @@
+/**
+ * Plain-object AST node factories for the Tylix script grammar.
+ * Every node has a `type` discriminator so the codegen stage (and
+ * later, the Analyzer) can switch on it without instanceof checks.
+ */
+export function PageNode({ props = [], state = [], computed = [], actions = [] }) {
+  return { type: "Page", props, state, computed, actions };
+}
+
+export function PropNode(name, propType) {
+  return { type: "Prop", name, propType };
+}
+
+export function StateNode(name, value) {
+  return { type: "State", name, value };
+}
+
+export function MethodNode(name, params, body) {
+  return { type: "Method", name, params, body };
+}
+
+export function AssignmentExpr(target, value) {
+  return { type: "AssignmentExpression", target, value };
+}
+
+export function BinaryExpr(operator, left, right) {
+  return { type: "BinaryExpression", operator, left, right };
+}
+
+export function Identifier(name) {
+  return { type: "Identifier", name };
+}
+
+export function MemberExpr(object, property) {
+  return { type: "MemberExpression", object, property };
+}
+
+export function Literal(value) {
+  return { type: "Literal", value };
+}
+
+export function ReturnStatement(argument) {
+  return { type: "ReturnStatement", argument };
+}
+
+export function ExpressionStatement(expression) {
+  return { type: "ExpressionStatement", expression };
+}
+
+export function ElementNode(tag, attributes, children) {
+  return { type: "Element", tag, attributes, children };
+}
+
+export function AttributeNode(name, value, dynamic) {
+  return { type: "Attribute", name, value, dynamic };
+}
+
+export function TextNode(value) {
+  return { type: "Text", value };
+}
+
+export function InterpolationNode(expression) {
+  return { type: "Interpolation", expression };
+}
