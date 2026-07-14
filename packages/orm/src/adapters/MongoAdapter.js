@@ -184,3 +184,33 @@ export class MongoAdapter extends DatabaseAdapter {
     return null;
   }
 }
+
+MongoAdapter.prototype.query = async function (table, { wheres = [], orders = [], limitValue, offsetValue } = {}) {
+  this.ensureConnected();
+
+  const filter = {};
+  for (const w of wheres) {
+    if (w.operator === "=") filter[w.field] = w.value;
+    else if (w.operator === "!=") filter[w.field] = { $ne: w.value };
+    else if (w.operator === ">") filter[w.field] = { $gt: w.value };
+    else if (w.operator === "<") filter[w.field] = { $lt: w.value };
+    else if (w.operator === ">=") filter[w.field] = { $gte: w.value };
+    else if (w.operator === "<=") filter[w.field] = { $lte: w.value };
+    else throw new Error(`Unsupported where operator "${w.operator}" for MongoAdapter`);
+  }
+
+  let cursor = this.db.collection(table).find(filter, { projection: { _id: 0 } });
+
+  if (orders.length > 0) {
+    const sort = {};
+    orders.forEach((o) => {
+      sort[o.field] = o.direction.toUpperCase() === "DESC" ? -1 : 1;
+    });
+    cursor = cursor.sort(sort);
+  }
+
+  if (offsetValue !== undefined) cursor = cursor.skip(offsetValue);
+  if (limitValue !== undefined) cursor = cursor.limit(limitValue);
+
+  return cursor.toArray();
+};
