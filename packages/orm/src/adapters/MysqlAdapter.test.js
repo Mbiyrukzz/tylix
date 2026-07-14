@@ -19,3 +19,18 @@ test("ensureConnected throws before connect() is called", async () => {
   const adapter = new MysqlAdapter({ database: "test" });
   await assert.rejects(() => adapter.all("SELECT 1"));
 });
+
+test("toMysqlDateTime converts ISO 8601 strings to MySQL DATETIME format", async () => {
+  const { toMysqlDateTime } = await import("./MysqlAdapter.js");
+  assert.equal(
+    toMysqlDateTime("2026-07-14T03:35:14.083Z"),
+    "2026-07-14 03:35:14"
+  );
+});
+
+test("toMysqlDateTime leaves non-ISO-datetime values untouched", async () => {
+  const { toMysqlDateTime } = await import("./MysqlAdapter.js");
+  assert.equal(toMysqlDateTime("Hello Tylix"), "Hello Tylix");
+  assert.equal(toMysqlDateTime(42), 42);
+  assert.equal(toMysqlDateTime(true), true);
+});

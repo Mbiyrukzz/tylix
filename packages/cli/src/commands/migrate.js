@@ -57,7 +57,7 @@ export async function migrate() {
   await adapter.run(`
     CREATE TABLE IF NOT EXISTS migrations (
       id ${adapter.columnType("increments")},
-      filename TEXT NOT NULL UNIQUE,
+      filename VARCHAR(255) NOT NULL UNIQUE,
       run_at TEXT NOT NULL
     )
   `);

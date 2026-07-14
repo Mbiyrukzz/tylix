@@ -13,6 +13,21 @@ const COLUMN_TYPES = {
   timestamp: "DATETIME",
 };
 
+const ISO_DATETIME_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+/**
+ * MySQL's DATETIME columns reject ISO 8601 strings (the format Model.js
+ * always produces via new Date().toISOString()). Converts them to
+ * MySQL's "YYYY-MM-DD HH:MM:SS" format transparently, so Model.js and
+ * every other adapter can stay driver-agnostic.
+ */
+export function toMysqlDateTime(value) {
+  if (typeof value === "string" && ISO_DATETIME_PATTERN.test(value)) {
+    return value.slice(0, 19).replace("T", " ");
+  }
+  return value;
+}
+
 export class MysqlAdapter extends DatabaseAdapter {
   constructor({ host, port, user, password, database } = {}) {
     super();
@@ -40,20 +55,22 @@ export class MysqlAdapter extends DatabaseAdapter {
 
   async run(sql, params = []) {
     this.ensureConnected();
-    const [result] = await this.connection.execute(sql, params);
-    // mysql2 returns insertId directly on the result object for INSERTs.
+    const converted = params.map(toMysqlDateTime);
+    const [result] = await this.connection.execute(sql, converted);
     return { ...result, lastInsertRowid: result.insertId };
   }
 
   async get(sql, params = []) {
     this.ensureConnected();
-    const [rows] = await this.connection.execute(sql, params);
+    const converted = params.map(toMysqlDateTime);
+    const [rows] = await this.connection.execute(sql, converted);
     return rows[0] ?? null;
   }
 
   async all(sql, params = []) {
     this.ensureConnected();
-    const [rows] = await this.connection.execute(sql, params);
+    const converted = params.map(toMysqlDateTime);
+    const [rows] = await this.connection.execute(sql, converted);
     return rows;
   }
 
