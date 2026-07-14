@@ -1,0 +1,14 @@
+{
+  "name": "@tylix/auth",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
+  },
+  "dependencies": {
+    "@tylix/generator": "*",
+    "@tylix/orm": "*",
+    "@tylix/shared": "*"
+  }
+}
