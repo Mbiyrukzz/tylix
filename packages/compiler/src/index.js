@@ -6,3 +6,6 @@ export * from "./lexer/Lexer.js";
 export * from "./lexer/tokenTypes.js";
 export * from "./ast/nodes.js";
 export * from "./runtime/reactive.js";
+export * from "./codegen/generateExpression.js";
+export * from "./codegen/generateStatement.js";
+export * from "./codegen/generateMethod.js";
