@@ -13,8 +13,11 @@ import { validate{{Model}} } from "../validators/{{Model}}Validator.js";
 
 export class {{Model}}Controller {
     async index(req, res) {
-        const {{modelLower}}s = await {{Model}}.all();
-        return res.json({{modelLower}}s);
+        const page = req.query.page ? parseInt(req.query.page, 10) : 1;
+        const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
+
+        const result = await {{Model}}.paginate({ page, limit });
+        return res.json(result);
     }
 
     async show(req, res) {

@@ -21,7 +21,7 @@ test("generates a PostController with CRUD methods and validation calls", async 
   assert.match(content, /import \{ validatePost \} from "\.\.\/validators\/PostValidator\.js";/);
   assert.match(content, /export class PostController/);
   assert.match(content, /async index\(req, res\)/);
-  assert.match(content, /const posts = await Post\.all\(\);/);
+  assert.match(content, /const result = await Post\.paginate\({ page, limit }\);/);
   assert.match(content, /async show\(req, res\)/);
   assert.match(content, /async store\(req, res\)/);
   assert.match(content, /const result = validatePost\(req\.body\)/);
