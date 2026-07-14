@@ -1,6 +1,7 @@
 import http from "node:http";
 import { enhanceResponse } from "./enhanceResponse.js";
 import { parseBody } from "./parseBody.js";
+import { parseQuery } from "./parseQuery.js";
 
 export class Server {
   constructor(router) {
@@ -18,6 +19,7 @@ export class Server {
       }
 
       req.params = match.params;
+      req.query = parseQuery(req.url);
 
       try {
         req.body = await parseBody(req);

@@ -53,3 +53,21 @@ test("parses JSON body and passes params to handler", async () => {
 
   httpServer.close();
 });
+
+test("parses query string into req.query", async () => {
+  const router = new Router();
+  router.get("/api/comments/:id", (req, res) => {
+    res.json({ id: req.params.id, include: req.query.include ?? null });
+  });
+
+  const server = new Server(router);
+  const httpServer = server.listen(0);
+  const { port } = httpServer.address();
+
+  const response = await fetch(`http://localhost:${port}/api/comments/1?include=post`);
+  const body = await response.json();
+
+  assert.deepEqual(body, { id: "1", include: "post" });
+
+  httpServer.close();
+});
