@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@tylix/shared": "*",
+    "mysql2": "^3.9.0",
     "pg": "^8.11.0"
   }
 }

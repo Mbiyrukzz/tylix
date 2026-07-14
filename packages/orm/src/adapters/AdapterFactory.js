@@ -1,9 +1,11 @@
 import { SqliteAdapter } from "./SqliteAdapter.js";
 import { PostgresAdapter } from "./PostgresAdapter.js";
+import { MysqlAdapter } from "./MysqlAdapter.js";
 
 const ADAPTERS = {
   sqlite: SqliteAdapter,
   postgres: PostgresAdapter,
+  mysql: MysqlAdapter,
 };
 
 export function createAdapter(databaseConfig) {
