@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createAdapter } from "./AdapterFactory.js";
 import { SqliteAdapter } from "./SqliteAdapter.js";
+import { PostgresAdapter } from "./PostgresAdapter.js";
 
 test("creates a SqliteAdapter for driver: sqlite", () => {
   const adapter = createAdapter({ driver: "sqlite", filename: "test.sqlite" });
@@ -14,4 +15,9 @@ test("throws on unknown driver", () => {
     () => createAdapter({ driver: "mongodb" }),
     /Unknown database driver "mongodb"/
   );
+});
+
+test("creates a PostgresAdapter for driver: postgres", () => {
+  const adapter = createAdapter({ driver: "postgres", database: "test" });
+  assert.ok(adapter instanceof PostgresAdapter);
 });

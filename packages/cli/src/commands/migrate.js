@@ -8,8 +8,8 @@ function buildSchema(adapter) {
     createTable: async (tableName, callback) => {
       const columns = [];
 
-      function column(name, sqlType) {
-        const def = { name, sqlType, unique: false };
+      function column(name, logicalType) {
+        const def = { name, logicalType, unique: false };
         columns.push(def);
         return {
           unique: () => {
@@ -19,24 +19,27 @@ function buildSchema(adapter) {
       }
 
       const table = {
-        increments: (name) => column(name, "INTEGER PRIMARY KEY AUTOINCREMENT"),
-        string: (name) => column(name, "TEXT"),
-        text: (name) => column(name, "TEXT"),
-        boolean: (name) => column(name, "INTEGER"),
-        integer: (name) => column(name, "INTEGER"),
-        date: (name) => column(name, "TEXT"),
-        datetime: (name) => column(name, "TEXT"),
-        json: (name) => column(name, "TEXT"),
+        increments: (name) => column(name, "increments"),
+        string: (name) => column(name, "string"),
+        text: (name) => column(name, "text"),
+        boolean: (name) => column(name, "boolean"),
+        integer: (name) => column(name, "integer"),
+        date: (name) => column(name, "date"),
+        datetime: (name) => column(name, "datetime"),
+        json: (name) => column(name, "json"),
         timestamps: () => {
-          columns.push({ name: "created_at", sqlType: "TEXT", unique: false });
-          columns.push({ name: "updated_at", sqlType: "TEXT", unique: false });
+          columns.push({ name: "created_at", logicalType: "timestamp", unique: false });
+          columns.push({ name: "updated_at", logicalType: "timestamp", unique: false });
         },
       };
 
       await callback(table);
 
       const columnSql = columns
-        .map((c) => `${c.name} ${c.sqlType}${c.unique ? " UNIQUE" : ""}`)
+        .map((c) => {
+          const sqlType = adapter.columnType(c.logicalType);
+          return `${c.name} ${sqlType}${c.unique ? " UNIQUE" : ""}`;
+        })
         .join(", ");
 
       await adapter.run(`CREATE TABLE IF NOT EXISTS ${tableName} (${columnSql})`);
@@ -53,7 +56,7 @@ export async function migrate() {
 
   await adapter.run(`
     CREATE TABLE IF NOT EXISTS migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id ${adapter.columnType("increments")},
       filename TEXT NOT NULL UNIQUE,
       run_at TEXT NOT NULL
     )
