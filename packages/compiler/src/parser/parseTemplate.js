@@ -54,8 +54,14 @@ class TemplateParser {
       }
 
       const text = this.parseText();
-      if (text.trim().length > 0) {
-        nodes.push(TextNode(text.trim()));
+      // Collapse whitespace runs (spaces, tabs, newlines from source
+      // formatting) into single spaces, like HTML does. Skip nodes
+      // that are entirely whitespace (e.g. indentation between tags),
+      // but preserve meaningful single spaces adjacent to real text,
+      // like the one between "Hello" and "{{ name }}".
+      const collapsed = text.replace(/\s+/g, " ");
+      if (collapsed.trim().length > 0) {
+        nodes.push(TextNode(collapsed));
       }
     }
 

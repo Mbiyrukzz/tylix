@@ -20,7 +20,7 @@ test("parses text and interpolation mixed in one element", () => {
   const nodes = parseTemplate(`<p>Count: {{ count }}</p>`);
   const p = nodes[0];
   assert.equal(p.children.length, 2);
-  assert.deepEqual(p.children[0], { type: "Text", value: "Count:" });
+  assert.deepEqual(p.children[0], { type: "Text", value: "Count: " });
   assert.equal(p.children[1].type, "Interpolation");
 });
 
@@ -78,4 +78,19 @@ test("throws a clear error on an unclosed tag", () => {
 
 test("throws a clear error on an unterminated interpolation", () => {
   assert.throws(() => parseTemplate(`<div>{{ count </div>`), /Unterminated interpolation/);
+});
+
+test("preserves meaningful whitespace between text and interpolation", () => {
+  const nodes = parseTemplate(`<h1>Hello {{ name }}</h1>`);
+  assert.equal(nodes[0].type, "Element");
+  const [textNode, interpNode] = nodes[0].children;
+  assert.equal(textNode.type, "Text");
+  assert.equal(textNode.value, "Hello ");
+  assert.equal(interpNode.type, "Interpolation");
+});
+
+test("collapses indentation-only whitespace between tags to nothing", () => {
+  const nodes = parseTemplate(`<div>\n  <h1>Hi</h1>\n</div>`);
+  assert.equal(nodes[0].children.length, 1, "pure-whitespace indentation should not become a Text node");
+  assert.equal(nodes[0].children[0].tag, "h1");
 });
