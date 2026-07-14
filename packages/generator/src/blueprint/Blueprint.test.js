@@ -50,3 +50,14 @@ test("belongsTo() accepts a custom foreignKey", () => {
   assert.equal(bp.fields[0].name, "article_id");
   assert.equal(bp.relations[0].foreignKey, "article_id");
 });
+
+test("hasMany() records relation metadata without adding a field", () => {
+  const bp = new Blueprint("Post").hasMany("Comment");
+  assert.equal(bp.fields.length, 0);
+  assert.deepEqual(bp.relations, [{ type: "hasMany", model: "Comment", foreignKey: "post_id" }]);
+});
+
+test("hasMany() accepts a custom foreignKey", () => {
+  const bp = new Blueprint("Post").hasMany("Comment", { foreignKey: "article_id" });
+  assert.equal(bp.relations[0].foreignKey, "article_id");
+});

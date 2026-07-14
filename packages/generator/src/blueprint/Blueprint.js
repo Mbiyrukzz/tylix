@@ -33,6 +33,13 @@ export class Blueprint {
     return this;
   }
 
+  hasMany(modelName, { foreignKey } = {}) {
+    const model = pascalCase(modelName);
+    const fk = foreignKey || `${this.name.toLowerCase()}_id`;
+    this.relations.push({ type: "hasMany", model, foreignKey: fk });
+    return this;
+  }
+
   timestamps() {
     this.options.timestamps = true;
     return this;
