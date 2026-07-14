@@ -5,3 +5,4 @@ export * from "./http/parseBody.js";
 export * from "./discovery/discoverFeatures.js";
 export * from "./discovery/registerFeatureRoutes.js";
 export * from "./http/parseQuery.js";
+export * from "./http/requireAuth.js";
