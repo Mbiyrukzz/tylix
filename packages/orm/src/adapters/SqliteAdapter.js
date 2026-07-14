@@ -1,6 +1,18 @@
 import { DatabaseSync } from "node:sqlite";
 import { DatabaseAdapter } from "./DatabaseAdapter.js";
 
+const COLUMN_TYPES = {
+  increments: "INTEGER PRIMARY KEY AUTOINCREMENT",
+  string: "TEXT",
+  text: "TEXT",
+  boolean: "INTEGER",
+  integer: "INTEGER",
+  date: "TEXT",
+  datetime: "TEXT",
+  json: "TEXT",
+  timestamp: "TEXT",
+};
+
 export class SqliteAdapter extends DatabaseAdapter {
   constructor({ filename = "database.sqlite" } = {}) {
     super();
@@ -42,5 +54,13 @@ export class SqliteAdapter extends DatabaseAdapter {
     this.ensureConnected();
     const stmt = this.db.prepare(sql);
     return stmt.all(...params);
+  }
+
+  columnType(logicalType) {
+    const sql = COLUMN_TYPES[logicalType];
+    if (!sql) {
+      throw new Error(`SqliteAdapter has no mapping for column type "${logicalType}"`);
+    }
+    return sql;
   }
 }
