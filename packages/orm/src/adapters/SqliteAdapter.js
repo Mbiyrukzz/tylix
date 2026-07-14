@@ -1,4 +1,3 @@
-import { DatabaseSync } from "node:sqlite";
 import { DatabaseAdapter } from "./DatabaseAdapter.js";
 
 const COLUMN_TYPES = {
@@ -21,6 +20,10 @@ export class SqliteAdapter extends DatabaseAdapter {
   }
 
   async connect() {
+    // Imported lazily so node:sqlite's experimental warning only fires
+    // when SQLite is actually the active driver, not whenever @tylix/orm
+    // is loaded (e.g. while using Postgres, MySQL, or MongoDB instead).
+    const { DatabaseSync } = await import("node:sqlite");
     this.db = new DatabaseSync(this.filename);
     return this;
   }

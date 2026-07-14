@@ -75,7 +75,7 @@ export async function migrate() {
     .filter((f) => f.endsWith(".js"))
     .sort();
 
-  const alreadyRun = await adapter.all("SELECT filename FROM migrations");
+  const alreadyRun = await adapter.all("SELECT * FROM migrations");
   const alreadyRunSet = new Set(alreadyRun.map((r) => r.filename));
 
   const schema = buildSchema(adapter);
