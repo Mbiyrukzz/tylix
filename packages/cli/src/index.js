@@ -3,6 +3,7 @@ import { makeModel } from "./commands/makeModel.js";
 import { makeMigration } from "./commands/makeMigration.js";
 import { makeController } from "./commands/makeController.js";
 import { makeFeature } from "./commands/makeFeature.js";
+import { makeAuth } from "./commands/makeAuth.js";
 import { migrate } from "./commands/migrate.js";
 import { dev } from "./commands/dev.js";
 
@@ -21,6 +22,11 @@ async function main() {
     return;
   }
 
+  if (command === "make:auth") {
+    await makeAuth();
+    return;
+  }
+
   const [subject, ...fieldArgs] = rest;
   const COMMANDS = {
     "make:model": makeModel,
@@ -32,7 +38,7 @@ async function main() {
   const handler = COMMANDS[command];
   if (!handler) {
     console.error(`Unknown command: ${command}`);
-    console.error(`Available commands: dev, migrate, ${Object.keys(COMMANDS).join(", ")}`);
+    console.error(`Available commands: dev, migrate, make:auth, ${Object.keys(COMMANDS).join(", ")}`);
     process.exit(1);
   }
 

@@ -37,6 +37,7 @@ async function scaffold(projectName) {
     },
     dependencies: {
       "@tylix/cli": `file:${path.join(MONOREPO_ROOT, "packages", "cli")}`,
+      "@tylix/auth": `file:${path.join(MONOREPO_ROOT, "packages", "auth")}`,
       "@tylix/core": `file:${path.join(MONOREPO_ROOT, "packages", "core")}`,
       "@tylix/generator": `file:${path.join(MONOREPO_ROOT, "packages", "generator")}`,
       "@tylix/orm": `file:${path.join(MONOREPO_ROOT, "packages", "orm")}`,
