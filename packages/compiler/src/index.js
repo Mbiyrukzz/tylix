@@ -11,3 +11,4 @@ export * from "./codegen/generateStatement.js";
 export * from "./codegen/generateMethod.js";
 export * from "./codegen/generatePage.js";
 export * from "./codegen/generateTemplate.js";
+export * from "./compileComponent.js";

@@ -4,9 +4,9 @@
   "type": "module",
   "main": "./src/index.js",
   "scripts": {
-    "test": "node --test src/**/*.test.js"
+    "test": "node --test src/*.test.js src/**/*.test.js"
   },
   "devDependencies": {
-    "jsdom": "^29.1.1"
+    "jsdom": "^24.0.0"
   }
 }
