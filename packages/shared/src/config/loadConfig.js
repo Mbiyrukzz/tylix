@@ -7,6 +7,10 @@ const DEFAULT_CONFIG = {
     driver: "sqlite",
     filename: "database.sqlite",
   },
+  auth: {
+    secret: "tylix-dev-secret-change-me",
+    tokenExpiresInSeconds: 60 * 60 * 24 * 7, // 7 days
+  },
 };
 
 export async function loadConfig(cwd = process.cwd()) {
@@ -26,6 +30,10 @@ export async function loadConfig(cwd = process.cwd()) {
     database: {
       ...DEFAULT_CONFIG.database,
       ...(userConfig.database ?? {}),
+    },
+    auth: {
+      ...DEFAULT_CONFIG.auth,
+      ...(userConfig.auth ?? {}),
     },
   };
 }

@@ -33,3 +33,32 @@ test("merges user tylix.config.js over defaults", async () => {
 
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
+
+test("includes default auth config when no tylix.config.js exists", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "tylix-config-test-"));
+  const config = await loadConfig(tmpDir);
+
+  assert.equal(config.auth.secret, "tylix-dev-secret-change-me");
+  assert.equal(config.auth.tokenExpiresInSeconds, 60 * 60 * 24 * 7);
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
+
+test("merges user-provided auth config over defaults", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "tylix-config-test-"));
+
+  await fs.writeFile(
+    path.join(tmpDir, "tylix.config.js"),
+    `export default {
+      auth: {
+        secret: "my-custom-secret",
+      },
+    };`
+  );
+
+  const config = await loadConfig(tmpDir);
+  assert.equal(config.auth.secret, "my-custom-secret");
+  assert.equal(config.auth.tokenExpiresInSeconds, 60 * 60 * 24 * 7);
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
