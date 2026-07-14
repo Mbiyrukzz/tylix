@@ -46,3 +46,22 @@ test("generates a belongsTo relation method for Comment -> Post", async () => {
 
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
+
+test("generates a hasMany relation method for Post -> Comment", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "tylix-test-"));
+
+  const blueprint = new Blueprint("Post")
+    .field("title", "string")
+    .hasMany("Comment");
+
+  const generator = new ModelGenerator();
+  const outputPath = await generator.generate(blueprint, tmpDir);
+
+  const content = await fs.readFile(outputPath, "utf-8");
+
+  assert.match(content, /export class Post extends Model/);
+  assert.match(content, /static async comments\(row\)/);
+  assert.match(content, /return this\.hasMany\(row, Comment, "post_id"\);/);
+
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});

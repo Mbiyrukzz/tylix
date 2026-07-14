@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFile } from "@tylix/shared";
+import { writeFile, pluralize } from "@tylix/shared";
 import { TemplateEngine } from "../templates/TemplateEngine.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -31,6 +31,17 @@ export class ModelGenerator {
         return this.belongsTo(row, "${rel.foreignKey}", ${rel.model});
     }`;
         }
+
+        if (rel.type === "hasMany") {
+          const relatedLower = rel.model.charAt(0).toLowerCase() + rel.model.slice(1);
+          const methodName = pluralize(relatedLower);
+          return `
+    static async ${methodName}(row) {
+        const { ${rel.model} } = await import("./${rel.model}.js");
+        return this.hasMany(row, ${rel.model}, "${rel.foreignKey}");
+    }`;
+        }
+
         return "";
       })
       .join("\n");
