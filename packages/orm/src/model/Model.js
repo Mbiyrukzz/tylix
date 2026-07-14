@@ -82,4 +82,27 @@ export class Model {
     await adapter.run(`DELETE FROM ${this.getTable()} WHERE id = ?`, [id]);
     return true;
   }
+
+  /**
+   * Loads the parent row a belongsTo relation points to.
+   * e.g. Comment.belongsTo(row, "post_id", Post) -> the Post row
+   */
+  static async belongsTo(row, foreignKey, RelatedModel) {
+    if (!row || row[foreignKey] === undefined || row[foreignKey] === null) {
+      return null;
+    }
+    return RelatedModel.find(row[foreignKey]);
+  }
+
+  /**
+   * Loads all child rows pointing at this row via a foreign key.
+   * e.g. Post.hasMany(row, Comment, "post_id") -> array of Comment rows
+   */
+  static async hasMany(row, RelatedModel, foreignKey) {
+    const adapter = ConnectionManager.getAdapter();
+    return adapter.all(
+      `SELECT * FROM ${RelatedModel.getTable()} WHERE ${foreignKey} = ?`,
+      [row.id]
+    );
+  }
 }
