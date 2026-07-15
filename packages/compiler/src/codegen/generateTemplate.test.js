@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { generateTemplate } from "./generateTemplate.js";
 import { parseTemplate } from "../parser/parseTemplate.js";
+import { compileComponent } from "../compileComponent.js";
 import { reactive, effect } from "../runtime/reactive.js";
 
 function renderToDom(templateSource, instance) {
@@ -100,4 +101,31 @@ test("throws a clear error for a non-{{}} event attribute", () => {
     () => generateTemplate(parseTemplate(`<button onclick="doStuff">Go</button>`)),
     /must use \{\{ \}\} binding/
   );
+});
+
+test("compiles a capitalized tag as a component reference, not an HTML element", () => {
+  const badgeSource = `
+<template>
+<span class="badge">Verified</span>
+</template>
+`;
+  const Badge = compileComponent(badgeSource, "Badge");
+
+  const nodes = parseTemplate(`<div><Badge /></div>`);
+  const { code, rootVar } = generateTemplate(nodes);
+
+  const dom = new JSDOM();
+  const { document } = dom.window;
+
+  const fn = new Function(
+    "document",
+    "effect",
+    "instance",
+    "components",
+    `${code}\nreturn ${rootVar};`
+  );
+
+  const rootNode = fn(document, () => {}, {}, { Badge });
+  const badgeSpan = rootNode.querySelector("span.badge");
+  assert.equal(badgeSpan.textContent, "Verified");
 });

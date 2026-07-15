@@ -56,7 +56,17 @@ function compileNode(node, lines) {
   throw new Error(`generateTemplate: unknown node type "${node.type}"`);
 }
 
+const COMPONENT_TAG_PATTERN = /^[A-Z]/;
+
+function isComponentTag(tag) {
+  return COMPONENT_TAG_PATTERN.test(tag);
+}
+
 function compileElement(node, lines) {
+  if (isComponentTag(node.tag)) {
+    return compileComponentReference(node, lines);
+  }
+
   const varName = nextVar("el");
   lines.push(`const ${varName} = document.createElement(${JSON.stringify(node.tag)});`);
 
@@ -69,6 +79,19 @@ function compileElement(node, lines) {
     lines.push(`${varName}.appendChild(${childVar});`);
   }
 
+  return varName;
+}
+
+// A capitalized tag (<Counter />) is a reference to another compiled
+// component, looked up by name in the `components` map passed into
+// the render function's scope. Mounting it returns its root DOM node,
+// which is inserted here exactly like any other child.
+function compileComponentReference(node, lines) {
+  const varName = nextVar("component");
+  const componentName = JSON.stringify(node.tag);
+  lines.push(
+    `const ${varName} = components[${componentName}].mount(document).node;`
+  );
   return varName;
 }
 
