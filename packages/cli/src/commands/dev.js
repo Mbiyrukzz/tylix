@@ -9,6 +9,7 @@ import {
   requireAuth,
 } from "@tylix/core";
 import { renderPageDocument } from "@tylix/compiler";
+import { watchDirectoryTree, createHmrChannel, HMR_CLIENT_SCRIPT } from "../hotReload.js";
 import { loadConfig } from "@tylix/shared";
 import { bootstrapDatabase } from "../bootstrap.js";
 
@@ -30,6 +31,10 @@ async function registerAuthRoutes(router, baseDir, authConfig) {
   return true;
 }
 
+function injectHmrScript(html) {
+  return html.replace("</body>", `${HMR_CLIENT_SCRIPT}</body>`);
+}
+
 async function registerPageRoutes(router, baseDir) {
   const pagesDir = path.join(baseDir, "app", "pages");
   const exists = await fs.access(pagesDir).then(() => true).catch(() => false);
@@ -38,22 +43,28 @@ async function registerPageRoutes(router, baseDir) {
   const files = (await fs.readdir(pagesDir)).filter((f) => f.endsWith(".tyx"));
   const registered = [];
 
+  // Dev mode always recompiles from source on each request, rather
+  // than caching the compiled HTML at startup, so file edits are
+  // reflected immediately once combined with the HMR reload signal.
+  async function renderFile(file) {
+    const source = await fs.readFile(path.join(pagesDir, file), "utf-8");
+    return injectHmrScript(renderPageDocument(source));
+  }
+
   for (const file of files) {
     const name = file.replace(/\.tyx$/, "");
-    const source = await fs.readFile(path.join(pagesDir, file), "utf-8");
-    const html = renderPageDocument(source);
-
     const routePath = `/${name.toLowerCase()}`;
-    router.get(routePath, (req, res) => {
+
+    router.get(routePath, async (req, res) => {
       res.setHeader("Content-Type", "text/html");
-      res.end(html);
+      res.end(await renderFile(file));
     });
     registered.push(routePath);
 
     if (registered.length === 1) {
-      router.get("/", (req, res) => {
+      router.get("/", async (req, res) => {
         res.setHeader("Content-Type", "text/html");
-        res.end(html);
+        res.end(await renderFile(file));
       });
     }
   }
@@ -117,6 +128,11 @@ export async function dev({ port = 3000 } = {}) {
 
   const authEnabled = await registerAuthRoutes(router, baseDir, config.auth);
   const pageRoutes = await registerPageRoutes(router, baseDir);
+
+  const hmr = createHmrChannel(router);
+  const watchedDirs = ["pages", "controllers", "models", "validators", "Features"]
+    .map((d) => path.join(baseDir, "app", d));
+  const watchers = watchedDirs.map((dir) => watchDirectoryTree(dir, () => hmr.notify()));
 
   if (pageRoutes.length === 0 && features.length === 0) {
     router.get("/", (req, res) => {
