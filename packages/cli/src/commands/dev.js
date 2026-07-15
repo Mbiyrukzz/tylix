@@ -41,7 +41,7 @@ async function registerPageRoutes(router, baseDir) {
   for (const file of files) {
     const name = file.replace(/\.tyx$/, "");
     const source = await fs.readFile(path.join(pagesDir, file), "utf-8");
-    const html = renderPageDocument(source, { title: name, className: name });
+    const html = renderPageDocument(source);
 
     const routePath = `/${name.toLowerCase()}`;
     router.get(routePath, (req, res) => {
@@ -50,7 +50,6 @@ async function registerPageRoutes(router, baseDir) {
     });
     registered.push(routePath);
 
-    // The first page discovered also becomes the site's index route.
     if (registered.length === 1) {
       router.get("/", (req, res) => {
         res.setHeader("Content-Type", "text/html");
@@ -60,6 +59,50 @@ async function registerPageRoutes(router, baseDir) {
   }
 
   return registered;
+}
+
+const DRIVER_LABELS = {
+  sqlite: "SQLite",
+  postgres: "PostgreSQL",
+  mysql: "MySQL",
+  mongodb: "MongoDB",
+};
+
+function printBanner({ port, driver, featureCount, pageCount, featureRoutes, pageRoutes, authEnabled }) {
+  const line = "─".repeat(39);
+  console.log(`\n${line}`);
+  console.log("        Tylix Framework v0.1");
+  console.log(`${line}\n`);
+  console.log(`Environment   development`);
+  console.log(`Server        http://localhost:${port}`);
+  console.log(`Database      ${DRIVER_LABELS[driver] ?? driver}`);
+  console.log(`Compiler      Ready`);
+  console.log(`ORM           Ready`);
+  console.log(`Features      ${featureCount}`);
+  console.log(`Pages         ${pageCount}`);
+  console.log(`\nRoutes\n`);
+
+  if (pageRoutes.length > 0) {
+    console.log(`  GET   /`);
+  }
+  for (const route of pageRoutes) {
+    console.log(`  GET   ${route}`);
+  }
+  for (const route of featureRoutes) {
+    console.log(`  GET     /api/${route.table}`);
+    console.log(`  POST    /api/${route.table}`);
+    console.log(`  GET     /api/${route.table}/:id`);
+    console.log(`  PUT     /api/${route.table}/:id`);
+    console.log(`  DELETE  /api/${route.table}/:id`);
+  }
+  if (authEnabled) {
+    console.log(`  POST    /api/register`);
+    console.log(`  POST    /api/login`);
+    console.log(`  GET     /api/me`);
+  }
+
+  console.log(`\nWatching...\n`);
+  console.log(`${line}\n`);
 }
 
 export async function dev({ port = 3000 } = {}) {
@@ -75,11 +118,11 @@ export async function dev({ port = 3000 } = {}) {
   const authEnabled = await registerAuthRoutes(router, baseDir, config.auth);
   const pageRoutes = await registerPageRoutes(router, baseDir);
 
-  if (pageRoutes.length === 0) {
+  if (pageRoutes.length === 0 && features.length === 0) {
     router.get("/", (req, res) => {
       res.json({
         message: "Tylix dev server running",
-        features: features.map((f) => f.manifest.name),
+        features: [],
         auth: authEnabled ? ["/api/register", "/api/login", "/api/me"] : [],
       });
     });
@@ -87,17 +130,14 @@ export async function dev({ port = 3000 } = {}) {
 
   const server = new Server(router);
   server.listen(port, () => {
-    console.log(`\n✔ Tylix dev server running at http://localhost:${port}\n`);
-    console.log(`Registered features: ${features.map((f) => f.manifest.name).join(", ") || "(none)"}`);
-    for (const { manifest } of features) {
-      console.log(`  /api/${manifest.table} -> ${manifest.controller}`);
-    }
-    if (authEnabled) {
-      console.log(`  /api/register, /api/login, /api/me -> AuthController`);
-    }
-    for (const route of pageRoutes) {
-      console.log(`  ${route} -> compiled .tyx page`);
-    }
-    console.log();
+    printBanner({
+      port,
+      driver: config.database.driver,
+      featureCount: features.length,
+      pageCount: pageRoutes.length,
+      featureRoutes: features.map((f) => ({ table: f.manifest.table })),
+      pageRoutes,
+      authEnabled,
+    });
   });
 }

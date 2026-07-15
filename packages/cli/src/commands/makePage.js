@@ -1,35 +1,30 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const STARTER_TEMPLATE = (name) => `<script>
-state {
-  count: 0
-}
+const STARTER_TEMPLATE = (name) => `page ${name}
 
-computed {
+state
+  count: 0
+
+computed
   doubled() {
     return this.count * 2
   }
-}
 
-action {
+action
   increment() {
     this.count = this.count + 1
   }
-}
-</script>
 
-<template>
-<div>
-  <h1>${name}</h1>
-  <p>Count: {{ count }}, doubled: {{ doubled }}</p>
-  <button onclick="{{ increment }}">+1</button>
-</div>
-</template>
+template
+  <div>
+    <h1>${name}</h1>
+    <p>Count: {{ count }}, doubled: {{ doubled }}</p>
+    <button onclick="{{ increment }}">+1</button>
+  </div>
 
-<style>
-h1 { font-family: sans-serif; }
-</style>
+style
+  h1 { font-family: sans-serif; }
 `;
 
 export async function makePage(name) {
