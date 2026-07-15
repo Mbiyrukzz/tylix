@@ -15,6 +15,7 @@ import {
   AwaitExpr,
   VariableDeclaration,
   ObjectExpr,
+  ArrayExpr,
 } from "../ast/nodes.js";
 
 const BINARY_OPS = new Set([
@@ -149,17 +150,12 @@ export class Parser {
   parseStateEntry() {
     const name = this.expect(TokenType.IDENTIFIER, "Expected state name").value;
     this.expect(TokenType.COLON, "Expected ':' after state name");
-    const value = this.parseLiteral();
+    // State initializers were originally restricted to scalar literals,
+    // but real pages need array/object initial values (e.g. `products: []`),
+    // so this now accepts any primary expression -- still not the full
+    // statement grammar, just literals/arrays/objects/identifiers.
+    const value = this.parsePrimary();
     return StateNode(name, value);
-  }
-
-  parseLiteral() {
-    if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
-      return Literal(this.advance().value);
-    }
-    throw new Error(
-      `Expected a literal value at line ${this.peek().line}, got ${this.peek().type}`
-    );
   }
 
   parseMethod() {
@@ -276,9 +272,23 @@ export class Parser {
     if (this.match(TokenType.LBRACE)) {
       return this.parseObjectLiteral();
     }
+    if (this.match(TokenType.LBRACKET)) {
+      return this.parseArrayLiteral();
+    }
     throw new Error(
       `Unexpected token ${this.peek().type} at line ${this.peek().line}`
     );
+  }
+
+  // Consumes `[ expr, expr ]` -- LBRACKET already consumed by the caller.
+  parseArrayLiteral() {
+    const elements = [];
+    while (!this.check(TokenType.RBRACKET)) {
+      elements.push(this.parseExpression());
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACKET, "Expected ']' to close array literal");
+    return ArrayExpr(elements);
   }
 
   // Consumes `{ key: value, key: value }` -- LBRACE already consumed

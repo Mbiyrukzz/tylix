@@ -87,3 +87,7 @@ export function ObjectExpr(properties) {
   // properties: [{ key, value }]
   return { type: "ObjectExpression", properties };
 }
+
+export function ArrayExpr(elements) {
+  return { type: "ArrayExpression", elements };
+}

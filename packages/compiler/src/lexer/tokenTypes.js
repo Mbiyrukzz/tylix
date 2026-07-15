@@ -25,6 +25,8 @@ export const TokenType = {
   EQUALS: "EQUALS", // =
   SEMICOLON: "SEMICOLON", // ;
   DOT: "DOT", // .
+  LBRACKET: "LBRACKET", // [
+  RBRACKET: "RBRACKET", // ]
   ARROW: "ARROW", // =>
   RETURN: "RETURN",
   ASYNC: "ASYNC",

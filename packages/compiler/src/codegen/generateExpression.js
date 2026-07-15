@@ -36,6 +36,11 @@ export function generateExpression(node) {
       return `{ ${props} }`;
     }
 
+    case "ArrayExpression": {
+      const elements = node.elements.map((e) => generateExpression(e)).join(", ");
+      return `[${elements}]`;
+    }
+
     default:
       throw new Error(`generateExpression: unknown node type "${node.type}"`);
   }

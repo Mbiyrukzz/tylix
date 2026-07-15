@@ -13,6 +13,8 @@ const SINGLE_CHAR_TOKENS = {
   '/': TokenType.SLASH,
   '>': TokenType.GT,
   '<': TokenType.LT,
+  '[': TokenType.LBRACKET,
+  ']': TokenType.RBRACKET,
 }
 
 /**
