@@ -14,6 +14,17 @@ export function generateStatement(node) {
     case "VariableDeclaration":
       return `${node.kind} ${node.name} = ${generateExpression(node.init)};`;
 
+    case "IfStatement": {
+      const cond = generateExpression(node.condition);
+      const body = node.consequent.map((s) => `    ${generateStatement(s)}`).join("\n");
+      let out = `if (${cond}) {\n${body}\n  }`;
+      if (node.alternate) {
+        const elseBody = node.alternate.map((s) => `    ${generateStatement(s)}`).join("\n");
+        out += ` else {\n${elseBody}\n  }`;
+      }
+      return out;
+    }
+
     default:
       throw new Error(`generateStatement: unknown node type "${node.type}"`);
   }

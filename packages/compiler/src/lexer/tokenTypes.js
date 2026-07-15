@@ -32,6 +32,8 @@ export const TokenType = {
   ASYNC: "ASYNC",
   AWAIT: "AWAIT",
   CONST: "CONST",
+  IF: "IF",
+  ELSE: "ELSE",
   LET: "LET",
   PLUS: "PLUS",
   MINUS: "MINUS",
@@ -62,5 +64,7 @@ export const KEYWORDS = {
   async: TokenType.ASYNC,
   await: TokenType.AWAIT,
   const: TokenType.CONST,
+  if: TokenType.IF,
+  else: TokenType.ELSE,
   let: TokenType.LET,
 };

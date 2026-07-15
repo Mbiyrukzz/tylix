@@ -16,6 +16,7 @@ import {
   VariableDeclaration,
   ObjectExpr,
   ArrayExpr,
+  IfStatement,
 } from "../ast/nodes.js";
 
 const BINARY_OPS = new Set([
@@ -190,6 +191,33 @@ export class Parser {
       const argument = this.parseExpression();
       this.match(TokenType.SEMICOLON);
       return ReturnStatement(argument);
+    }
+    if (this.match(TokenType.IF)) {
+      this.expect(TokenType.LPAREN, "Expected '(' after if");
+      const condition = this.parseExpression();
+      this.expect(TokenType.RPAREN, "Expected ')' after if condition");
+      this.expect(TokenType.LBRACE, "Expected '{' to start if body");
+      const consequent = [];
+      while (!this.check(TokenType.RBRACE)) {
+        consequent.push(this.parseStatement());
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close if body");
+
+      let alternate = null;
+      if (this.match(TokenType.ELSE)) {
+        if (this.check(TokenType.IF)) {
+          alternate = [this.parseStatement()];
+        } else {
+          this.expect(TokenType.LBRACE, "Expected '{' to start else body");
+          alternate = [];
+          while (!this.check(TokenType.RBRACE)) {
+            alternate.push(this.parseStatement());
+          }
+          this.expect(TokenType.RBRACE, "Expected '}' to close else body");
+        }
+      }
+
+      return IfStatement(condition, consequent, alternate);
     }
     if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
       const kind = this.advance().type === TokenType.CONST ? "const" : "let";

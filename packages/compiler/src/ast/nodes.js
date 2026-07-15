@@ -91,3 +91,7 @@ export function ObjectExpr(properties) {
 export function ArrayExpr(elements) {
   return { type: "ArrayExpression", elements };
 }
+
+export function IfStatement(condition, consequent, alternate) {
+  return { type: "IfStatement", condition, consequent, alternate };
+}
