@@ -177,7 +177,9 @@ export async function dev({ port = 3000 } = {}) {
     });
   }
 
-  const server = new Server(router);
+  const server = new Server(router, {
+    notFoundHandler: (req, res) => serveStaticAsset(req, res, baseDir),
+  });
   server.listen(port, () => {
     printBanner({
       port,
