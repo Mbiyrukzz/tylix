@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Blueprint, FeatureGenerator } from "@tylix/generator";
+import { Blueprint, FeatureGenerator, DashboardGenerator } from "@tylix/generator";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MONOREPO_PACKAGES = path.resolve(__dirname, "../../..");
@@ -33,7 +33,7 @@ async function ensureTylixPackagesLinked(baseDir) {
   }
 }
 
-export async function makeFeature(name, fieldArgs = []) {
+export async function makeFeature(name, fieldArgs = [], { dashboard = false } = {}) {
   const blueprint = new Blueprint(name);
 
   for (const arg of fieldArgs) {
@@ -55,6 +55,7 @@ export async function makeFeature(name, fieldArgs = []) {
   }
 
   blueprint.timestamps().api().crud();
+  if (dashboard) blueprint.dashboard();
 
   const baseDir = process.cwd();
   await ensurePackageJson(baseDir);
@@ -69,5 +70,12 @@ export async function makeFeature(name, fieldArgs = []) {
   console.log(`  Validator:  ${path.relative(baseDir, results.validator)}`);
   console.log(`  Controller: ${path.relative(baseDir, results.controller)}`);
   console.log(`  Manifest:   ${path.relative(baseDir, results.manifest)}`);
+
+  if (blueprint.options.dashboard) {
+    const dashGen = new DashboardGenerator();
+    const dashPath = await dashGen.generate(blueprint, baseDir);
+    console.log(`  Dashboard:  ${path.relative(baseDir, dashPath)}`);
+  }
+
   console.log();
 }

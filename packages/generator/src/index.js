@@ -5,3 +5,4 @@ export * from "./generators/MigrationGenerator.js";
 export * from "./generators/ControllerGenerator.js";
 export * from "./generators/FeatureGenerator.js";
 export * from "./generators/ValidatorGenerator.js";
+export * from "./generators/DashboardGenerator.js";

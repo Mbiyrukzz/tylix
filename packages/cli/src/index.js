@@ -38,7 +38,13 @@ async function main() {
     return;
   }
 
-  const [subject, ...fieldArgs] = rest;
+  // --dashboard is a flag, not a field:type argument -- pull it out
+  // before splitting subject/fields so it doesn't get misparsed as a
+  // field definition by makeFeature's field-arg loop.
+  const dashboard = rest.includes("--dashboard");
+  const positional = rest.filter((a) => a !== "--dashboard");
+
+  const [subject, ...fieldArgs] = positional;
   const COMMANDS = {
     "make:model": makeModel,
     "make:migration": makeMigration,
@@ -58,7 +64,11 @@ async function main() {
     process.exit(1);
   }
 
-  await handler(subject, fieldArgs);
+  if (command === "make:feature") {
+    await handler(subject, fieldArgs, { dashboard });
+  } else {
+    await handler(subject, fieldArgs);
+  }
 }
 
 main().catch((err) => {
