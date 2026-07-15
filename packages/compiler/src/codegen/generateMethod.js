@@ -8,5 +8,6 @@ import { generateStatement } from "./generateStatement.js";
 export function generateMethod(node) {
   const params = node.params.join(", ");
   const body = node.body.map((stmt) => `    ${generateStatement(stmt)}`).join("\n");
-  return `  ${node.name}(${params}) {\n${body}\n  }`;
+  const asyncPrefix = node.isAsync ? "async " : "";
+  return `  ${asyncPrefix}${node.name}(${params}) {\n${body}\n  }`;
 }

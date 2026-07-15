@@ -26,6 +26,16 @@ export function generateExpression(node) {
       return `${generateExpression(node.callee)}(${args})`;
     }
 
+    case "AwaitExpression":
+      return `await ${generateExpression(node.argument)}`;
+
+    case "ObjectExpression": {
+      const props = node.properties
+        .map((p) => `${JSON.stringify(p.key)}: ${generateExpression(p.value)}`)
+        .join(", ");
+      return `{ ${props} }`;
+    }
+
     default:
       throw new Error(`generateExpression: unknown node type "${node.type}"`);
   }

@@ -74,3 +74,16 @@ export function EachNode(itemName, iterable, children) {
 export function CallExpr(callee, args) {
   return { type: "CallExpression", callee, args };
 }
+
+export function AwaitExpr(argument) {
+  return { type: "AwaitExpression", argument };
+}
+
+export function VariableDeclaration(kind, name, init) {
+  return { type: "VariableDeclaration", kind, name, init };
+}
+
+export function ObjectExpr(properties) {
+  // properties: [{ key, value }]
+  return { type: "ObjectExpression", properties };
+}

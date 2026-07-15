@@ -26,6 +26,10 @@ export const TokenType = {
   DOT: "DOT", // .
   ARROW: "ARROW", // =>
   RETURN: "RETURN",
+  ASYNC: "ASYNC",
+  AWAIT: "AWAIT",
+  CONST: "CONST",
+  LET: "LET",
   PLUS: "PLUS",
   MINUS: "MINUS",
   STAR: "STAR",
@@ -51,4 +55,8 @@ export const KEYWORDS = {
   template: TokenType.TEMPLATE,
   props: TokenType.PROPS,
   return: TokenType.RETURN,
+  async: TokenType.ASYNC,
+  await: TokenType.AWAIT,
+  const: TokenType.CONST,
+  let: TokenType.LET,
 };

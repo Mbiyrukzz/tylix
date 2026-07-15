@@ -11,6 +11,9 @@ export function generateStatement(node) {
     case "ExpressionStatement":
       return `${generateExpression(node.expression)};`;
 
+    case "VariableDeclaration":
+      return `${node.kind} ${node.name} = ${generateExpression(node.init)};`;
+
     default:
       throw new Error(`generateStatement: unknown node type "${node.type}"`);
   }

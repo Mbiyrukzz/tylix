@@ -12,6 +12,9 @@ import {
   ReturnStatement,
   ExpressionStatement,
   CallExpr,
+  AwaitExpr,
+  VariableDeclaration,
+  ObjectExpr,
 } from "../ast/nodes.js";
 
 const BINARY_OPS = new Set([
@@ -137,6 +140,7 @@ export class Parser {
   }
 
   parseMethod() {
+    const isAsync = this.match(TokenType.ASYNC);
     const name = this.expect(TokenType.IDENTIFIER, "Expected method name").value;
     this.expect(TokenType.LPAREN, "Expected '(' after method name");
     const params = [];
@@ -153,7 +157,7 @@ export class Parser {
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close method body");
 
-    return MethodNode(name, params, body);
+    return { ...MethodNode(name, params, body), isAsync };
   }
 
   parseStatement() {
@@ -161,6 +165,14 @@ export class Parser {
       const argument = this.parseExpression();
       this.match(TokenType.SEMICOLON);
       return ReturnStatement(argument);
+    }
+    if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
+      const kind = this.advance().type === TokenType.CONST ? "const" : "let";
+      const name = this.expect(TokenType.IDENTIFIER, "Expected variable name").value;
+      this.expect(TokenType.EQUALS, "Expected '=' in variable declaration");
+      const init = this.parseExpression();
+      this.match(TokenType.SEMICOLON);
+      return VariableDeclaration(kind, name, init);
     }
     const expression = this.parseExpression();
     this.match(TokenType.SEMICOLON);
@@ -177,13 +189,20 @@ export class Parser {
   }
 
   parseBinaryChain() {
-    let left = this.parseMemberExpression();
+    let left = this.parseUnary();
     while (BINARY_OPS.has(this.peek().type)) {
       const operator = OP_SYMBOLS[this.advance().type];
-      const right = this.parseMemberExpression();
+      const right = this.parseUnary();
       left = BinaryExpr(operator, left, right);
     }
     return left;
+  }
+
+  parseUnary() {
+    if (this.match(TokenType.AWAIT)) {
+      return AwaitExpr(this.parseUnary());
+    }
+    return this.parseMemberExpression();
   }
 
   parseMemberExpression() {
@@ -231,9 +250,29 @@ export class Parser {
       this.expect(TokenType.RPAREN, "Expected ')' to close grouped expression");
       return expr;
     }
+    if (this.match(TokenType.LBRACE)) {
+      return this.parseObjectLiteral();
+    }
     throw new Error(
       `Unexpected token ${this.peek().type} at line ${this.peek().line}`
     );
+  }
+
+  // Consumes `{ key: value, key: value }` -- LBRACE already consumed
+  // by the caller before this is invoked.
+  parseObjectLiteral() {
+    const properties = [];
+    while (!this.check(TokenType.RBRACE)) {
+      const key = this.check(TokenType.STRING)
+        ? this.advance().value
+        : this.expect(TokenType.IDENTIFIER, "Expected object key").value;
+      this.expect(TokenType.COLON, "Expected ':' after object key");
+      const value = this.parseExpression();
+      properties.push({ key, value });
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close object literal");
+    return ObjectExpr(properties);
   }
 
   // --- token stream helpers ---
