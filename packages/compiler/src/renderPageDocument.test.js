@@ -71,3 +71,28 @@ test("supports a page with no script section at all", async () => {
   const dom = await loadDocument(html);
   assert.equal(dom.window.document.querySelector("#app p").textContent, "Just static markup");
 });
+
+test("renders a page that nests a child component via <TagName />", async () => {
+  const badgeSource = `
+<template>
+<span class="badge">Verified</span>
+</template>
+`;
+
+  const pageSource = `
+page Profile
+
+template
+  <div>
+    <h1>Ada Lovelace</h1>
+    <Badge />
+  </div>
+`;
+
+  const html = renderPageDocument(pageSource, { Badge: badgeSource });
+  const dom = await loadDocument(html);
+  const { document } = dom.window;
+
+  assert.equal(document.querySelector("#app h1").textContent, "Ada Lovelace");
+  assert.equal(document.querySelector("#app .badge").textContent, "Verified");
+});

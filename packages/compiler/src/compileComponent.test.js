@@ -93,3 +93,29 @@ action {
   button.dispatchEvent(new dom.window.Event("click"));
   assert.equal(span.textContent, "8");
 });
+
+test("mounts a component that nests another compiled component", () => {
+  const badgeSource = `
+<template>
+<span class="badge">Verified</span>
+</template>
+`;
+  const Badge = compileComponent(badgeSource, "Badge");
+
+  const profileSource = `
+<template>
+<div>
+  <h1>Ada Lovelace</h1>
+  <Badge />
+</div>
+</template>
+`;
+  const Profile = compileComponent(profileSource, "Profile");
+
+  const dom = new JSDOM();
+  const { node } = Profile.mount(dom.window.document, { Badge });
+
+  const badgeSpan = node.querySelector(".badge");
+  assert.equal(badgeSpan.textContent, "Verified");
+  assert.equal(node.querySelector("h1").textContent, "Ada Lovelace");
+});

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parsePageFile } from "./parser/parsePageFile.js";
+import { parseComponent } from "./parser/parseComponent.js";
 import { parseTemplate } from "./parser/parseTemplate.js";
 import { Lexer } from "./lexer/Lexer.js";
 import { Parser } from "./parser/Parser.js";
@@ -13,13 +14,29 @@ const RUNTIME_SOURCE = fs
   .readFileSync(path.join(__dirname, "runtime", "reactive.js"), "utf-8")
   .replace(/export\s+/g, "");
 
+function compileComponentSource(source, className) {
+  const { script, template } = parseComponent(source);
+
+  const pageNode = script.trim().length > 0
+    ? new Parser(new Lexer(script).tokenize()).parse()
+    : { props: [], state: [], computed: [], actions: [] };
+
+  const classSource = generatePage(pageNode, className);
+  const templateNodes = parseTemplate(template);
+  const { code, rootVar } = generateTemplate(templateNodes);
+
+  return { classSource, code, rootVar };
+}
+
 /**
- * Compiles a native Tylix .tyx page file (page/state/computed/action/
- * template/style keywords, no wrapper tags) into a complete,
- * self-contained HTML document string. The page name from `page Home`
- * becomes both the document title and the generated class name.
+ * Compiles a native Tylix .tyx page file into a complete, self-
+ * contained HTML document string. `childComponents` is an optional
+ * map of { TagName: rawTyxSource } for any <TagName /> components
+ * referenced in the page's template (using the plain <script>/
+ * <template> component format, not the page/state/action format,
+ * since child components are typically simpler reusable pieces).
  */
-export function renderPageDocument(source) {
+export function renderPageDocument(source, childComponents = {}) {
   const { pageName, script, template, style } = parsePageFile(source);
 
   const pageNode = script.trim().length > 0
@@ -31,17 +48,45 @@ export function renderPageDocument(source) {
   const templateNodes = parseTemplate(template);
   const { code, rootVar } = generateTemplate(templateNodes);
 
+  const childNames = Object.keys(childComponents);
+  const childClassSources = childNames
+    .map((name) => compileComponentSource(childComponents[name], name).classSource)
+    .join("\n\n");
+
+  const childRegistrations = childNames
+    .map((name) => {
+      const { code: childCode, rootVar: childRootVar } = compileComponentSource(
+        childComponents[name],
+        name
+      );
+      return `  components[${JSON.stringify(name)}] = {
+    mount(document) {
+      const instance = new ${name}();
+      const node = (function (document, instance) {
+${childCode}
+        return ${childRootVar};
+      })(document, instance);
+      return { node, instance };
+    },
+  };`;
+    })
+    .join("\n\n");
+
   const inlineScript = `
 ${RUNTIME_SOURCE}
 
 ${classSource}
 
+${childClassSources}
+
 document.addEventListener("DOMContentLoaded", () => {
   const instance = new ${pageName}();
-  (function (document, instance) {
+  const components = {};
+${childRegistrations}
+  (function (document, instance, components) {
 ${code}
     document.getElementById("app").appendChild(${rootVar});
-  })(document, instance);
+  })(document, instance, components);
 });
 `;
 

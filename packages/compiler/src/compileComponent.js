@@ -9,13 +9,13 @@ import { reactive, effect } from "./runtime/reactive.js";
 /**
  * Compiles raw .tyx source into a mountable component descriptor.
  *
- *   const Component = compileComponent(source, "Counter");
- *   const node = Component.mount(document);
- *   document.body.appendChild(node);
+ *   const Badge = compileComponent(badgeSource, "Badge");
+ *   const Counter = compileComponent(counterSource, "Counter");
+ *   const { node } = Counter.mount(document, { Badge });
  *
- * A script section is optional -- a template-only .tyx file compiles
- * to a component with no state/actions, just static (or interpolation-
- * free) markup.
+ * The `components` map passed to mount() lets a template reference
+ * other compiled components by capitalized tag name (<Badge />);
+ * omit it for components that don't nest anything.
  */
 export function compileComponent(source, className = "Component") {
   const { script, template } = parseComponent(source);
@@ -32,15 +32,16 @@ export function compileComponent(source, className = "Component") {
 
   return {
     ComponentClass,
-    mount(document) {
+    mount(document, components = {}) {
       const instance = new ComponentClass();
       const renderFn = new Function(
         "document",
         "effect",
         "instance",
+        "components",
         `${code}\nreturn ${rootVar};`
       );
-      const node = renderFn(document, effect, instance);
+      const node = renderFn(document, effect, instance, components);
       return { node, instance };
     },
   };
