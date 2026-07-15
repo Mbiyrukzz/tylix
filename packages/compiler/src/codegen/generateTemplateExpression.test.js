@@ -20,3 +20,15 @@ test("prefixes both sides of a binary expression", () => {
 test("passes through a bare literal unchanged", () => {
   assert.equal(generateTemplateExpression(Literal(42)), "42");
 });
+
+test("leaves a scoped identifier bare instead of prefixing with instance.", () => {
+  const scope = new Set(["post"]);
+  const node = MemberExpr(Identifier("post"), "title");
+  assert.equal(generateTemplateExpression(node, scope), "post.title");
+});
+
+test("still prefixes identifiers not in scope", () => {
+  const scope = new Set(["post"]);
+  const node = Identifier("count");
+  assert.equal(generateTemplateExpression(node, scope), "instance.count");
+});

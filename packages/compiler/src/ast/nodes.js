@@ -62,3 +62,11 @@ export function TextNode(value) {
 export function InterpolationNode(expression) {
   return { type: "Interpolation", expression };
 }
+
+export function IfNode(condition, children) {
+  return { type: "If", condition, children };
+}
+
+export function EachNode(itemName, iterable, children) {
+  return { type: "Each", itemName, iterable, children };
+}

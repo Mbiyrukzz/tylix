@@ -1,22 +1,21 @@
 import { generateExpression } from "./generateExpression.js";
 
 /**
- * Like generateExpression, but every Identifier is treated as an
- * instance member reference and prefixed with "instance.". Inside a
- * method body, "this.count" is written explicitly by the developer;
- * inside a template interpolation ("{{ count }}"), there's no "this"
- * to write, so every bare identifier implicitly means "the component
- * instance's count".
+ * Like generateExpression, but every Identifier is prefixed with
+ * "instance." UNLESS it's a local name in `scope` (e.g. an
+ * {{#each item in items}} loop variable), in which case it's left
+ * bare -- it refers to the JS for-of loop variable, not a component
+ * instance property.
  */
-export function generateTemplateExpression(node) {
+export function generateTemplateExpression(node, scope = new Set()) {
   if (node.type === "Identifier") {
-    return `instance.${node.name}`;
+    return scope.has(node.name) ? node.name : `instance.${node.name}`;
   }
   if (node.type === "MemberExpression") {
-    return `${generateTemplateExpression(node.object)}.${node.property}`;
+    return `${generateTemplateExpression(node.object, scope)}.${node.property}`;
   }
   if (node.type === "BinaryExpression") {
-    return `(${generateTemplateExpression(node.left)} ${node.operator} ${generateTemplateExpression(node.right)})`;
+    return `(${generateTemplateExpression(node.left, scope)} ${node.operator} ${generateTemplateExpression(node.right, scope)})`;
   }
   if (node.type === "Literal") {
     return generateExpression(node);

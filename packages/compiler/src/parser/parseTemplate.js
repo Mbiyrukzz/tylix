@@ -1,16 +1,11 @@
-import { ElementNode, AttributeNode, TextNode, InterpolationNode } from "../ast/nodes.js";
+import { ElementNode, AttributeNode, TextNode, InterpolationNode, IfNode, EachNode } from "../ast/nodes.js";
 import { parseExpressionString } from "./parseExpressionString.js";
 
 const TAG_NAME_RE = /^[a-zA-Z][a-zA-Z0-9-]*/;
 const ATTR_NAME_RE = /^[a-zA-Z][a-zA-Z0-9-]*/;
 const INTERP_ATTR_RE = /^\{\{\s*([\s\S]*?)\s*\}\}$/;
+const EACH_HEADER_RE = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+in\s+([\s\S]+)$/;
 
-/**
- * Parses the raw contents of a <template> block into a tree of
- * Element / Text / Interpolation nodes. Character-based rather than
- * token-based, since HTML structure (tags/attrs/text) has different
- * lexical rules than the script grammar.
- */
 export function parseTemplate(source) {
   const parser = new TemplateParser(source);
   const nodes = parser.parseNodes(null);
@@ -30,17 +25,32 @@ class TemplateParser {
     return this.source.slice(this.pos);
   }
 
-  // Parses a sequence of sibling nodes. If stopTag is given, stops
-  // when it hits that tag's closing tag and consumes it. If stopTag
-  // is null, stops at end of input (a closing tag here is an error,
-  // left for the caller to report).
-  parseNodes(stopTag) {
+  // Parses sibling nodes. `stopTag` (an HTML tag name) or `stopMarker`
+  // (a literal like "{{/if}}") tell this call when to return; nested
+  // control blocks / elements consume their own closing marker before
+  // returning, so recursion handles arbitrary nesting automatically.
+  parseNodes(stopTag, stopMarker = null) {
     const nodes = [];
     while (this.pos < this.source.length) {
+      if (stopMarker && this.remaining().startsWith(stopMarker)) {
+        this.pos += stopMarker.length;
+        return nodes;
+      }
+
       if (this.remaining().startsWith("</")) {
-        if (stopTag === null) return nodes; // caller (parseTemplate) reports the error
+        if (stopTag === null) return nodes;
         this.consumeClosingTag(stopTag);
         return nodes;
+      }
+
+      if (this.remaining().startsWith("{{#if")) {
+        nodes.push(this.parseIfBlock());
+        continue;
+      }
+
+      if (this.remaining().startsWith("{{#each")) {
+        nodes.push(this.parseEachBlock());
+        continue;
       }
 
       if (this.remaining().startsWith("{{")) {
@@ -54,17 +64,15 @@ class TemplateParser {
       }
 
       const text = this.parseText();
-      // Collapse whitespace runs (spaces, tabs, newlines from source
-      // formatting) into single spaces, like HTML does. Skip nodes
-      // that are entirely whitespace (e.g. indentation between tags),
-      // but preserve meaningful single spaces adjacent to real text,
-      // like the one between "Hello" and "{{ name }}".
       const collapsed = text.replace(/\s+/g, " ");
       if (collapsed.trim().length > 0) {
         nodes.push(TextNode(collapsed));
       }
     }
 
+    if (stopMarker !== null) {
+      throw new Error(`Unclosed block: reached end of template looking for "${stopMarker}"`);
+    }
     if (stopTag !== null) {
       throw new Error(`Unclosed tag <${stopTag}>: reached end of template`);
     }
@@ -94,8 +102,45 @@ class TemplateParser {
     return InterpolationNode(parseExpressionString(exprSource));
   }
 
+  parseIfBlock() {
+    this.pos += 2; // "{{"
+    this.pos += 3; // "#if"
+    this.skipWhitespace();
+    const end = this.source.indexOf("}}", this.pos);
+    if (end === -1) {
+      throw new Error("Unterminated {{#if}} header: missing '}}'");
+    }
+    const conditionSource = this.source.slice(this.pos, end).trim();
+    this.pos = end + 2;
+
+    const children = this.parseNodes(null, "{{/if}}");
+    return IfNode(parseExpressionString(conditionSource), children);
+  }
+
+  parseEachBlock() {
+    this.pos += 2; // "{{"
+    this.pos += 5; // "#each"
+    this.skipWhitespace();
+    const end = this.source.indexOf("}}", this.pos);
+    if (end === -1) {
+      throw new Error("Unterminated {{#each}} header: missing '}}'");
+    }
+    const header = this.source.slice(this.pos, end).trim();
+    this.pos = end + 2;
+
+    const match = EACH_HEADER_RE.exec(header);
+    if (!match) {
+      throw new Error(`Invalid {{#each}} header "${header}": expected "item in items"`);
+    }
+    const itemName = match[1];
+    const iterableSource = match[2].trim();
+
+    const children = this.parseNodes(null, "{{/each}}");
+    return EachNode(itemName, parseExpressionString(iterableSource), children);
+  }
+
   parseElement() {
-    this.pos++; // skip '<'
+    this.pos++;
     const tag = this.readTagName();
     const attributes = this.parseAttributes();
 
@@ -108,20 +153,20 @@ class TemplateParser {
     if (this.source[this.pos] !== ">") {
       throw new Error(`Expected '>' to close <${tag}> tag`);
     }
-    this.pos++; // skip '>'
+    this.pos++;
 
     const children = this.parseNodes(tag);
     return ElementNode(tag, attributes, children);
   }
 
   consumeClosingTag(expectedTag) {
-    this.pos += 2; // skip '</'
+    this.pos += 2;
     const name = this.readTagName();
     this.skipWhitespace();
     if (this.source[this.pos] !== ">") {
       throw new Error(`Expected '>' after closing tag name '${name}'`);
     }
-    this.pos++; // skip '>'
+    this.pos++;
     if (name !== expectedTag) {
       throw new Error(`Mismatched closing tag: expected </${expectedTag}>, got </${name}>`);
     }
@@ -178,7 +223,7 @@ class TemplateParser {
       throw new Error(`Unterminated attribute value for '${name}'`);
     }
     const rawValue = this.source.slice(valueStart, this.pos);
-    this.pos++; // skip closing quote
+    this.pos++;
 
     const interpMatch = INTERP_ATTR_RE.exec(rawValue);
     if (interpMatch) {
