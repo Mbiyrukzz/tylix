@@ -71,3 +71,29 @@ test("parses query string into req.query", async () => {
 
   httpServer.close();
 });
+
+test("calls notFoundHandler when no route matches, and skips 404 if it handles the request", async () => {
+  const router = new Router();
+  const server = new Server(router, {
+    notFoundHandler: async (req, res) => {
+      if (req.url === "/static-file.txt") {
+        res.setHeader("Content-Type", "text/plain");
+        res.end("served by fallback");
+        return true;
+      }
+      return false;
+    },
+  });
+
+  const httpServer = server.listen(0);
+  const { port } = httpServer.address();
+
+  const handled = await fetch(`http://localhost:${port}/static-file.txt`);
+  const handledBody = await handled.text();
+  assert.equal(handledBody, "served by fallback");
+
+  const unhandled = await fetch(`http://localhost:${port}/nonexistent`);
+  assert.equal(unhandled.status, 404);
+
+  httpServer.close();
+});

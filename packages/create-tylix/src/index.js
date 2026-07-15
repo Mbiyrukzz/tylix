@@ -34,6 +34,8 @@ async function scaffold(projectName) {
     scripts: {
       dev: "tylix dev",
       migrate: "tylix migrate",
+      "css:build": "tailwindcss -i ./app/tailwind-input.css -o ./public/tailwind.css",
+      "css:watch": "tailwindcss -i ./app/tailwind-input.css -o ./public/tailwind.css --watch",
     },
     dependencies: {
       "@tylix/cli": `file:${path.join(MONOREPO_ROOT, "packages", "cli")}`,
@@ -43,6 +45,11 @@ async function scaffold(projectName) {
       "@tylix/generator": `file:${path.join(MONOREPO_ROOT, "packages", "generator")}`,
       "@tylix/orm": `file:${path.join(MONOREPO_ROOT, "packages", "orm")}`,
       "@tylix/shared": `file:${path.join(MONOREPO_ROOT, "packages", "shared")}`,
+    },
+    devDependencies: {
+      tailwindcss: "^3.4.0",
+      postcss: "^8.4.0",
+      autoprefixer: "^10.4.0",
     },
   };
 
@@ -56,6 +63,35 @@ async function scaffold(projectName) {
     "utf-8"
   );
   await fs.writeFile(path.join(targetDir, "tylix.config.js"), configTemplate);
+
+  const tailwindConfigTemplate = await fs.readFile(
+    path.join(__dirname, "templates", "tailwind.config.js.template"),
+    "utf-8"
+  );
+  await fs.writeFile(path.join(targetDir, "tailwind.config.js"), tailwindConfigTemplate);
+
+  const postcssConfigTemplate = await fs.readFile(
+    path.join(__dirname, "templates", "postcss.config.js.template"),
+    "utf-8"
+  );
+  await fs.writeFile(path.join(targetDir, "postcss.config.js"), postcssConfigTemplate);
+
+  const tailwindInputTemplate = await fs.readFile(
+    path.join(__dirname, "templates", "tailwind-input.css.template"),
+    "utf-8"
+  );
+  await fs.writeFile(path.join(targetDir, "app", "tailwind-input.css"), tailwindInputTemplate);
+
+  const publicDir = path.join(targetDir, "public");
+  await fs.mkdir(publicDir, { recursive: true });
+  await fs.copyFile(
+    path.join(__dirname, "..", "assets", "logo-mark.png"),
+    path.join(publicDir, "logo-mark.png")
+  );
+  await fs.copyFile(
+    path.join(__dirname, "..", "assets", "logo-full.png"),
+    path.join(publicDir, "logo-full.png")
+  );
 
   const gitignoreTemplate = await fs.readFile(
     path.join(__dirname, "templates", "gitignore.template"),

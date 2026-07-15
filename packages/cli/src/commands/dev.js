@@ -10,6 +10,39 @@ import {
 } from "@tylix/core";
 import { renderPageDocument } from "@tylix/compiler";
 import { watchDirectoryTree, createHmrChannel, HMR_CLIENT_SCRIPT } from "../hotReload.js";
+
+const MIME_TYPES = {
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+};
+
+// Serves static assets from public/ (Tailwind's compiled CSS, logo
+// images, favicons). This is a fallback in the Server's 404 handler
+// path rather than a router registration, since static filenames
+// aren't known ahead of time the way feature/page routes are.
+async function serveStaticAsset(req, res, baseDir) {
+  const publicDir = path.join(baseDir, "public");
+  const urlPath = req.url.split("?")[0];
+  const filePath = path.join(publicDir, decodeURIComponent(urlPath));
+
+  if (!filePath.startsWith(publicDir)) return false; // path traversal guard
+
+  const exists = await fs.access(filePath).then(() => true).catch(() => false);
+  if (!exists) return false;
+
+  const stat = await fs.stat(filePath);
+  if (!stat.isFile()) return false;
+
+  const ext = path.extname(filePath);
+  res.setHeader("Content-Type", MIME_TYPES[ext] || "application/octet-stream");
+  res.end(await fs.readFile(filePath));
+  return true;
+}
 import { loadConfig } from "@tylix/shared";
 import { bootstrapDatabase } from "../bootstrap.js";
 

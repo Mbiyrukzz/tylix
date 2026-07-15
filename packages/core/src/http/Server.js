@@ -4,8 +4,14 @@ import { parseBody } from "./parseBody.js";
 import { parseQuery } from "./parseQuery.js";
 
 export class Server {
-  constructor(router) {
+  constructor(router, { notFoundHandler = null } = {}) {
     this.router = router;
+    // Optional fallback called when no route matches, before the
+    // default 404 JSON response -- e.g. tylix dev uses this to serve
+    // static files from public/. Return true if it handled the
+    // request (already wrote a response); false/undefined falls
+    // through to the default 404.
+    this.notFoundHandler = notFoundHandler;
   }
 
   createHandler() {
@@ -14,6 +20,10 @@ export class Server {
 
       const match = this.router.match(req.method, req.url);
       if (!match) {
+        if (this.notFoundHandler) {
+          const handled = await this.notFoundHandler(req, res);
+          if (handled) return;
+        }
         res.status(404).json({ error: "Not found" });
         return;
       }

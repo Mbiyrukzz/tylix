@@ -1,0 +1,15 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ["./app/**/*.tyx"],
+  theme: {
+    extend: {
+      colors: {
+        tylix: {
+          blue: "#1d6fa5",
+          orange: "#e8912d",
+        },
+      },
+    },
+  },
+  plugins: [],
+};
