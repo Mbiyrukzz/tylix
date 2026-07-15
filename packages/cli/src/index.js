@@ -4,6 +4,7 @@ import { makeMigration } from "./commands/makeMigration.js";
 import { makeController } from "./commands/makeController.js";
 import { makeFeature } from "./commands/makeFeature.js";
 import { makeAuth } from "./commands/makeAuth.js";
+import { makePage } from "./commands/makePage.js";
 import { migrate } from "./commands/migrate.js";
 import { dev } from "./commands/dev.js";
 
@@ -27,6 +28,16 @@ async function main() {
     return;
   }
 
+  if (command === "make:page") {
+    const [name] = rest;
+    if (!name) {
+      console.error("Usage: tylix make:page <Name>");
+      process.exit(1);
+    }
+    await makePage(name);
+    return;
+  }
+
   const [subject, ...fieldArgs] = rest;
   const COMMANDS = {
     "make:model": makeModel,
@@ -38,7 +49,7 @@ async function main() {
   const handler = COMMANDS[command];
   if (!handler) {
     console.error(`Unknown command: ${command}`);
-    console.error(`Available commands: dev, migrate, make:auth, ${Object.keys(COMMANDS).join(", ")}`);
+    console.error(`Available commands: dev, migrate, make:auth, make:page, ${Object.keys(COMMANDS).join(", ")}`);
     process.exit(1);
   }
 

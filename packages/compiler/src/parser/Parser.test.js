@@ -102,3 +102,49 @@ test("throws a clear error when a state entry is missing its colon", () => {
 test("throws a clear error on an unknown top-level keyword", () => {
   assert.throws(() => parse(`bogus { }`), /Unexpected token/);
 });
+
+test("parses a bare (unbraced) state block", () => {
+  const source = `state\ncount: 0\nname: "Ada"`;
+  const tokens = new Lexer(source).tokenize();
+  const page = new Parser(tokens).parse();
+  assert.equal(page.state.length, 2);
+  assert.equal(page.state[0].name, "count");
+  assert.equal(page.state[1].name, "name");
+});
+
+test("parses bare action and computed sections back to back", () => {
+  const source = `
+computed
+doubled() {
+  return this.count * 2
+}
+action
+increment() {
+  this.count = this.count + 1
+}
+`;
+  const tokens = new Lexer(source).tokenize();
+  const page = new Parser(tokens).parse();
+  assert.equal(page.computed.length, 1);
+  assert.equal(page.computed[0].name, "doubled");
+  assert.equal(page.actions.length, 1);
+  assert.equal(page.actions[0].name, "increment");
+});
+
+test("bare state block correctly stops at the next section keyword", () => {
+  const source = `state\ncount: 0\naction\nincrement() { this.count = this.count + 1 }`;
+  const tokens = new Lexer(source).tokenize();
+  const page = new Parser(tokens).parse();
+  assert.equal(page.state.length, 1);
+  assert.equal(page.actions.length, 1);
+});
+
+test("braced and bare syntax produce identical ASTs for the same content", () => {
+  const braced = `state { count: 0 }`;
+  const bare = `state\ncount: 0`;
+
+  const bracedPage = new Parser(new Lexer(braced).tokenize()).parse();
+  const barePage = new Parser(new Lexer(bare).tokenize()).parse();
+
+  assert.deepEqual(bracedPage.state, barePage.state);
+});

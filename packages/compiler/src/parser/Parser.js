@@ -51,13 +51,13 @@ export class Parser {
 
     while (!this.check(TokenType.EOF)) {
       if (this.match(TokenType.PROPS)) {
-        page.props = this.parseBlock(this.parsePropEntry.bind(this));
+        page.props = this.parseSectionBlock(this.parsePropEntry.bind(this));
       } else if (this.match(TokenType.STATE)) {
-        page.state = this.parseBlock(this.parseStateEntry.bind(this));
+        page.state = this.parseSectionBlock(this.parseStateEntry.bind(this));
       } else if (this.match(TokenType.COMPUTED)) {
-        page.computed = this.parseBlock(this.parseMethod.bind(this));
+        page.computed = this.parseSectionBlock(this.parseMethod.bind(this));
       } else if (this.match(TokenType.ACTION)) {
-        page.actions = this.parseBlock(this.parseMethod.bind(this));
+        page.actions = this.parseSectionBlock(this.parseMethod.bind(this));
       } else {
         throw new Error(
           `Unexpected token ${this.peek().type} at line ${this.peek().line}`
@@ -66,6 +66,18 @@ export class Parser {
     }
 
     return PageNode(page);
+  }
+
+  // A section's entries can be written two ways:
+  //   1. Brace-wrapped (original syntax): state { count: 0 }
+  //   2. Bare (Tylix's native .tyx syntax): state, then count: 0 on its own line
+  // Bare sections run until the next top-level section keyword or EOF,
+  // since there's no closing delimiter to look for.
+  parseSectionBlock(parseEntry) {
+    if (this.check(TokenType.LBRACE)) {
+      return this.parseBlock(parseEntry);
+    }
+    return this.parseBareBlock(parseEntry);
   }
 
   // Consumes `{ entry entry ... }`, entries optionally comma-separated.
@@ -77,6 +89,26 @@ export class Parser {
       this.match(TokenType.COMMA);
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close block");
+    return entries;
+  }
+
+  isSectionKeyword(type) {
+    return (
+      type === TokenType.PROPS ||
+      type === TokenType.STATE ||
+      type === TokenType.COMPUTED ||
+      type === TokenType.ACTION ||
+      type === TokenType.EOF
+    );
+  }
+
+  // Consumes entries with no wrapping delimiter at all, stopping as
+  // soon as the next top-level section keyword (or EOF) is reached.
+  parseBareBlock(parseEntry) {
+    const entries = [];
+    while (!this.isSectionKeyword(this.peek().type)) {
+      entries.push(parseEntry());
+    }
     return entries;
   }
 

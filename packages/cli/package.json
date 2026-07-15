@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@tylix/auth": "*",
+    "@tylix/compiler": "*",
     "@tylix/core": "*",
     "@tylix/generator": "*",
     "@tylix/orm": "*",

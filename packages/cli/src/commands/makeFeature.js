@@ -21,7 +21,7 @@ async function ensureTylixPackagesLinked(baseDir) {
   const nodeModulesTylix = path.join(baseDir, "node_modules", "@tylix");
   await fs.mkdir(nodeModulesTylix, { recursive: true });
 
-  const neededPackages = ["shared", "orm", "auth"];
+  const neededPackages = ["shared", "orm", "auth", "compiler"];
 
   for (const pkg of neededPackages) {
     const linkPath = path.join(nodeModulesTylix, pkg);
