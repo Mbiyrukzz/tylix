@@ -21,6 +21,11 @@ export function generateExpression(node) {
     case "AssignmentExpression":
       return `${generateExpression(node.target)} = ${generateExpression(node.value)}`;
 
+    case "CallExpression": {
+      const args = node.args.map((a) => generateExpression(a)).join(", ");
+      return `${generateExpression(node.callee)}(${args})`;
+    }
+
     default:
       throw new Error(`generateExpression: unknown node type "${node.type}"`);
   }

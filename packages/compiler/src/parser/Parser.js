@@ -11,6 +11,7 @@ import {
   Literal,
   ReturnStatement,
   ExpressionStatement,
+  CallExpr,
 } from "../ast/nodes.js";
 
 const BINARY_OPS = new Set([
@@ -187,14 +188,35 @@ export class Parser {
 
   parseMemberExpression() {
     let expr = this.parsePrimary();
-    while (this.match(TokenType.DOT)) {
-      const property = this.expect(
-        TokenType.IDENTIFIER,
-        "Expected property name after '.'"
-      ).value;
-      expr = MemberExpr(expr, property);
+    while (true) {
+      if (this.match(TokenType.DOT)) {
+        const property = this.expect(
+          TokenType.IDENTIFIER,
+          "Expected property name after '.'"
+        ).value;
+        expr = MemberExpr(expr, property);
+        continue;
+      }
+      if (this.check(TokenType.LPAREN)) {
+        expr = CallExpr(expr, this.parseCallArguments());
+        continue;
+      }
+      break;
     }
     return expr;
+  }
+
+  // Consumes `(arg, arg, ...)` -- the LPAREN itself is checked but not
+  // consumed by the caller, so this expects and consumes it here.
+  parseCallArguments() {
+    this.expect(TokenType.LPAREN, "Expected '(' to start call arguments");
+    const args = [];
+    while (!this.check(TokenType.RPAREN)) {
+      args.push(this.parseExpression());
+      this.match(TokenType.COMMA);
+    }
+    this.expect(TokenType.RPAREN, "Expected ')' to close call arguments");
+    return args;
   }
 
   parsePrimary() {

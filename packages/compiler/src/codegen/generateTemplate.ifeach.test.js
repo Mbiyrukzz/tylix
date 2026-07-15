@@ -69,3 +69,26 @@ test("nested if inside each correctly filters items reactively", () => {
   assert.equal(items.length, 1);
   assert.equal(items[0].textContent, "Visible");
 });
+
+test("event binding with a CallExpression passes explicit arguments, not the DOM event", () => {
+  const instance = reactive({
+    posts: [{ id: 1, title: "A" }, { id: 2, title: "B" }],
+  });
+  const removed = [];
+  instance.remove = function (id) {
+    removed.push(id);
+    this.posts = this.posts.filter((p) => p.id !== id);
+  };
+
+  const { rootNode, document } = renderToDom(
+    `<ul>{{#each post in posts}}<li>{{ post.title }}<button onclick="{{ remove(post.id) }}">x</button></li>{{/each}}</ul>`,
+    instance
+  );
+
+  const firstButton = rootNode.querySelectorAll("button")[0];
+  firstButton.dispatchEvent(new document.defaultView.Event("click"));
+
+  assert.deepEqual(removed, [1]);
+  assert.equal(rootNode.querySelectorAll("li").length, 1);
+  assert.equal(rootNode.querySelector("li").textContent.includes("B"), true);
+});

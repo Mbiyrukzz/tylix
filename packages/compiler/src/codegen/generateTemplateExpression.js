@@ -17,6 +17,10 @@ export function generateTemplateExpression(node, scope = new Set()) {
   if (node.type === "BinaryExpression") {
     return `(${generateTemplateExpression(node.left, scope)} ${node.operator} ${generateTemplateExpression(node.right, scope)})`;
   }
+  if (node.type === "CallExpression") {
+    const args = node.args.map((a) => generateTemplateExpression(a, scope)).join(", ");
+    return `${generateTemplateExpression(node.callee, scope)}(${args})`;
+  }
   if (node.type === "Literal") {
     return generateExpression(node);
   }

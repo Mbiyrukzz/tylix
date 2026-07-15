@@ -172,6 +172,17 @@ function compileAttribute(elVar, attr, lines, scope) {
     if (!attr.dynamic) {
       throw new Error(`Event attribute "${attr.name}" must use {{ }} binding, got a static string.`);
     }
+
+    if (attr.value.type === "CallExpression") {
+      // Explicit call with its own arguments, e.g. remove(post.id):
+      // invoke exactly as written, no injected event object.
+      const expr = generateTemplateExpression(attr.value, scope);
+      lines.push(`${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}; });`);
+      return;
+    }
+
+    // Bare method reference, e.g. increment: called with the DOM
+    // event for backward compatibility with existing handlers.
     const expr = generateTemplateExpression(attr.value, scope);
     lines.push(`${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}(event); });`);
     return;

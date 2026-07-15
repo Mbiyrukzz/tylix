@@ -70,3 +70,7 @@ export function IfNode(condition, children) {
 export function EachNode(itemName, iterable, children) {
   return { type: "Each", itemName, iterable, children };
 }
+
+export function CallExpr(callee, args) {
+  return { type: "CallExpression", callee, args };
+}

@@ -148,3 +148,31 @@ test("braced and bare syntax produce identical ASTs for the same content", () =>
 
   assert.deepEqual(bracedPage.state, barePage.state);
 });
+
+test("parses a method call with no arguments inside an action body", () => {
+  const source = `action\nload() {\n  this.fetch()\n}`;
+  const tokens = new Lexer(source).tokenize();
+  const page = new Parser(tokens).parse();
+  const stmt = page.actions[0].body[0];
+  assert.equal(stmt.expression.type, "CallExpression");
+});
+
+test("parses a call with arguments", () => {
+  const source = `action\nremove(id) {\n  this.deleteItem(id)\n}`;
+  const tokens = new Lexer(source).tokenize();
+  const page = new Parser(tokens).parse();
+  const call = page.actions[0].body[0].expression;
+  assert.equal(call.type, "CallExpression");
+  assert.equal(call.args.length, 1);
+  assert.equal(call.args[0].name, "id");
+});
+
+test("parses chained member access followed by a call", () => {
+  const source = `action\ndoIt() {\n  this.api.remove(1)\n}`;
+  const tokens = new Lexer(source).tokenize();
+  const page = new Parser(tokens).parse();
+  const call = page.actions[0].body[0].expression;
+  assert.equal(call.type, "CallExpression");
+  assert.equal(call.callee.type, "MemberExpression");
+  assert.equal(call.callee.property, "remove");
+});
