@@ -136,6 +136,12 @@ export class Parser {
     const entries = [];
     while (!this.isSectionKeyword(this.peek().type)) {
       entries.push(parseEntry());
+      // Bare (unbraced) blocks are newline-terminated, but the
+      // generator sometimes emits trailing commas between entries
+      // (matching braced-block style) -- tolerate an optional comma
+      // here the same way parseBlock does, so mixed formatting from
+      // generated .tyx sources doesn't break parsing.
+      this.match(TokenType.COMMA);
     }
     return entries;
   }

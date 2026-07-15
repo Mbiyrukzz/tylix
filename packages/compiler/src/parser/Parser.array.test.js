@@ -26,3 +26,12 @@ test("parses an array literal assigned inside an action body", () => {
   assert.equal(assign.type, "AssignmentExpression");
   assert.equal(assign.value.type, "ArrayExpression");
 });
+
+test("parses a bare state block with inconsistent trailing commas between entries", () => {
+  const source = `state
+  products: []
+  title: "",
+  price: ""`;
+  const page = parse(source);
+  assert.deepEqual(page.state.map((s) => s.name), ["products", "title", "price"]);
+});
