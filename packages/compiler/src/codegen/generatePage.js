@@ -38,14 +38,26 @@ export function generatePage(pageNode, className = "Page") {
 
   const actionMethods = pageNode.actions.map((a) => generateMethod(a)).join("\n\n");
 
+  const onMountCall = pageNode.onMount
+    ? `    this.__onMount();\n`
+    : "";
+
+  const onMountMethod = pageNode.onMount
+    ? (() => {
+        const body = pageNode.onMount.body.map((stmt) => `    ${statementSource(stmt)}`).join("\n");
+        const asyncPrefix = pageNode.onMount.isAsync ? "async " : "";
+        return `  ${asyncPrefix}__onMount() {\n${body}\n  }`;
+      })()
+    : "";
+
   return `class ${className} {
   constructor() {
     this.__state = reactive({
 ${stateInit}
     });
-  }
+${onMountCall}  }
 
-${[stateAccessors, computedGetters, actionMethods].filter(Boolean).join("\n\n")}
+${[stateAccessors, computedGetters, actionMethods, onMountMethod].filter(Boolean).join("\n\n")}
 }`;
 }
 

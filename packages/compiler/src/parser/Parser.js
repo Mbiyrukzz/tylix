@@ -51,7 +51,7 @@ export class Parser {
   }
 
   parse() {
-    const page = { props: [], state: [], computed: [], actions: [] };
+    const page = { props: [], state: [], computed: [], actions: [], onMount: null };
 
     while (!this.check(TokenType.EOF)) {
       if (this.match(TokenType.PROPS)) {
@@ -62,6 +62,8 @@ export class Parser {
         page.computed = this.parseSectionBlock(this.parseMethod.bind(this));
       } else if (this.match(TokenType.ACTION)) {
         page.actions = this.parseSectionBlock(this.parseMethod.bind(this));
+      } else if (this.match(TokenType.ONMOUNT)) {
+        page.onMount = this.parseOnMountBody();
       } else {
         throw new Error(
           `Unexpected token ${this.peek().type} at line ${this.peek().line}`
@@ -70,6 +72,26 @@ export class Parser {
     }
 
     return PageNode(page);
+  }
+
+  // onMount has no name/params -- it's just a body, either braced
+  // ("onMount { ... }") or bare ("onMount\n  ...") like other sections.
+  parseOnMountBody() {
+    const isAsync = this.match(TokenType.ASYNC);
+    if (this.check(TokenType.LBRACE)) {
+      this.expect(TokenType.LBRACE, "Expected '{' to start onMount body");
+      const body = [];
+      while (!this.check(TokenType.RBRACE)) {
+        body.push(this.parseStatement());
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close onMount body");
+      return { body, isAsync };
+    }
+    const body = [];
+    while (!this.isSectionKeyword(this.peek().type)) {
+      body.push(this.parseStatement());
+    }
+    return { body, isAsync };
   }
 
   // A section's entries can be written two ways:
@@ -102,6 +124,7 @@ export class Parser {
       type === TokenType.STATE ||
       type === TokenType.COMPUTED ||
       type === TokenType.ACTION ||
+      type === TokenType.ONMOUNT ||
       type === TokenType.EOF
     );
   }

@@ -8,6 +8,7 @@ export const TokenType = {
   ACTION: "ACTION",
   TEMPLATE: "TEMPLATE",
   PROPS: "PROPS",
+  ONMOUNT: "ONMOUNT",
 
   // Literals
   IDENTIFIER: "IDENTIFIER",
@@ -54,6 +55,7 @@ export const KEYWORDS = {
   action: TokenType.ACTION,
   template: TokenType.TEMPLATE,
   props: TokenType.PROPS,
+  onMount: TokenType.ONMOUNT,
   return: TokenType.RETURN,
   async: TokenType.ASYNC,
   await: TokenType.AWAIT,

@@ -3,8 +3,8 @@
  * Every node has a `type` discriminator so the codegen stage (and
  * later, the Analyzer) can switch on it without instanceof checks.
  */
-export function PageNode({ props = [], state = [], computed = [], actions = [] }) {
-  return { type: "Page", props, state, computed, actions };
+export function PageNode({ props = [], state = [], computed = [], actions = [], onMount = null }) {
+  return { type: "Page", props, state, computed, actions, onMount };
 }
 
 export function PropNode(name, propType) {
