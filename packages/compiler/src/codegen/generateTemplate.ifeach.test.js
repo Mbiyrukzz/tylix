@@ -92,3 +92,47 @@ test("event binding with a CallExpression passes explicit arguments, not the DOM
   assert.equal(rootNode.querySelectorAll("li").length, 1);
   assert.equal(rootNode.querySelector("li").textContent.includes("B"), true);
 });
+
+test("event is available as a bare scoped identifier for oninput handlers with arguments", () => {
+  const instance = reactive({ name: "" });
+  instance.setField = function (field, value) {
+    this[field] = value;
+  };
+
+  const nodes = parseTemplate(`<input oninput="{{ setField('name', event.target.value) }}" />`);
+  const { code, rootVar } = generateTemplate(nodes);
+
+  const dom = new JSDOM();
+  const { document } = dom.window;
+  const fn = new Function("document", "effect", "instance", "components", `${code}\nreturn ${rootVar};`);
+  const inputEl = fn(document, effect, instance, {});
+
+  document.body.appendChild(inputEl);
+  inputEl.value = "Ada";
+  inputEl.dispatchEvent(new document.defaultView.Event("input"));
+
+  assert.equal(instance.name, "Ada");
+});
+
+test("event can be passed as an explicit argument and calls preventDefault on the real DOM event", () => {
+  let prevented = false;
+  const instance = reactive({});
+  instance.create = function (event) {
+    event.preventDefault();
+    prevented = true;
+  };
+
+  const nodes = parseTemplate(`<form onsubmit="{{ create(event) }}"></form>`);
+  const { code, rootVar } = generateTemplate(nodes);
+
+  const dom = new JSDOM();
+  const { document } = dom.window;
+  const fn = new Function("document", "effect", "instance", "components", `${code}
+return ${rootVar};`);
+  const formEl = fn(document, effect, instance, {});
+
+  document.body.appendChild(formEl);
+  formEl.dispatchEvent(new document.defaultView.Event("submit", { cancelable: true }));
+
+  assert.equal(prevented, true);
+});

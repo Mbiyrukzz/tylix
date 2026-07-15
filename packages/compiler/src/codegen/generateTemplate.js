@@ -174,9 +174,14 @@ function compileAttribute(elVar, attr, lines, scope) {
     }
 
     if (attr.value.type === "CallExpression") {
-      // Explicit call with its own arguments, e.g. remove(post.id):
-      // invoke exactly as written, no injected event object.
-      const expr = generateTemplateExpression(attr.value, scope);
+      // Explicit call with its own arguments, e.g. remove(post.id) or
+      // setField('name', event.target.value): invoke exactly as
+      // written. "event" is added to scope so a reference to the
+      // real DOM event argument isn't mistakenly prefixed with
+      // "instance." -- it's a genuine local, just like an #each
+      // loop variable.
+      const scopeWithEvent = new Set([...scope, "event"]);
+      const expr = generateTemplateExpression(attr.value, scopeWithEvent);
       lines.push(`${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}; });`);
       return;
     }
