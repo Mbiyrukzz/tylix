@@ -1,0 +1,39 @@
+page Home
+
+template
+  <div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center px-6 py-16">
+    <img src="/logo-full.png" class="w-64 mb-8" />
+
+    <p class="text-slate-600 text-lg max-w-xl text-center mb-10">
+      A full-stack JavaScript framework with its own reactive compiler,
+      generator-first CLI, and a database-agnostic ORM.
+    </p>
+
+    <div class="flex gap-4 mb-14">
+      <a href="/register" class="px-6 py-3 rounded-lg bg-tylix-blue text-white font-medium hover:opacity-90">Get Started</a>
+      <a href="/login" class="px-6 py-3 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50">Login</a>
+      <a href="/dashboard" class="px-6 py-3 rounded-lg text-slate-500 font-medium hover:text-slate-700">Continue as Guest</a>
+    </div>
+
+    <div class="bg-slate-900 text-slate-100 rounded-xl p-6 max-w-2xl w-full text-sm font-mono overflow-x-auto mb-10">
+      <p class="text-slate-400 mb-2">// Post.tyx -- a real Tylix page</p>
+      <p>page Post</p>
+      <p></p>
+      <p>state</p>
+      <p>&nbsp;&nbsp;posts: []</p>
+      <p></p>
+      <p>onMount</p>
+      <p>&nbsp;&nbsp;async {</p>
+      <p>&nbsp;&nbsp;&nbsp;&nbsp;const res = await fetch("/api/posts")</p>
+      <p>&nbsp;&nbsp;&nbsp;&nbsp;const data = await res.json()</p>
+      <p>&nbsp;&nbsp;&nbsp;&nbsp;this.posts = data.data</p>
+      <p>&nbsp;&nbsp;}</p>
+      <p></p>
+      <p>template</p>
+      <p>&nbsp;&nbsp;{{#each post in posts}}</p>
+      <p>&nbsp;&nbsp;&nbsp;&nbsp;&lt;li&gt;{{ post.title }}&lt;/li&gt;</p>
+      <p>&nbsp;&nbsp;{{/each}}</p>
+    </div>
+
+    <a href="https://ashmif.com/tylixjs" class="text-tylix-blue text-sm hover:underline">Read the docs &rarr;</a>
+  </div>

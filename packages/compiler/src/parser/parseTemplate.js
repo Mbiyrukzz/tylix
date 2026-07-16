@@ -155,6 +155,23 @@ class TemplateParser {
     }
     this.pos++;
 
+    // <pre> is a raw-text element, same idea as <script>/<style> in
+    // real HTML: its content is captured verbatim -- no whitespace
+    // collapsing, and critically no {{ }} interpolation/control-flow
+    // parsing -- so code samples containing literal "{{#each}}" etc.
+    // display as text instead of being executed as real template
+    // syntax.
+    if (tag === "pre") {
+      const closeTag = "</pre>";
+      const closeIndex = this.source.indexOf(closeTag, this.pos);
+      if (closeIndex === -1) {
+        throw new Error("Unclosed <pre> tag: reached end of template");
+      }
+      const rawContent = this.source.slice(this.pos, closeIndex);
+      this.pos = closeIndex + closeTag.length;
+      return ElementNode(tag, attributes, [TextNode(rawContent)]);
+    }
+
     const children = this.parseNodes(tag);
     return ElementNode(tag, attributes, children);
   }
