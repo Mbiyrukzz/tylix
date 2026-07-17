@@ -1,4 +1,5 @@
-import { generateMethod } from "./generateMethod.js";
+import { generateMethod } from './generateMethod.js'
+import { generateExpression } from './generateExpression.js'
 
 /**
  * Compiles a full PageNode into JS source defining a component class.
@@ -13,10 +14,14 @@ import { generateMethod } from "./generateMethod.js";
  * The generated class expects `reactive` to be in scope where the
  * module is evaluated (imported from @tylix/compiler's runtime).
  */
-export function generatePage(pageNode, className = "Page") {
+export function generatePage(pageNode, className = 'Page') {
+  const propAssignments = pageNode.props
+    .map((p) => `    this.${p.name} = props.${p.name};`)
+    .join('\n')
+
   const stateInit = pageNode.state
-    .map((s) => `      ${s.name}: ${JSON.stringify(s.value.value)},`)
-    .join("\n");
+    .map((s) => `      ${s.name}: ${generateExpression(s.value)},`)
+    .join('\n')
 
   const stateAccessors = pageNode.state
     .map(
@@ -25,46 +30,50 @@ export function generatePage(pageNode, className = "Page") {
   }
   set ${s.name}(value) {
     this.__state.${s.name} = value;
-  }`
+  }`,
     )
-    .join("\n\n");
+    .join('\n\n')
 
   const computedGetters = pageNode.computed
     .map((c) => {
-      const body = c.body.map((stmt) => `    ${statementSource(stmt)}`).join("\n");
-      return `  get ${c.name}() {\n${body}\n  }`;
+      const body = c.body
+        .map((stmt) => `    ${statementSource(stmt)}`)
+        .join('\n')
+      return `  get ${c.name}() {\n${body}\n  }`
     })
-    .join("\n\n");
+    .join('\n\n')
 
-  const actionMethods = pageNode.actions.map((a) => generateMethod(a)).join("\n\n");
+  const actionMethods = pageNode.actions
+    .map((a) => generateMethod(a))
+    .join('\n\n')
 
-  const onMountCall = pageNode.onMount
-    ? `    this.__onMount();\n`
-    : "";
+  const onMountCall = pageNode.onMount ? `    this.__onMount();\n` : ''
 
   const onMountMethod = pageNode.onMount
     ? (() => {
-        const body = pageNode.onMount.body.map((stmt) => `    ${statementSource(stmt)}`).join("\n");
-        const asyncPrefix = pageNode.onMount.isAsync ? "async " : "";
-        return `  ${asyncPrefix}__onMount() {\n${body}\n  }`;
+        const body = pageNode.onMount.body
+          .map((stmt) => `    ${statementSource(stmt)}`)
+          .join('\n')
+        const asyncPrefix = pageNode.onMount.isAsync ? 'async ' : ''
+        return `  ${asyncPrefix}__onMount() {\n${body}\n  }`
       })()
-    : "";
+    : ''
 
   return `class ${className} {
-  constructor() {
-    this.__state = reactive({
+  constructor(props = {}) {
+${propAssignments ? propAssignments + '\n' : ''}    this.__state = reactive({
 ${stateInit}
     });
 ${onMountCall}  }
 
-${[stateAccessors, computedGetters, actionMethods, onMountMethod].filter(Boolean).join("\n\n")}
-}`;
+${[stateAccessors, computedGetters, actionMethods, onMountMethod].filter(Boolean).join('\n\n')}
+}`
 }
 
 // Local import kept separate from generateMethod's own statement
 // formatting so computed getters and state accessors can share the
 // same statement codegen without generateMethod's parameter handling.
-import { generateStatement } from "./generateStatement.js";
+import { generateStatement } from './generateStatement.js'
 function statementSource(stmt) {
-  return generateStatement(stmt);
+  return generateStatement(stmt)
 }

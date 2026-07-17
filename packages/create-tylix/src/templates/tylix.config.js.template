@@ -1,6 +1,15 @@
 export default {
   database: {
-    driver: "sqlite",
+    driver: "{{DATABASE_DRIVER}}",
+    // sqlite
     filename: "database.sqlite",
+    // postgres/mysql
+    host: "127.0.0.1",
+    port: {{DATABASE_PORT}},
+    user: "root",
+    password: "",
+    database: "{{PROJECT_NAME}}",
+    // mongodb
+    uri: "mongodb://127.0.0.1:27017/{{PROJECT_NAME}}",
   },
 };

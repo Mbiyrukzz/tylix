@@ -45,7 +45,7 @@ function compileComponentSource(source, className) {
 export function renderPageDocument(
   source,
   childComponents = {},
-  { layout = null } = {},
+  { layout = null, props = {} } = {},
 ) {
   const { pageName, script, template, style } = parsePageFile(source)
 
@@ -103,6 +103,7 @@ ${layoutCompiled.code}
       document.getElementById("app").appendChild(${layoutCompiled.rootVar});
     })(document, layoutInstance, ${rootVar});`
   }
+
   const inlineScript = `
 ${RUNTIME_SOURCE}
 
@@ -113,7 +114,7 @@ ${childClassSources}
 ${layoutClassSource}
 
 document.addEventListener("DOMContentLoaded", () => {
-  const instance = new ${pageName}();
+  const instance = new ${pageName}(${JSON.stringify(props)});
   const components = {};
 ${childRegistrations}
   (function (document, instance, components) {

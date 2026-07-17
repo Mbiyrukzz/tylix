@@ -1,77 +1,79 @@
 #!/usr/bin/env node
-import { makeModel } from "./commands/makeModel.js";
-import { makeMigration } from "./commands/makeMigration.js";
-import { makeController } from "./commands/makeController.js";
-import { makeFeature } from "./commands/makeFeature.js";
-import { makeAuth } from "./commands/makeAuth.js";
-import { makePage } from "./commands/makePage.js";
-import { migrate } from "./commands/migrate.js";
-import { dev } from "./commands/dev.js";
+import { makeModel } from './commands/makeModel.js'
+import { makeMigration } from './commands/makeMigration.js'
+import { makeController } from './commands/makeController.js'
+import { makeFeature } from './commands/makeFeature.js'
+import { makeAuth } from './commands/makeAuth.js'
+import { makePage } from './commands/makePage.js'
+import { migrate } from './commands/migrate.js'
+import { dev } from './commands/dev.js'
 
-const [, , command, ...rest] = process.argv;
+const [, , command, ...rest] = process.argv
 
 async function main() {
-  if (command === "migrate") {
-    await migrate();
-    return;
+  if (command === 'migrate') {
+    await migrate()
+    return
   }
 
-  if (command === "dev") {
-    const portArg = rest.find((a) => a.startsWith("--port="));
-    const port = portArg ? Number(portArg.split("=")[1]) : 3000;
-    await dev({ port });
-    return;
+  if (command === 'dev') {
+    const portArg = rest.find((a) => a.startsWith('--port='))
+    const port = portArg ? Number(portArg.split('=')[1]) : 3000
+    await dev({ port })
+    return
   }
 
-  if (command === "make:auth") {
-    await makeAuth();
-    return;
+  if (command === 'make:auth') {
+    await makeAuth()
+    return
   }
 
-  if (command === "make:page") {
-    const [name] = rest;
+  if (command === 'make:page') {
+    const [name] = rest
     if (!name) {
-      console.error("Usage: tylix make:page <Name>");
-      process.exit(1);
+      console.error('Usage: tylix make:page <Name>')
+      process.exit(1)
     }
-    await makePage(name);
-    return;
+    await makePage(name)
+    return
   }
 
   // --dashboard is a flag, not a field:type argument -- pull it out
   // before splitting subject/fields so it doesn't get misparsed as a
   // field definition by makeFeature's field-arg loop.
-  const dashboard = rest.includes("--dashboard");
-  const positional = rest.filter((a) => a !== "--dashboard");
+  const dashboard = rest.includes('--dashboard')
+  const positional = rest.filter((a) => a !== '--dashboard')
 
-  const [subject, ...fieldArgs] = positional;
+  const [subject, ...fieldArgs] = positional
   const COMMANDS = {
-    "make:model": makeModel,
-    "make:migration": makeMigration,
-    "make:controller": makeController,
-    "make:feature": makeFeature,
-  };
+    'make:model': makeModel,
+    'make:migration': makeMigration,
+    'make:controller': makeController,
+    'make:feature': makeFeature,
+  }
 
-  const handler = COMMANDS[command];
+  const handler = COMMANDS[command]
   if (!handler) {
-    console.error(`Unknown command: ${command}`);
-    console.error(`Available commands: dev, migrate, make:auth, make:page, ${Object.keys(COMMANDS).join(", ")}`);
-    process.exit(1);
+    console.error(`Unknown command: ${command}`)
+    console.error(
+      `Available commands: dev, migrate, make:auth, make:page, ${Object.keys(COMMANDS).join(', ')}`,
+    )
+    process.exit(1)
   }
 
   if (!subject) {
-    console.error(`Usage: tylix ${command} <Name> [field:type ...]`);
-    process.exit(1);
+    console.error(`Usage: tylix ${command} <Name> [field:type ...]`)
+    process.exit(1)
   }
 
-  if (command === "make:feature") {
-    await handler(subject, fieldArgs, { dashboard });
+  if (command === 'make:feature') {
+    await handler(subject, fieldArgs, { dashboard })
   } else {
-    await handler(subject, fieldArgs);
+    await handler(subject, fieldArgs)
   }
 }
 
 main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+  console.error('Error:', err.message)
+  process.exit(1)
+})

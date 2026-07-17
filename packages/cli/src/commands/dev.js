@@ -3,6 +3,11 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import {
+  printBox,
+  printChecklist,
+  printLinkSection,
+} from '../../../create-tylix/src/utils/banner.js'
 
 const execFileAsync = promisify(execFile)
 import {
@@ -126,6 +131,73 @@ async function loadLayout(pagesDir) {
   return fs.readFile(layoutPath, 'utf-8')
 }
 
+async function walkPagesDir(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true })
+  const files = []
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await walkPagesDir(fullPath)))
+    } else if (entry.name.endsWith('.tyx') && entry.name !== '_layout.tyx') {
+      files.push(fullPath)
+    }
+  }
+  return files
+}
+
+// posts/[id].tyx        -> /posts/:id
+// posts/Index.tyx        -> /posts
+// users/[id]/Profile.tyx -> /users/:id/profile
+// Home.tyx                -> /home (root "/" is handled separately below)
+function filePathToRoute(pagesDir, filePath) {
+  const relative = path.relative(pagesDir, filePath).replace(/\.tyx$/, '')
+  const segments = relative.split(path.sep)
+
+  const routeSegments = segments
+    .map((segment, i) => {
+      const isLast = i === segments.length - 1
+      if (isLast && segment === 'Index') return null
+
+      const dynamicMatch = /^\[(.+)\]$/.exec(segment)
+      if (dynamicMatch) return `:${dynamicMatch[1]}`
+
+      return segment.toLowerCase()
+    })
+    .filter((segment) => segment !== null)
+
+  const routePath = '/' + routeSegments.join('/')
+  return routePath.length > 1 ? routePath.replace(/\/$/, '') : routePath
+}
+
+// Registration order matters for Router.match() (first match wins), so
+// routes with fewer dynamic (":param") segments must register before
+// routes with more -- otherwise a dynamic segment like :id can shadow
+// a real static route (e.g. /posts/create being wrongly captured by
+// /posts/:id) purely based on filesystem read order.
+function bySpecificity(a, b) {
+  const dynamicCount = (routePath) => (routePath.match(/:/g) || []).length
+  return dynamicCount(a.routePath) - dynamicCount(b.routePath)
+}
+
+// Walks up from the page's own directory toward pagesDir looking for
+// the nearest _layout.tyx. Closest layout wins -- layouts do not
+// compose/nest, so a page under app/pages/admin/ uses only
+// app/pages/admin/_layout.tyx if present, never both that and the
+// root app/pages/_layout.tyx together.
+async function findLayoutForFile(pagesDir, filePath) {
+  let dir = path.dirname(filePath)
+  while (true) {
+    const layoutPath = path.join(dir, '_layout.tyx')
+    const exists = await fs
+      .access(layoutPath)
+      .then(() => true)
+      .catch(() => false)
+    if (exists) return fs.readFile(layoutPath, 'utf-8')
+    if (dir === pagesDir) return null
+    dir = path.dirname(dir)
+  }
+}
+
 async function registerPageRoutes(router, baseDir) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   const exists = await fs
@@ -134,35 +206,37 @@ async function registerPageRoutes(router, baseDir) {
     .catch(() => false)
   if (!exists) return []
 
-  const files = (await fs.readdir(pagesDir)).filter(
-    (f) => f.endsWith('.tyx') && f !== '_layout.tyx',
-  )
-  const registered = []
+  const files = await walkPagesDir(pagesDir)
 
-  async function renderFile(file) {
-    const source = await fs.readFile(path.join(pagesDir, file), 'utf-8')
-    const layout = await loadLayout(pagesDir)
-    return injectHmrScript(renderPageDocument(source, {}, { layout }))
+  async function renderFile(filePath, params = {}) {
+    const source = await fs.readFile(filePath, 'utf-8')
+    const layout = await findLayoutForFile(pagesDir, filePath)
+    return injectHmrScript(
+      renderPageDocument(source, {}, { layout, props: params }),
+    )
   }
 
-  for (const file of files) {
-    const name = file.replace(/\.tyx$/, '')
-    const routePath = `/${name.toLowerCase()}`
+  const entries = files
+    .map((filePath) => ({
+      filePath,
+      routePath: filePathToRoute(pagesDir, filePath),
+    }))
+    .sort(bySpecificity)
 
+  const registered = []
+  for (const { filePath, routePath } of entries) {
     router.get(routePath, async (req, res) => {
       res.setHeader('Content-Type', 'text/html')
-      res.end(await renderFile(file))
+      res.end(await renderFile(filePath, req.params))
     })
     registered.push(routePath)
   }
 
-  // "/" explicitly serves Home.tyx rather than whichever file happens
-  // to sort first in fs.readdir()'s result -- previously this served
-  // Dashboard.tyx by accident, since "D" sorts before "H".
-  if (files.includes('Home.tyx')) {
+  const homeFile = path.join(pagesDir, 'Home.tyx')
+  if (files.includes(homeFile)) {
     router.get('/', async (req, res) => {
       res.setHeader('Content-Type', 'text/html')
-      res.end(await renderFile('Home.tyx'))
+      res.end(await renderFile(homeFile, req.params))
     })
   }
 
@@ -185,40 +259,43 @@ function printBanner({
   pageRoutes,
   authEnabled,
 }) {
-  const line = '─'.repeat(39)
-  console.log(`\n${line}`)
-  console.log('        Tylix Framework v0.1')
-  console.log(`${line}\n`)
-  console.log(`Environment   development`)
-  console.log(`Server        http://localhost:${port}`)
-  console.log(`Database      ${DRIVER_LABELS[driver] ?? driver}`)
-  console.log(`Compiler      Ready`)
-  console.log(`ORM           Ready`)
-  console.log(`Features      ${featureCount}`)
-  console.log(`Pages         ${pageCount}`)
-  console.log(`\nRoutes\n`)
+  console.log()
+  printBox('Tylix Framework v0.1')
+  console.log()
+  printChecklist([
+    `Environment  development`,
+    `Database     ${DRIVER_LABELS[driver] ?? driver}`,
+    `Compiler     Ready`,
+    `ORM          Ready`,
+    `Features     ${featureCount}`,
+    `Pages        ${pageCount}`,
+  ])
 
-  if (pageRoutes.length > 0) {
-    console.log(`  GET   /`)
+  if (pageRoutes.length > 0 || featureRoutes.length > 0) {
+    console.log('\nRoutes')
+    if (pageRoutes.length > 0) console.log(`  GET   /`)
+    for (const route of pageRoutes) console.log(`  GET   ${route}`)
+    for (const route of featureRoutes) {
+      console.log(`  GET     /api/${route.table}`)
+      console.log(`  POST    /api/${route.table}`)
+      console.log(`  GET     /api/${route.table}/:id`)
+      console.log(`  PUT     /api/${route.table}/:id`)
+      console.log(`  DELETE  /api/${route.table}/:id`)
+    }
   }
-  for (const route of pageRoutes) {
-    console.log(`  GET   ${route}`)
-  }
-  for (const route of featureRoutes) {
-    console.log(`  GET     /api/${route.table}`)
-    console.log(`  POST    /api/${route.table}`)
-    console.log(`  GET     /api/${route.table}/:id`)
-    console.log(`  PUT     /api/${route.table}/:id`)
-    console.log(`  DELETE  /api/${route.table}/:id`)
-  }
+
+  printLinkSection('Your app is running at', `http://localhost:${port}`)
+
   if (authEnabled) {
-    console.log(`  POST    /api/register`)
-    console.log(`  POST    /api/login`)
-    console.log(`  GET     /api/me`)
+    printLinkSection('Login', `http://localhost:${port}/login`)
+    printLinkSection('Register', `http://localhost:${port}/register`)
+    console.log('\nAPI')
+    console.log('POST /api/register')
+    console.log('POST /api/login')
+    console.log('GET  /api/me')
   }
 
-  console.log(`\nWatching...\n`)
-  console.log(`${line}\n`)
+  console.log('\nWatching...\n')
 }
 
 export async function dev({ port = 3000 } = {}) {

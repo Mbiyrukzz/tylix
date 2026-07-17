@@ -114,7 +114,7 @@ class TemplateParser {
       }
 
       const text = this.parseText()
-      const collapsed = text.replace(/\s+/g, ' ')
+      const collapsed = decodeHtmlEntities(text.replace(/\s+/g, ' '))
       if (collapsed.trim().length > 0) {
         nodes.push(TextNode(collapsed))
       }
@@ -277,9 +277,15 @@ class TemplateParser {
     this.pos += name.length
     this.skipWhitespace()
 
+    // No '=' following the name means a bare boolean attribute
+    // (e.g. <input disabled>, <div data-tylix-slot>) rather than a
+    // parse error -- matches real HTML's own boolean-attribute
+    // convention, so devs coming from plain HTML don't hit a
+    // surprising "Expected '=' after attribute name" wall.
     if (this.source[this.pos] !== '=') {
-      throw new Error(`Expected '=' after attribute name '${name}'`)
+      return AttributeNode(name, true, false)
     }
+
     this.pos++
     this.skipWhitespace()
 
