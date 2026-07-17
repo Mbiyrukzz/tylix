@@ -1,59 +1,103 @@
+function compose(fns) {
+  return async function (req, res) {
+    let index = -1
+    async function dispatch(i) {
+      if (i <= index) {
+        throw new Error('next() called multiple times in one middleware chain')
+      }
+      index = i
+      const fn = fns[i]
+      if (!fn) return
+      await fn(req, res, () => dispatch(i + 1))
+    }
+    return dispatch(0)
+  }
+}
+
 export class Router {
   constructor() {
-    this.routes = [];
+    this.routes = []
+    this.middlewares = []
   }
 
-  register(method, pattern, handler) {
-    const keys = [];
+  // Global middleware, run before every route match, in registration
+  // order. e.g. router.use(loggerMiddleware).
+  use(fn) {
+    this.middlewares.push(fn)
+    return this
+  }
+
+  register(method, pattern, ...handlers) {
+    if (handlers.length === 0) {
+      throw new Error(
+        `Router.${method.toLowerCase()}("${pattern}") needs a handler`,
+      )
+    }
+    const finalHandler = handlers[handlers.length - 1]
+    const routeMiddleware = handlers.slice(0, -1)
+
+    const keys = []
     const regexPattern = pattern
-      .split("/")
+      .split('/')
       .map((segment) => {
-        if (segment.startsWith(":")) {
-          keys.push(segment.slice(1));
-          return "([^/]+)";
+        if (segment.startsWith(':')) {
+          keys.push(segment.slice(1))
+          return '([^/]+)'
         }
-        return segment;
+        return segment
       })
-      .join("/");
+      .join('/')
 
-    const regex = new RegExp(`^${regexPattern}$`);
-    this.routes.push({ method: method.toUpperCase(), pattern, regex, keys, handler });
-    return this;
+    const regex = new RegExp(`^${regexPattern}$`)
+    this.routes.push({
+      method: method.toUpperCase(),
+      pattern,
+      regex,
+      keys,
+      routeMiddleware,
+      finalHandler,
+    })
+    return this
   }
 
-  get(pattern, handler) {
-    return this.register("GET", pattern, handler);
+  get(pattern, ...handlers) {
+    return this.register('GET', pattern, ...handlers)
   }
 
-  post(pattern, handler) {
-    return this.register("POST", pattern, handler);
+  post(pattern, ...handlers) {
+    return this.register('POST', pattern, ...handlers)
   }
 
-  put(pattern, handler) {
-    return this.register("PUT", pattern, handler);
+  put(pattern, ...handlers) {
+    return this.register('PUT', pattern, ...handlers)
   }
 
-  delete(pattern, handler) {
-    return this.register("DELETE", pattern, handler);
+  delete(pattern, ...handlers) {
+    return this.register('DELETE', pattern, ...handlers)
   }
 
   match(method, url) {
-    const pathname = url.split("?")[0];
+    const pathname = url.split('?')[0]
 
     for (const route of this.routes) {
-      if (route.method !== method.toUpperCase()) continue;
+      if (route.method !== method.toUpperCase()) continue
 
-      const result = route.regex.exec(pathname);
-      if (!result) continue;
+      const result = route.regex.exec(pathname)
+      if (!result) continue
 
-      const params = {};
+      const params = {}
       route.keys.forEach((key, i) => {
-        params[key] = result[i + 1];
-      });
+        params[key] = result[i + 1]
+      })
 
-      return { handler: route.handler, params };
+      const chain = compose([
+        ...this.middlewares,
+        ...route.routeMiddleware,
+        route.finalHandler,
+      ])
+      return { handler: chain, params }
     }
 
-    return null;
+    return null
   }
 }

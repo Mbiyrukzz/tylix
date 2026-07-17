@@ -1,0 +1,60 @@
+page Login
+
+state
+  email: ""
+  password: ""
+  error: ""
+
+action
+setField(field, value) {
+  this[field] = value
+}
+
+async submit() {
+  const response = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: this.email, password: this.password })
+  })
+
+  const result = await response.json()
+
+  if (response.ok) {
+    localStorage.setItem("tylix_token", result.token)
+    window.location.href = "/dashboard"
+  } else {
+    this.error = "Invalid email or password."
+  }
+}
+
+template
+  <div class="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-6">
+    <div class="w-full max-w-sm">
+      <img src="/logo-mark.png" class="w-16 mx-auto mb-6 dark:brightness-0 dark:invert" />
+      <h1 class="text-xl font-semibold text-slate-800 dark:text-slate-100 text-center mb-6">Log in to your account</h1>
+
+{{#if error}}
+      <p class="text-red-600 dark:text-red-400 text-sm mb-4 text-center">{{ error }}</p>
+{{/if}}
+
+      <input
+        placeholder="Email"
+        value="{{ email }}"
+        oninput="{{ setField('email', event.target.value) }}"
+        class="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-4 py-2 mb-3"
+      />
+      <input
+        placeholder="Password"
+        value="{{ password }}"
+        oninput="{{ setField('password', event.target.value) }}"
+        class="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-4 py-2 mb-4"
+      />
+      <button onclick="{{ submit() }}" class="w-full bg-tylix-blue text-white rounded-lg py-2 font-medium hover:opacity-90">
+        Log In
+      </button>
+
+      <p class="text-sm text-slate-500 dark:text-slate-400 text-center mt-4">
+        Need an account? <a href="/login" class="text-tylix-blue hover:underline">Sign up</a>
+      </p>
+    </div>
+  </div>

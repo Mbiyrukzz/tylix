@@ -1,0 +1,103 @@
+page Register
+
+state
+  name: ""
+  email: ""
+  password: ""
+  error: ""
+
+action
+setField(field, value) {
+  this[field] = value
+}
+
+async submit() {
+  const response = await fetch("/api/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: this.name, email: this.email, password: this.password })
+  })
+
+  const result = await response.json()
+
+  if (response.ok) {
+    localStorage.setItem("tylix_token", result.token)
+    window.location.href = "/dashboard"
+  } else {
+    this.error = "Could not create account. Check your details and try again."
+  }
+}
+
+template
+  <div class="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-6">
+    <div class="w-full max-w-sm">
+      <img src="/logo-mark.png" class="w-16 mx-auto mb-6 dark:brightness-0 dark:invert" />
+      <h1 class="text-xl font-semibold text-slate-800 dark:text-slate-100 text-center mb-6">Create your account</h1>
+
+{{#if error}}
+      <p class="text-red-600 dark:text-red-400 text-sm mb-4 text-center">{{ error }}</p>
+{{/if}}
+
+      <input
+        placeholder="Name"
+        value="{{ name }}"
+        oninput="{{ setField('name', event.target.value) }}"
+        class="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-4 py-2 mb-3"
+      />
+      <input
+        placeholder="Email"
+        value="{{ email }}"
+        oninput="{{ setField('email', event.target.value) }}"
+        class="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-4 py-2 mb-3"
+      />
+      <input
+        placeholder="Password"
+        value="{{ password }}"
+        oninput="{{ setField('password', event.target.value) }}"
+        class="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 rounded-lg px-4 py-2 mb-4"
+      />
+      <button onclick="{{ submit() }}" class="w-full bg-tylix-blue text-white rounded-lg py-2 font-medium hover:opacity-90">
+        Sign Up
+      </button>
+
+      <p class="text-sm text-slate-500 dark:text-slate-400 text-center mt-4">
+        Already have an account? <a href="/login" class="text-tylix-blue hover:underline">Log in</a>
+      </p>
+    </div>
+  </div>
+  <div class="min-h-screen flex items-center justify-center bg-slate-50 px-6">
+    <div class="w-full max-w-sm">
+      <img src="/logo-mark.png" class="w-16 mx-auto mb-6" />
+      <h1 class="text-xl font-semibold text-slate-800 text-center mb-6">Create your account</h1>
+
+      {{#if error}}
+      <p class="text-red-600 text-sm mb-4 text-center">{{ error }}</p>
+      {{/if}}
+
+      <input
+        placeholder="Name"
+        value="{{ name }}"
+        oninput="{{ setField('name', event.target.value) }}"
+        class="w-full border border-slate-300 rounded-lg px-4 py-2 mb-3"
+      />
+      <input
+        placeholder="Email"
+        value="{{ email }}"
+        oninput="{{ setField('email', event.target.value) }}"
+        class="w-full border border-slate-300 rounded-lg px-4 py-2 mb-3"
+      />
+      <input
+        placeholder="Password"
+        value="{{ password }}"
+        oninput="{{ setField('password', event.target.value) }}"
+        class="w-full border border-slate-300 rounded-lg px-4 py-2 mb-4"
+      />
+      <button onclick="{{ submit() }}" class="w-full bg-tylix-blue text-white rounded-lg py-2 font-medium hover:opacity-90">
+        Sign Up
+      </button>
+
+      <p class="text-sm text-slate-500 text-center mt-4">
+        Already have an account? <a href="/login" class="text-tylix-blue hover:underline">Log in</a>
+      </p>
+    </div>
+  </div>

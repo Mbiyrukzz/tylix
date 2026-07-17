@@ -1,0 +1,52 @@
+page Dashboard
+
+state
+  user: null
+
+onMount
+async {
+  const token = localStorage.getItem("tylix_token")
+
+  if (token) {
+    const response = await fetch("/api/me", {
+      headers: { "Authorization": "Bearer " + token }
+    })
+    const result = await response.json()
+    this.user = result
+  }
+}
+template
+  <div class="min-h-screen bg-slate-50 dark:bg-slate-950 px-6 py-16">
+    <div class="max-w-2xl mx-auto">
+      <img src="/logo-mark.png" class="w-12 mb-6 dark:brightness-0 dark:invert" />
+      <h1 class="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-2">Dashboard</h1>
+
+{{#if user}}
+      <p class="text-slate-600 dark:text-slate-400 mb-8">Welcome back, {{ user.name }}.</p>
+{{/if}}
+
+      <p class="text-slate-500 dark:text-slate-400 mb-6">
+        Run <code class="bg-slate-200 dark:bg-slate-800 dark:text-slate-200 px-2 py-1 rounded">tylix make:feature Post title:string body:text --dashboard</code>
+        to generate your first working CRUD page.
+      </p>
+
+      <a href="/" class="text-tylix-blue text-sm hover:underline">&larr; Back to home</a>
+    </div>
+  </div>
+  <div class="min-h-screen bg-slate-50 px-6 py-16">
+    <div class="max-w-2xl mx-auto">
+      <img src="/logo-mark.png" class="w-12 mb-6" />
+      <h1 class="text-2xl font-semibold text-slate-800 mb-2">Dashboard</h1>
+
+      {{#if user}}
+      <p class="text-slate-600 mb-8">Welcome back, {{ user.name }}.</p>
+      {{/if}}
+
+      <p class="text-slate-500 mb-6">
+        Run <code class="bg-slate-200 px-2 py-1 rounded">tylix make:feature Post title:string body:text --dashboard</code>
+        to generate your first working CRUD page.
+      </p>
+
+      <a href="/" class="text-tylix-blue text-sm hover:underline">&larr; Back to home</a>
+    </div>
+  </div>

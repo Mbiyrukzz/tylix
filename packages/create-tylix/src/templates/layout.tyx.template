@@ -1,0 +1,25 @@
+<script>
+action
+  toggleTheme() {
+    const isDark = document.documentElement.classList.toggle("dark")
+    if (isDark) {
+      localStorage.setItem("theme", "dark")
+    } else {
+      localStorage.setItem("theme", "light")
+    }
+  }
+</script>
+
+<template>
+  <div>
+    <nav class="px-6 py-3 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
+      <a href="/">
+        <img src="/logo-mark.png" class="w-8 h-8" />
+      </a>
+      <button onclick="{{ toggleTheme() }}" class="text-sm px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+        Toggle theme
+      </button>
+    </nav>
+    <div data-tylix-slot="true"></div>
+  </div>
+</template>
