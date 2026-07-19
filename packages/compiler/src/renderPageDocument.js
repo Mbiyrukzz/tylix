@@ -3,6 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parsePageFile } from './parser/parsePageFile.js'
 import { parseComponent } from './parser/parseComponent.js'
+import { parseComponentFile } from './parser/parseComponentFile.js'
 import { parseTemplate } from './parser/parseTemplate.js'
 import { Lexer } from './lexer/Lexer.js'
 import { Parser } from './parser/Parser.js'
@@ -14,7 +15,28 @@ const RUNTIME_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'reactive.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
-function compileComponentSource(source, className) {
+// Components come in two dialects: the tag-based <script>/<template>
+// format (parseComponent.js -- used by _layout.tyx and older child
+// components), and the bare-keyword "component Name" format (mirrors
+// "page Name" pages). Detected by whether the source starts with the
+// literal "component" keyword.
+function compileComponentSource(source, fallbackClassName) {
+  const isNativeComponent = /^\s*component\s+\w+/.test(source)
+
+  if (isNativeComponent) {
+    const { componentName, script, template } = parseComponentFile(source)
+    const pageNode =
+      script.trim().length > 0
+        ? new Parser(new Lexer(script).tokenize()).parse()
+        : { props: [], state: [], computed: [], actions: [] }
+
+    const classSource = generatePage(pageNode, componentName)
+    const templateNodes = parseTemplate(template)
+    const { code, rootVar } = generateTemplate(templateNodes)
+
+    return { classSource, code, rootVar, className: componentName }
+  }
+
   const { script, template } = parseComponent(source)
 
   const pageNode =
@@ -22,26 +44,13 @@ function compileComponentSource(source, className) {
       ? new Parser(new Lexer(script).tokenize()).parse()
       : { props: [], state: [], computed: [], actions: [] }
 
-  const classSource = generatePage(pageNode, className)
+  const classSource = generatePage(pageNode, fallbackClassName)
   const templateNodes = parseTemplate(template)
   const { code, rootVar } = generateTemplate(templateNodes)
 
-  return { classSource, code, rootVar }
+  return { classSource, code, rootVar, className: fallbackClassName }
 }
 
-/**
- * Compiles a native Tylix .tyx page file into a complete, self-
- * contained HTML document string. `childComponents` is an optional
- * map of { TagName: rawTyxSource } for any <TagName /> components
- * referenced in the page's template (using the plain <script>/
- * <template> component format, not the page/state/action format,
- * since child components are typically simpler reusable pieces).
- *
- * `layout`, if given, is the raw source of a <script>/<template>
- * component (same format as childComponents) containing an element
- * with a `data-tylix-slot` attribute. The page's own root element is
- * mounted inside that slot instead of directly into #app.
- */
 export function renderPageDocument(
   source,
   childComponents = {},
@@ -68,13 +77,11 @@ export function renderPageDocument(
 
   const childRegistrations = childNames
     .map((name) => {
-      const { code: childCode, rootVar: childRootVar } = compileComponentSource(
-        childComponents[name],
-        name,
-      )
+      const compiled = compileComponentSource(childComponents[name], name)
+      const { code: childCode, rootVar: childRootVar, className } = compiled
       return `  components[${JSON.stringify(name)}] = {
     mount(document) {
-      const instance = new ${name}();
+      const instance = new ${className}();
       const node = (function (document, instance) {
 ${childCode}
         return ${childRootVar};
@@ -92,7 +99,7 @@ ${childCode}
     const layoutCompiled = compileComponentSource(layout, '__Layout')
     layoutClassSource = layoutCompiled.classSource
     layoutMountCode = `
-    const layoutInstance = new __Layout();
+    const layoutInstance = new ${layoutCompiled.className}();
     (function (document, instance, pageRoot) {
 ${layoutCompiled.code}
       const slot = ${layoutCompiled.rootVar}.querySelector("[data-tylix-slot]");

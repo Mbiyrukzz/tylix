@@ -1,11 +1,11 @@
-import { generateTemplateExpression } from "./generateTemplateExpression.js";
+import { generateTemplateExpression } from './generateTemplateExpression.js'
 
-const EVENT_ATTR_PREFIX = /^on(click|input|change|submit)$/i;
-const COMPONENT_TAG_PATTERN = /^[A-Z]/;
+const EVENT_ATTR_PREFIX = /^on(click|input|change|submit)$/i
+const COMPONENT_TAG_PATTERN = /^[A-Z]/
 
-let nodeCounter = 0;
+let nodeCounter = 0
 function nextVar(prefix) {
-  return `${prefix}${nodeCounter++}`;
+  return `${prefix}${nodeCounter++}`
 }
 
 /**
@@ -17,48 +17,50 @@ function nextVar(prefix) {
  * "instance.".
  */
 export function generateTemplate(nodes) {
-  nodeCounter = 0;
-  const lines = [];
-  const rootVars = nodes.map((node) => compileNode(node, lines, new Set()));
+  nodeCounter = 0
+  const lines = []
+  const rootVars = nodes.map((node) => compileNode(node, lines, new Set()))
 
   if (rootVars.length === 1) {
-    return { code: lines.join("\n"), rootVar: rootVars[0] };
+    return { code: lines.join('\n'), rootVar: rootVars[0] }
   }
 
-  const fragmentVar = nextVar("fragment");
-  lines.push(`const ${fragmentVar} = document.createDocumentFragment();`);
-  rootVars.forEach((v) => lines.push(`${fragmentVar}.appendChild(${v});`));
-  return { code: lines.join("\n"), rootVar: fragmentVar };
+  const fragmentVar = nextVar('fragment')
+  lines.push(`const ${fragmentVar} = document.createDocumentFragment();`)
+  rootVars.forEach((v) => lines.push(`${fragmentVar}.appendChild(${v});`))
+  return { code: lines.join('\n'), rootVar: fragmentVar }
 }
 
 function compileNode(node, lines, scope) {
-  if (node.type === "Text") {
-    const varName = nextVar("text");
-    lines.push(`const ${varName} = document.createTextNode(${JSON.stringify(node.value)});`);
-    return varName;
+  if (node.type === 'Text') {
+    const varName = nextVar('text')
+    lines.push(
+      `const ${varName} = document.createTextNode(${JSON.stringify(node.value)});`,
+    )
+    return varName
   }
 
-  if (node.type === "Interpolation") {
-    const varName = nextVar("text");
-    const expr = generateTemplateExpression(node.expression, scope);
-    lines.push(`const ${varName} = document.createTextNode("");`);
-    lines.push(`effect(() => { ${varName}.nodeValue = ${expr}; });`);
-    return varName;
+  if (node.type === 'Interpolation') {
+    const varName = nextVar('text')
+    const expr = generateTemplateExpression(node.expression, scope)
+    lines.push(`const ${varName} = document.createTextNode("");`)
+    lines.push(`effect(() => { ${varName}.nodeValue = ${expr}; });`)
+    return varName
   }
 
-  if (node.type === "If") {
-    return compileIf(node, lines, scope);
+  if (node.type === 'If') {
+    return compileIf(node, lines, scope)
   }
 
-  if (node.type === "Each") {
-    return compileEach(node, lines, scope);
+  if (node.type === 'Each') {
+    return compileEach(node, lines, scope)
   }
 
-  if (node.type === "Element") {
-    return compileElement(node, lines, scope);
+  if (node.type === 'Element') {
+    return compileElement(node, lines, scope)
   }
 
-  throw new Error(`generateTemplate: unknown node type "${node.type}"`);
+  throw new Error(`generateTemplate: unknown node type "${node.type}"`)
 }
 
 // Renders node.children into a local fragment and returns the lines
@@ -66,10 +68,12 @@ function compileNode(node, lines, scope) {
 // touching the caller's `lines` array directly (used inside effect
 // callbacks below, which need their own nested block of statements).
 function compileChildrenIntoFragment(children, scope, fragVar) {
-  const childLines = [];
-  const childVars = children.map((child) => compileNode(child, childLines, scope));
-  childLines.push(...childVars.map((v) => `${fragVar}.appendChild(${v});`));
-  return childLines;
+  const childLines = []
+  const childVars = children.map((child) =>
+    compileNode(child, childLines, scope),
+  )
+  childLines.push(...childVars.map((v) => `${fragVar}.appendChild(${v});`))
+  return childLines
 }
 
 // Conditional rendering with no VDOM: an anchor comment node marks
@@ -79,32 +83,34 @@ function compileChildrenIntoFragment(children, scope, fragVar) {
 // changed), previous nodes are removed and new ones inserted right
 // after the anchor in the live DOM.
 function compileIf(node, lines, scope) {
-  const anchorVar = nextVar("ifAnchor");
-  const containerVar = nextVar("ifContainer");
-  const nodesVar = nextVar("ifNodes");
-  const initialVar = nextVar("ifInitial");
-  const condExpr = generateTemplateExpression(node.condition, scope);
+  const anchorVar = nextVar('ifAnchor')
+  const containerVar = nextVar('ifContainer')
+  const nodesVar = nextVar('ifNodes')
+  const initialVar = nextVar('ifInitial')
+  const condExpr = generateTemplateExpression(node.condition, scope)
 
-  lines.push(`const ${anchorVar} = document.createComment("if");`);
-  lines.push(`const ${containerVar} = document.createDocumentFragment();`);
-  lines.push(`${containerVar}.appendChild(${anchorVar});`);
-  lines.push(`let ${nodesVar} = [];`);
-  lines.push(`let ${initialVar} = true;`);
-  lines.push(`effect(() => {`);
-  lines.push(`  for (const n of ${nodesVar}) n.remove();`);
-  lines.push(`  ${nodesVar} = [];`);
-  lines.push(`  if (${condExpr}) {`);
-  lines.push(`    const frag = document.createDocumentFragment();`);
-  const childLines = compileChildrenIntoFragment(node.children, scope, "frag");
-  childLines.forEach((l) => lines.push(`    ${l}`));
-  lines.push(`    ${nodesVar} = Array.from(frag.childNodes);`);
-  lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`);
-  lines.push(`    else { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`);
-  lines.push(`  }`);
-  lines.push(`  ${initialVar} = false;`);
-  lines.push(`});`);
+  lines.push(`const ${anchorVar} = document.createComment("if");`)
+  lines.push(`const ${containerVar} = document.createDocumentFragment();`)
+  lines.push(`${containerVar}.appendChild(${anchorVar});`)
+  lines.push(`let ${nodesVar} = [];`)
+  lines.push(`let ${initialVar} = true;`)
+  lines.push(`effect(() => {`)
+  lines.push(`  for (const n of ${nodesVar}) n.remove();`)
+  lines.push(`  ${nodesVar} = [];`)
+  lines.push(`  if (${condExpr}) {`)
+  lines.push(`    const frag = document.createDocumentFragment();`)
+  const childLines = compileChildrenIntoFragment(node.children, scope, 'frag')
+  childLines.forEach((l) => lines.push(`    ${l}`))
+  lines.push(`    ${nodesVar} = Array.from(frag.childNodes);`)
+  lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
+  lines.push(
+    `    else { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
+  )
+  lines.push(`  }`)
+  lines.push(`  ${initialVar} = false;`)
+  lines.push(`});`)
 
-  return containerVar;
+  return containerVar
 }
 
 // List rendering, same anchor/rebuild strategy as compileIf, but
@@ -112,92 +118,121 @@ function compileIf(node, lines, scope) {
 // diffing -- every dependency change rebuilds the whole list, which
 // is the deliberate simplification for v1.
 function compileEach(node, lines, scope) {
-  const anchorVar = nextVar("eachAnchor");
-  const containerVar = nextVar("eachContainer");
-  const nodesVar = nextVar("eachNodes");
-  const initialVar = nextVar("eachInitial");
-  const iterableExpr = generateTemplateExpression(node.iterable, scope);
-  const innerScope = new Set([...scope, node.itemName]);
+  const anchorVar = nextVar('eachAnchor')
+  const containerVar = nextVar('eachContainer')
+  const nodesVar = nextVar('eachNodes')
+  const initialVar = nextVar('eachInitial')
+  const iterableExpr = generateTemplateExpression(node.iterable, scope)
+  const innerScope = new Set([...scope, node.itemName])
 
-  lines.push(`const ${anchorVar} = document.createComment("each");`);
-  lines.push(`const ${containerVar} = document.createDocumentFragment();`);
-  lines.push(`${containerVar}.appendChild(${anchorVar});`);
-  lines.push(`let ${nodesVar} = [];`);
-  lines.push(`let ${initialVar} = true;`);
-  lines.push(`effect(() => {`);
-  lines.push(`  for (const n of ${nodesVar}) n.remove();`);
-  lines.push(`  const frag = document.createDocumentFragment();`);
-  lines.push(`  for (const ${node.itemName} of ${iterableExpr}) {`);
-  const childLines = compileChildrenIntoFragment(node.children, innerScope, "frag");
-  childLines.forEach((l) => lines.push(`    ${l}`));
-  lines.push(`  }`);
-  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`);
-  lines.push(`  if (${initialVar}) { ${containerVar}.appendChild(frag); }`);
-  lines.push(`  else { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`);
-  lines.push(`  ${initialVar} = false;`);
-  lines.push(`});`);
+  lines.push(`const ${anchorVar} = document.createComment("each");`)
+  lines.push(`const ${containerVar} = document.createDocumentFragment();`)
+  lines.push(`${containerVar}.appendChild(${anchorVar});`)
+  lines.push(`let ${nodesVar} = [];`)
+  lines.push(`let ${initialVar} = true;`)
+  lines.push(`effect(() => {`)
+  lines.push(`  for (const n of ${nodesVar}) n.remove();`)
+  lines.push(`  const frag = document.createDocumentFragment();`)
+  lines.push(`  for (const ${node.itemName} of ${iterableExpr}) {`)
+  const childLines = compileChildrenIntoFragment(
+    node.children,
+    innerScope,
+    'frag',
+  )
+  childLines.forEach((l) => lines.push(`    ${l}`))
+  lines.push(`  }`)
+  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`)
+  lines.push(`  if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
+  lines.push(
+    `  else { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
+  )
+  lines.push(`  ${initialVar} = false;`)
+  lines.push(`});`)
 
-  return containerVar;
+  return containerVar
 }
 
 function isComponentTag(tag) {
-  return COMPONENT_TAG_PATTERN.test(tag);
+  return COMPONENT_TAG_PATTERN.test(tag)
 }
 
 function compileElement(node, lines, scope) {
   if (isComponentTag(node.tag)) {
-    const varName = nextVar("component");
-    lines.push(`const ${varName} = components[${JSON.stringify(node.tag)}].mount(document).node;`);
-    return varName;
+    const varName = nextVar('component')
+    const tagLiteral = JSON.stringify(node.tag)
+    lines.push(`let ${varName};`)
+    lines.push(`if (components[${tagLiteral}]) {`)
+    lines.push(`  ${varName} = components[${tagLiteral}].mount(document).node;`)
+    lines.push(`} else {`)
+    lines.push(
+      `  console.warn('Component "' + ${tagLiteral} + '" not found. Did you forget to restart tylix dev after creating it?');`,
+    )
+    lines.push(
+      `  ${varName} = document.createComment(${tagLiteral} + ' not found');`,
+    )
+    lines.push(`}`)
+    return varName
   }
 
-  const varName = nextVar("el");
-  lines.push(`const ${varName} = document.createElement(${JSON.stringify(node.tag)});`);
+  const varName = nextVar('el')
+  lines.push(
+    `const ${varName} = document.createElement(${JSON.stringify(node.tag)});`,
+  )
 
   for (const attr of node.attributes) {
-    compileAttribute(varName, attr, lines, scope);
+    compileAttribute(varName, attr, lines, scope)
   }
 
   for (const child of node.children) {
-    const childVar = compileNode(child, lines, scope);
-    lines.push(`${varName}.appendChild(${childVar});`);
+    const childVar = compileNode(child, lines, scope)
+    lines.push(`${varName}.appendChild(${childVar});`)
   }
 
-  return varName;
+  return varName
 }
 
 function compileAttribute(elVar, attr, lines, scope) {
   if (EVENT_ATTR_PREFIX.test(attr.name)) {
-    const eventName = attr.name.slice(2).toLowerCase();
+    const eventName = attr.name.slice(2).toLowerCase()
     if (!attr.dynamic) {
-      throw new Error(`Event attribute "${attr.name}" must use {{ }} binding, got a static string.`);
+      throw new Error(
+        `Event attribute "${attr.name}" must use {{ }} binding, got a static string.`,
+      )
     }
 
-    if (attr.value.type === "CallExpression") {
+    if (attr.value.type === 'CallExpression') {
       // Explicit call with its own arguments, e.g. remove(post.id) or
       // setField('name', event.target.value): invoke exactly as
       // written. "event" is added to scope so a reference to the
       // real DOM event argument isn't mistakenly prefixed with
       // "instance." -- it's a genuine local, just like an #each
       // loop variable.
-      const scopeWithEvent = new Set([...scope, "event"]);
-      const expr = generateTemplateExpression(attr.value, scopeWithEvent);
-      lines.push(`${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}; });`);
-      return;
+      const scopeWithEvent = new Set([...scope, 'event'])
+      const expr = generateTemplateExpression(attr.value, scopeWithEvent)
+      lines.push(
+        `${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}; });`,
+      )
+      return
     }
 
     // Bare method reference, e.g. increment: called with the DOM
     // event for backward compatibility with existing handlers.
-    const expr = generateTemplateExpression(attr.value, scope);
-    lines.push(`${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}(event); });`);
-    return;
+    const expr = generateTemplateExpression(attr.value, scope)
+    lines.push(
+      `${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}(event); });`,
+    )
+    return
   }
 
   if (attr.dynamic) {
-    const expr = generateTemplateExpression(attr.value, scope);
-    lines.push(`effect(() => { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${expr}); });`);
-    return;
+    const expr = generateTemplateExpression(attr.value, scope)
+    lines.push(
+      `effect(() => { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${expr}); });`,
+    )
+    return
   }
 
-  lines.push(`${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${JSON.stringify(attr.value)});`);
+  lines.push(
+    `${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${JSON.stringify(attr.value)});`,
+  )
 }

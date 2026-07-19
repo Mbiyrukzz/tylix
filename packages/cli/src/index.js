@@ -5,6 +5,7 @@ import { makeController } from './commands/makeController.js'
 import { makeFeature } from './commands/makeFeature.js'
 import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
+import { makeComponent } from './commands/makeComponent.js'
 import { migrate } from './commands/migrate.js'
 import { dev } from './commands/dev.js'
 
@@ -38,6 +39,15 @@ async function main() {
     return
   }
 
+  if (command === 'make:component') {
+    const [name] = rest
+    if (!name) {
+      console.error('Usage: tylix make:component <Name>')
+      process.exit(1)
+    }
+    await makeComponent(name)
+    return
+  }
   // --dashboard is a flag, not a field:type argument -- pull it out
   // before splitting subject/fields so it doesn't get misparsed as a
   // field definition by makeFeature's field-arg loop.
@@ -56,7 +66,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, migrate, make:auth, make:page, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, migrate, make:auth, make:page, make:component, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

@@ -135,6 +135,7 @@ async function walkPagesDir(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true })
   const files = []
   for (const entry of entries) {
+    if (entry.isDirectory() && entry.name === 'components') continue
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       files.push(...(await walkPagesDir(fullPath)))
@@ -144,7 +145,6 @@ async function walkPagesDir(dir) {
   }
   return files
 }
-
 // posts/[id].tyx        -> /posts/:id
 // posts/Index.tyx        -> /posts
 // users/[id]/Profile.tyx -> /users/:id/profile
@@ -198,6 +198,26 @@ async function findLayoutForFile(pagesDir, filePath) {
   }
 }
 
+async function loadComponents(pagesDir) {
+  const componentsDir = path.join(pagesDir, 'components')
+  const exists = await fs
+    .access(componentsDir)
+    .then(() => true)
+    .catch(() => false)
+  if (!exists) return {}
+
+  const entries = await fs.readdir(componentsDir, { withFileTypes: true })
+  const components = {}
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.tyx')) continue
+    const name = entry.name.replace(/\.tyx$/, '')
+    components[name] = await fs.readFile(
+      path.join(componentsDir, entry.name),
+      'utf-8',
+    )
+  }
+  return components
+}
 async function registerPageRoutes(router, baseDir) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   const exists = await fs
@@ -211,8 +231,9 @@ async function registerPageRoutes(router, baseDir) {
   async function renderFile(filePath, params = {}) {
     const source = await fs.readFile(filePath, 'utf-8')
     const layout = await findLayoutForFile(pagesDir, filePath)
+    const components = await loadComponents(pagesDir)
     return injectHmrScript(
-      renderPageDocument(source, {}, { layout, props: params }),
+      renderPageDocument(source, components, { layout, props: params }),
     )
   }
 
