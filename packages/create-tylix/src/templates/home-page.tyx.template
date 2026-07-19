@@ -3,15 +3,24 @@ page Home
 state
   copied: false
   installing: false
+  loggedIn: false
   testimonials: [
     { quote: "Probably one of the best frameworks for JS. Building new projects has never been this easy.", name: "Amara Osei", role: "Full-stack developer" },
     { quote: "The compiler output is honestly readable. I can debug generated code like it's my own.", name: "Daniel Kruger", role: "Founder, Loopwave" },
     { quote: "Went from idea to a working CRUD dashboard in under ten minutes.", name: "Priya Nair", role: "Indie hacker" }
   ]
 
+onMount
+  async {
+    const token = localStorage.getItem("tylix_token")
+    if token {
+      this.loggedIn = true
+    }
+  }
+
 action
   async copyInstallCommand() {
-    if not copied and not installing {
+    if not this.copied and not this.installing {
       await navigator.clipboard.writeText("npx create-tylix my-app")
       this.copied = true
     }
@@ -40,12 +49,19 @@ template
         </p>
 
         <div class="flex items-center justify-center gap-3">
+{{#if loggedIn}}
+          <a href="/dashboard" class="px-7 py-3 rounded-lg bg-tylix-blue text-white font-medium hover:opacity-90 transition shadow-lg shadow-tylix-blue/20">
+            Go to Dashboard
+          </a>
+{{/if}}
+{{#if not loggedIn}}
           <a href="/register" class="px-7 py-3 rounded-lg bg-tylix-blue text-white font-medium hover:opacity-90 transition shadow-lg shadow-tylix-blue/20">
             Get Started
           </a>
           <a href="/dashboard" class="px-7 py-3 rounded-lg border border-slate-800 text-slate-300 font-medium hover:bg-slate-900 transition">
             Continue as Guest
           </a>
+{{/if}}
         </div>
       </div>
     </section>
@@ -188,6 +204,7 @@ template
     </section>
 
     <section class="px-6 py-28 text-center">
+{{#if not loggedIn}}
       <h2 class="text-4xl font-semibold text-slate-100 mb-4 tracking-tight">Ready to build something real?</h2>
       <p class="text-slate-400 mb-10 max-w-md mx-auto">
         Scaffold a full project &mdash; auth, database, and styling included &mdash; in under a minute.
@@ -195,6 +212,16 @@ template
       <a href="/register" class="inline-block px-8 py-3.5 rounded-lg bg-tylix-blue text-white font-medium hover:opacity-90 transition shadow-lg shadow-tylix-blue/20">
         Get Started for Free
       </a>
+{{/if}}
+{{#if loggedIn}}
+      <h2 class="text-4xl font-semibold text-slate-100 mb-4 tracking-tight">Keep building</h2>
+      <p class="text-slate-400 mb-10 max-w-md mx-auto">
+        Jump back into your dashboard to manage your data and features.
+      </p>
+      <a href="/dashboard" class="inline-block px-8 py-3.5 rounded-lg bg-tylix-blue text-white font-medium hover:opacity-90 transition shadow-lg shadow-tylix-blue/20">
+        Go to Dashboard
+      </a>
+{{/if}}
     </section>
 
     <footer class="px-6 py-10 border-t border-slate-900">

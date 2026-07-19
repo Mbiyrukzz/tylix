@@ -12,7 +12,9 @@ export function generateTemplateExpression(node, scope = new Set()) {
     return scope.has(node.name) ? node.name : `instance.${node.name}`
   }
   if (node.type === 'MemberExpression') {
-    return `${generateTemplateExpression(node.object, scope)}.${node.property}`
+    return node.computed
+      ? `${generateTemplateExpression(node.object, scope)}[${generateTemplateExpression(node.property, scope)}]`
+      : `${generateTemplateExpression(node.object, scope)}.${node.property}`
   }
   if (node.type === 'BinaryExpression') {
     return `(${generateTemplateExpression(node.left, scope)} ${node.operator} ${generateTemplateExpression(node.right, scope)})`

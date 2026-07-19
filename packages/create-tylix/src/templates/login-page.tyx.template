@@ -12,7 +12,7 @@ action
   }
 
   async submit() {
-    if not submitting {
+  if not this.submitting {
       this.submitting = true
       this.error = ""
 

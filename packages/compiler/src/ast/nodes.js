@@ -37,8 +37,8 @@ export function Identifier(name) {
   return { type: 'Identifier', name }
 }
 
-export function MemberExpr(object, property) {
-  return { type: 'MemberExpression', object, property }
+export function MemberExpr(object, property, computed = false) {
+  return { type: 'MemberExpression', object, property, computed }
 }
 
 export function Literal(value) {

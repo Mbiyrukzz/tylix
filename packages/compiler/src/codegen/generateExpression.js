@@ -15,7 +15,9 @@ export function generateExpression(node) {
       return node.name
 
     case 'MemberExpression':
-      return `${generateExpression(node.object)}.${node.property}`
+      return node.computed
+        ? `${generateExpression(node.object)}[${generateExpression(node.property)}]`
+        : `${generateExpression(node.object)}.${node.property}`
 
     case 'BinaryExpression':
       return `(${generateExpression(node.left)} ${node.operator} ${generateExpression(node.right)})`

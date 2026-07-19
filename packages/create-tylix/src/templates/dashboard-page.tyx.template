@@ -3,6 +3,7 @@ page Dashboard
 state
   user: null
   checkedAuth: false
+  features: []
 
 onMount
   async {
@@ -19,6 +20,10 @@ onMount
         const result = await response.json()
         this.user = result
         this.checkedAuth = true
+
+        const featuresResponse = await fetch("/api/_tylix/features")
+        const featuresResult = await featuresResponse.json()
+        this.features = featuresResult.data
       } else {
         localStorage.removeItem("tylix_token")
         window.location.href = "/login"
@@ -41,9 +46,16 @@ template
         Overview
       </a>
       <p class="px-3 pt-4 pb-2 text-slate-600 text-xs font-medium uppercase tracking-wide">Data</p>
+{{#if features.length is 0}}
       <p class="px-3 py-2 text-slate-600 text-sm italic">
         No features yet
       </p>
+{{/if}}
+{{#each f in features}}
+      <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-400 text-sm hover:bg-slate-900 hover:text-slate-100 transition">
+        {{ f.name }}
+      </a>
+{{/each}}
     </aside>
 
     <div class="px-6 lg:px-10 py-10">
@@ -59,6 +71,7 @@ template
         </button>
       </div>
 
+{{#if features.length is 0}}
       <div class="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center mb-8">
         <div class="w-12 h-12 rounded-lg bg-tylix-blue/10 flex items-center justify-center text-xl mx-auto mb-4">🗂️</div>
         <h2 class="text-slate-100 font-medium mb-2">No data models yet</h2>
@@ -70,6 +83,19 @@ template
           tylix make:feature Post title:string body:text --dashboard
         </code>
       </div>
+{{/if}}
+
+{{#if features.length is not 0}}
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+{{#each f in features}}
+        <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="block rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
+          <div class="w-10 h-10 rounded-lg bg-tylix-blue/10 flex items-center justify-center text-lg mb-4">🗂️</div>
+          <h3 class="text-slate-100 font-medium mb-1">{{ f.name }}</h3>
+          <p class="text-slate-500 text-sm">Manage {{ f.table }}</p>
+        </a>
+{{/each}}
+      </div>
+{{/if}}
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
@@ -84,7 +110,7 @@ template
         </div>
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <p class="text-slate-500 text-xs mb-1">Features</p>
-          <p class="text-slate-100 text-sm font-medium">0 scaffolded</p>
+          <p class="text-slate-100 text-sm font-medium">{{ features.length }} scaffolded</p>
         </div>
       </div>
 

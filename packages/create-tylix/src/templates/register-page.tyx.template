@@ -12,8 +12,8 @@ action
     this[field] = value
   }
 
-  async submit() {
-    if not submitting {
+ async submit() {
+  if not this.submitting {
       this.submitting = true
       this.error = ""
 

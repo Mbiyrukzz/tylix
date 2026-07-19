@@ -312,6 +312,15 @@ export async function dev({ port = 3000 } = {}) {
   const router = new Router()
   registerFeatureRoutes(router, features)
 
+  router.get('/api/_tylix/features', (req, res) => {
+    res.json({
+      data: features.map((f) => ({
+        name: f.manifest.name,
+        table: f.manifest.table,
+      })),
+    })
+  })
+
   const authEnabled = await registerAuthRoutes(router, baseDir, config.auth)
   const pageRoutes = await registerPageRoutes(router, baseDir)
 

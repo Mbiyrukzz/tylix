@@ -539,6 +539,15 @@ export class Parser {
         expr = MemberExpr(expr, property)
         continue
       }
+      if (this.match(TokenType.LBRACKET)) {
+        const property = this.parseExpression()
+        this.expect(
+          TokenType.RBRACKET,
+          "Expected ']' to close computed member access",
+        )
+        expr = MemberExpr(expr, property, true)
+        continue
+      }
       if (this.check(TokenType.LPAREN)) {
         expr = CallExpr(expr, this.parseCallArguments())
         continue
