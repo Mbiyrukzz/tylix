@@ -6,7 +6,9 @@ import { generateExpression } from './generateExpression.js'
 export function generateStatement(node) {
   switch (node.type) {
     case 'ReturnStatement':
-      return `return ${generateExpression(node.argument)};`
+      return node.argument
+        ? `return ${generateExpression(node.argument)};`
+        : 'return;'
 
     case 'ExpressionStatement':
       return `${generateExpression(node.expression)};`

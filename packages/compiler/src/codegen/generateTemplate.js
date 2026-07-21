@@ -180,7 +180,7 @@ function compileElement(node, lines, scope) {
   )
 
   for (const attr of node.attributes) {
-    compileAttribute(varName, attr, lines, scope)
+    compileAttribute(varName, node.tag, attr, lines, scope)
   }
 
   for (const child of node.children) {
@@ -191,7 +191,15 @@ function compileElement(node, lines, scope) {
   return varName
 }
 
-function compileAttribute(elVar, attr, lines, scope) {
+// Attributes that reflect live user-editable DOM state -- setting
+// them via setAttribute() only seeds the *initial* value; once the
+// user interacts with the control, the live property diverges from
+// the attribute and further setAttribute() calls stop being visible.
+// These need the property set directly instead.
+const LIVE_PROPERTY_ATTRS = new Set(['value', 'checked'])
+const LIVE_PROPERTY_TAGS = new Set(['input', 'textarea', 'select'])
+
+function compileAttribute(elVar, tag, attr, lines, scope) {
   if (EVENT_ATTR_PREFIX.test(attr.name)) {
     const eventName = attr.name.slice(2).toLowerCase()
     if (!attr.dynamic) {
@@ -200,35 +208,42 @@ function compileAttribute(elVar, attr, lines, scope) {
       )
     }
 
-    if (attr.value.type === 'CallExpression') {
-      // Explicit call with its own arguments, e.g. remove(post.id) or
-      // setField('name', event.target.value): invoke exactly as
-      // written. "event" is added to scope so a reference to the
-      // real DOM event argument isn't mistakenly prefixed with
-      // "instance." -- it's a genuine local, just like an #each
-      // loop variable.
-      const scopeWithEvent = new Set([...scope, 'event'])
+    // Templates reference the DOM event as either "$event" or the
+    // bare "event" -- both are treated as the same local so neither
+    // gets mistakenly prefixed with "instance.".
+    const scopeWithEvent = new Set([...scope, '$event', 'event'])
+
+    if (
+      attr.value.type === 'CallExpression' ||
+      attr.value.type === 'AssignmentExpression'
+    ) {
       const expr = generateTemplateExpression(attr.value, scopeWithEvent)
       lines.push(
-        `${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}; });`,
+        `${elVar}.addEventListener(${JSON.stringify(eventName)}, ($event) => { const event = $event; ${expr}; });`,
       )
       return
     }
 
-    // Bare method reference, e.g. increment: called with the DOM
-    // event for backward compatibility with existing handlers.
-    const expr = generateTemplateExpression(attr.value, scope)
+    const expr = generateTemplateExpression(attr.value, scopeWithEvent)
     lines.push(
-      `${elVar}.addEventListener(${JSON.stringify(eventName)}, (event) => { ${expr}(event); });`,
+      `${elVar}.addEventListener(${JSON.stringify(eventName)}, ($event) => { const event = $event; ${expr}($event); });`,
     )
     return
   }
-
   if (attr.dynamic) {
     const expr = generateTemplateExpression(attr.value, scope)
-    lines.push(
-      `effect(() => { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${expr}); });`,
-    )
+    const useProperty =
+      LIVE_PROPERTY_ATTRS.has(attr.name) && LIVE_PROPERTY_TAGS.has(tag)
+    if (useProperty) {
+      // Set the live DOM property, not the attribute, so re-renders
+      // after the user has typed (e.g. clearing the form on submit)
+      // actually update what's on screen.
+      lines.push(`effect(() => { ${elVar}.${attr.name} = ${expr}; });`)
+    } else {
+      lines.push(
+        `effect(() => { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${expr}); });`,
+      )
+    }
     return
   }
 
