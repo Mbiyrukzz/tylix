@@ -21,10 +21,28 @@ const loginSchema = {
     password: [required, isString],
 };
 
+const forgotPasswordSchema = {
+    email: [required, isString, isEmail],
+};
+
+const resetPasswordSchema = {
+    email: [required, isString, isEmail],
+    token: [required, isString],
+    password: [required, isString],
+};
+
 export function validateRegister(data) {
     return validate(data, registerSchema);
 }
 
 export function validateLogin(data) {
     return validate(data, loginSchema);
+}
+
+export function validateForgotPassword(data) {
+    return validate(data, forgotPasswordSchema);
+}
+
+export function validateResetPassword(data) {
+    return validate(data, resetPasswordSchema);
 }

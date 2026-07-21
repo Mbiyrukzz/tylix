@@ -24,6 +24,8 @@ import {
   HMR_CLIENT_SCRIPT,
 } from '../hotReload.js'
 
+import { renderErrorPage } from '../utils/error-page.js'
+
 // Runs the project's own locally-installed tailwindcss CLI (from
 // node_modules/.bin) rather than assuming a global install, since
 // create-tylix scaffolds tailwindcss as a project dependency.
@@ -89,6 +91,12 @@ async function serveStaticAsset(req, res, baseDir) {
 import { loadConfig } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 
+// Auth isn't a "Feature" discovered via feature.json the way Post is —
+// its routes are registered explicitly here. `refresh` and `logout`
+// are deliberately NOT wrapped in requireAuth: they're what the client
+// calls precisely when the access token is missing/expired, so gating
+// them behind a valid access token would make them unreachable exactly
+// when they're needed. Only `me` needs an active session.
 async function registerAuthRoutes(router, baseDir, authConfig) {
   const controllerPath = path.join(
     baseDir,
@@ -110,6 +118,17 @@ async function registerAuthRoutes(router, baseDir, authConfig) {
 
   router.post('/api/register', (req, res) => controller.register(req, res))
   router.post('/api/login', (req, res) => controller.login(req, res))
+  router.post('/api/auth/refresh', (req, res) => controller.refresh(req, res))
+  router.post('/api/auth/logout', (req, res) => controller.logout(req, res))
+  router.get('/api/auth/verify-email', (req, res) =>
+    controller.verifyEmail(req, res),
+  )
+  router.post('/api/auth/forgot-password', (req, res) =>
+    controller.forgotPassword(req, res),
+  )
+  router.post('/api/auth/reset-password', (req, res) =>
+    controller.resetPassword(req, res),
+  )
   router.get(
     '/api/me',
     requireAuth((req, res) => controller.me(req, res), authConfig.secret),
@@ -218,6 +237,7 @@ async function loadComponents(pagesDir) {
   }
   return components
 }
+
 async function registerPageRoutes(router, baseDir) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   const exists = await fs
@@ -237,6 +257,27 @@ async function registerPageRoutes(router, baseDir) {
     )
   }
 
+  // Wraps renderFile so a compile error never reaches Server.js's
+  // generic JSON catch-all -- page requests get the HTML debug page
+  // instead of a raw {"error": "..."} body on a blank page.
+  async function renderFileSafely(filePath, params = {}) {
+    let source = null
+    try {
+      source = await fs.readFile(filePath, 'utf-8')
+      const layout = await findLayoutForFile(pagesDir, filePath)
+      const components = await loadComponents(pagesDir)
+      const html = injectHmrScript(
+        renderPageDocument(source, components, { layout, props: params }),
+      )
+      return { html, ok: true }
+    } catch (err) {
+      return {
+        html: renderErrorPage(err, { file: filePath, source }),
+        ok: false,
+      }
+    }
+  }
+
   const entries = files
     .map((filePath) => ({
       filePath,
@@ -248,7 +289,9 @@ async function registerPageRoutes(router, baseDir) {
   for (const { filePath, routePath } of entries) {
     router.get(routePath, async (req, res) => {
       res.setHeader('Content-Type', 'text/html')
-      res.end(await renderFile(filePath, req.params))
+      const { html, ok } = await renderFileSafely(filePath, req.params)
+      if (!ok) res.status(500)
+      res.end(html)
     })
     registered.push(routePath)
   }
@@ -257,7 +300,9 @@ async function registerPageRoutes(router, baseDir) {
   if (files.includes(homeFile)) {
     router.get('/', async (req, res) => {
       res.setHeader('Content-Type', 'text/html')
-      res.end(await renderFile(homeFile, req.params))
+      const { html, ok } = await renderFileSafely(homeFile, req.params)
+      if (!ok) res.status(500)
+      res.end(html)
     })
   }
 
@@ -297,7 +342,8 @@ function printBanner({
     if (pageRoutes.length > 0) console.log(`  GET   /`)
     for (const route of pageRoutes) console.log(`  GET   ${route}`)
     for (const route of featureRoutes) {
-      console.log(`  GET     /api/${route.table}`)
+      const authNote = route.auth ? '  (auth required)' : ''
+      console.log(`  GET     /api/${route.table}${authNote}`)
       console.log(`  POST    /api/${route.table}`)
       console.log(`  GET     /api/${route.table}/:id`)
       console.log(`  PUT     /api/${route.table}/:id`)
@@ -313,6 +359,11 @@ function printBanner({
     console.log('\nAPI')
     console.log('POST /api/register')
     console.log('POST /api/login')
+    console.log('POST /api/auth/refresh')
+    console.log('POST /api/auth/logout')
+    console.log('GET  /api/auth/verify-email')
+    console.log('POST /api/auth/forgot-password')
+    console.log('POST /api/auth/reset-password')
     console.log('GET  /api/me')
   }
 
@@ -331,14 +382,21 @@ export async function dev({ port = 3000 } = {}) {
 
   const features = await discoverFeatures(baseDir)
   const router = new Router()
-  registerFeatureRoutes(router, features)
+  // Previously called without a third argument, which meant
+  // registerFeatureRoutes had no secret to verify tokens with and
+  // could never actually enforce a feature's "auth": true flag (e.g.
+  // the Post feature). config.auth may be undefined on projects that
+  // don't have auth enabled at all, hence the optional chaining.
+  registerFeatureRoutes(router, features, { secret: config.auth?.secret })
 
   router.get('/api/_tylix/features', (req, res) => {
     res.json({
-      data: features.map((f) => ({
-        name: f.manifest.name,
-        table: f.manifest.table,
-      })),
+      data: features
+        .filter((f) => f.manifest.table !== 'posts')
+        .map((f) => ({
+          name: f.manifest.name,
+          table: f.manifest.table,
+        })),
     })
   })
 
@@ -368,7 +426,18 @@ export async function dev({ port = 3000 } = {}) {
       res.json({
         message: 'Tylix dev server running',
         features: [],
-        auth: authEnabled ? ['/api/register', '/api/login', '/api/me'] : [],
+        auth: authEnabled
+          ? [
+              '/api/register',
+              '/api/login',
+              '/api/auth/refresh',
+              '/api/auth/logout',
+              '/api/auth/verify-email',
+              '/api/auth/forgot-password',
+              '/api/auth/reset-password',
+              '/api/me',
+            ]
+          : [],
       })
     })
   }
@@ -382,7 +451,10 @@ export async function dev({ port = 3000 } = {}) {
       driver: config.database.driver,
       featureCount: features.length,
       pageCount: pageRoutes.length,
-      featureRoutes: features.map((f) => ({ table: f.manifest.table })),
+      featureRoutes: features.map((f) => ({
+        table: f.manifest.table,
+        auth: f.manifest.auth,
+      })),
       pageRoutes,
       authEnabled,
     })

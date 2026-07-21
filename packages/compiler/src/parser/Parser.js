@@ -222,7 +222,9 @@ export class Parser {
 
   parseStatement() {
     if (this.match(TokenType.RETURN)) {
-      const argument = this.parseExpression()
+      const hasValue =
+        !this.check(TokenType.SEMICOLON) && !this.check(TokenType.RBRACE)
+      const argument = hasValue ? this.parseExpression() : null
       this.match(TokenType.SEMICOLON)
       return ReturnStatement(argument)
     }

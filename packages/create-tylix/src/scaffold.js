@@ -12,6 +12,7 @@ import { writeCompilerConfig } from './steps/writeCompilerConfig.js'
 import { writeOrmConfig } from './steps/writeOrmConfig.js'
 import { writeDatabaseConfig } from './steps/writeDatabaseConfig.js'
 import { generateAuth } from './steps/generateAuth.js'
+import { generatePostBoilerplate } from './steps/generatePostBoilerplate.js'
 import { writePage, writeLayout } from './steps/writePage.js'
 import { writeMiddleware } from './steps/writeMiddleware.js'
 import { writeComponents } from './steps/writeComponents.js'
@@ -151,6 +152,9 @@ async function runBuildSteps(config) {
   await step('Creating layouts', () => writeLayout(config))
   await step('Creating components', () => writeComponents(config))
   await step('Creating API routes', () => writeApiRoutes(config))
+  if (config.starter === 'starter' && config.authEnabled) {
+    await step('Creating Post feature', () => generatePostBoilerplate(config))
+  }
   await step('Creating migrations', () => runMigrations(config))
   if (config.gitInit) {
     await step('Initializing Git repository', () => initGit(config))
@@ -190,7 +194,18 @@ function printSuccessScreen(config) {
   console.log('API')
   console.log('POST   /api/register')
   console.log('POST   /api/login')
+  console.log('POST   /api/auth/refresh')
+  console.log('POST   /api/auth/logout')
+  console.log('GET    /api/auth/verify-email')
+  console.log('POST   /api/auth/forgot-password')
+  console.log('POST   /api/auth/reset-password')
   console.log('GET    /api/me')
+  if (config.starter === 'starter' && config.authEnabled) {
+    console.log('GET    /api/posts')
+    console.log('POST   /api/posts')
+    console.log('GET    /api/posts/:id')
+    console.log('DELETE /api/posts/:id')
+  }
   console.log('GET    /dashboard')
   printHeavyDivider()
 

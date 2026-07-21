@@ -5,5 +5,10 @@
   "main": "./src/index.js",
   "bin": {
     "create-tylix": "./src/index.js"
+  },
+  "dependencies": {
+    "@tylix/auth": "*",
+    "@tylix/core": "*",
+    "@tylix/generator": "*"
   }
 }

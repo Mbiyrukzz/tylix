@@ -1,26 +1,34 @@
-import { verifyToken } from "@tylix/auth";
+import { verifyToken, ACCESS_TOKEN_COOKIE } from "@tylix/auth";
 
 /**
  * Wraps a route handler so it only runs if the request carries a valid
- * "Authorization: Bearer <token>" header. On success, req.user is set
- * to the token's payload (e.g. { userId }); on failure, responds 401
- * and never calls the wrapped handler.
+ * session. Checks the httpOnly access-token cookie first (what the
+ * browser app now uses), then falls back to an
+ * "Authorization: Bearer <token>" header (for non-browser API clients
+ * that can't rely on cookies). On success, req.user is set to the
+ * token's payload (e.g. { userId }); on failure, responds 401 and
+ * never calls the wrapped handler.
  */
 export function requireAuth(handler, secret) {
-  return async (req, res) => {
-    const authHeader = req.headers?.authorization || "";
-    const [scheme, token] = authHeader.split(" ");
+    return async (req, res) => {
+        const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
 
-    if (scheme !== "Bearer" || !token) {
-      return res.status(401).json({ error: "Missing or malformed Authorization header." });
-    }
+        const authHeader = req.headers?.authorization || "";
+        const [scheme, headerToken] = authHeader.split(" ");
+        const bearerToken = scheme === "Bearer" ? headerToken : null;
 
-    const result = verifyToken(token, secret);
-    if (!result.valid) {
-      return res.status(401).json({ error: result.error || "Invalid token." });
-    }
+        const token = cookieToken || bearerToken;
 
-    req.user = result.payload;
-    return handler(req, res);
-  };
+        if (!token) {
+            return res.status(401).json({ error: "Not authenticated." });
+        }
+
+        const result = verifyToken(token, secret);
+        if (!result.valid) {
+            return res.status(401).json({ error: result.error || "Invalid token." });
+        }
+
+        req.user = result.payload;
+        return handler(req, res);
+    };
 }

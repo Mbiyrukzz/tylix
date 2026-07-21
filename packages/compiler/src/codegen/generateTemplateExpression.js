@@ -9,7 +9,13 @@ import { generateExpression } from './generateExpression.js'
  */
 export function generateTemplateExpression(node, scope = new Set()) {
   if (node.type === 'Identifier') {
-    return scope.has(node.name) ? node.name : `instance.${node.name}`
+    // $event is the DOM event object passed into inline handlers,
+    // not an instance property -- treat it like a loop variable and
+    // leave it bare rather than prefixing with "instance.".
+    if (node.name === '$event' || scope.has(node.name)) {
+      return node.name
+    }
+    return `instance.${node.name}`
   }
   if (node.type === 'MemberExpression') {
     return node.computed
@@ -21,6 +27,9 @@ export function generateTemplateExpression(node, scope = new Set()) {
   }
   if (node.type === 'UnaryExpression') {
     return `(${node.operator}${generateTemplateExpression(node.argument, scope)})`
+  }
+  if (node.type === 'AssignmentExpression') {
+    return `${generateTemplateExpression(node.target, scope)} = ${generateTemplateExpression(node.value, scope)}`
   }
   if (node.type === 'CallExpression') {
     const args = node.args

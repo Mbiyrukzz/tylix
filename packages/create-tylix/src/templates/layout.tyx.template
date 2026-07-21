@@ -1,51 +1,85 @@
 <script>
 state
   loggedIn: false
+  theme: "light"
+  mobileMenuOpen: false
 
 onMount
   async {
-    const token = localStorage.getItem("tylix_token")
-    if token {
+    const savedTheme = localStorage.getItem("theme")
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches
+    this.theme = savedTheme or (prefersDark ? "dark" : "light")
+    document.documentElement.classList.toggle("dark", this.theme is "dark")
+
+    // Auth state is cookie-based session everywhere else (see Home,
+    // Dashboard, Register) -- this used to check a "tylix_token" in
+    // localStorage instead, which meant the nav could show "Login"
+    // for a user who was actually signed in via cookie, or vice
+    // versa. /api/me is now the single source of truth.
+    const response = await fetch("/api/me", {
+      credentials: "include"
+    })
+    if response.ok {
       this.loggedIn = true
     }
   }
 
 action
   toggleTheme() {
-    const isDark = document.documentElement.classList.toggle("dark")
-    if (isDark) {
-      localStorage.setItem("theme", "dark")
-    } else {
-      localStorage.setItem("theme", "light")
-    }
+    this.theme = this.theme is "dark" ? "light" : "dark"
+    document.documentElement.classList.toggle("dark", this.theme is "dark")
+    localStorage.setItem("theme", this.theme)
   }
 
-  logout() {
-    localStorage.removeItem("tylix_token")
+  toggleMobileMenu() {
+    this.mobileMenuOpen = not this.mobileMenuOpen
+  }
+
+  closeMobileMenu() {
+    this.mobileMenuOpen = false
+  }
+
+  async logout() {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include"
+    })
     window.location.href = "/"
   }
 </script>
 <template>
-  <div class="bg-slate-950">
+  <div class="bg-slate-950 min-h-screen">
     <nav class="px-6 md:px-10 h-16 flex items-center justify-between border-b border-slate-900 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
       <a href="/" class="flex items-center gap-2.5">
-        <img src="/logo-mark.png" class="w-7 h-7 rounded-md" />
+        <img src="/logo-mark.png" alt="Tylix" class="w-7 h-7 rounded-md" />
         <span class="text-slate-100 font-semibold tracking-tight">Tylix</span>
       </a>
+
       <div class="hidden md:flex items-center gap-8">
         <a href="https://tylix.dev/docs" class="text-sm text-slate-400 hover:text-slate-100 transition">Docs</a>
         <a href="https://github.com/tylixjs" class="text-sm text-slate-400 hover:text-slate-100 transition">GitHub</a>
         <a href="https://discord.gg/tylix" class="text-sm text-slate-400 hover:text-slate-100 transition">Discord</a>
       </div>
-      <div class="flex items-center gap-3">
-        <button onclick="{{ toggleTheme() }}" class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-900 transition">
-          &#9788;
+
+      <div class="flex items-center gap-2">
+        <button
+          onclick="{{ toggleTheme() }}"
+          aria-label="Toggle color theme"
+          class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-900 transition"
+        >
+{{#if theme is "dark"}}
+          ☀
+{{/if}}
+{{#if theme is not "dark"}}
+          ☾
+{{/if}}
         </button>
+
 {{#if loggedIn}}
         <a href="/dashboard" class="hidden sm:block text-sm text-slate-300 hover:text-slate-100 transition px-3 py-1.5">
           Dashboard
         </a>
-        <button onclick="{{ logout() }}" class="text-sm px-4 py-1.5 rounded-lg border border-slate-800 text-slate-300 font-medium hover:bg-slate-900 transition">
+        <button onclick="{{ logout() }}" class="hidden sm:block text-sm px-4 py-1.5 rounded-lg border border-slate-800 text-slate-300 font-medium hover:bg-slate-900 transition">
           Log out
         </button>
 {{/if}}
@@ -53,12 +87,45 @@ action
         <a href="/login" class="hidden sm:block text-sm text-slate-300 hover:text-slate-100 transition px-3 py-1.5">
           Login
         </a>
-        <a href="/register" class="text-sm px-4 py-1.5 rounded-lg bg-slate-100 text-slate-900 font-medium hover:bg-white transition">
+        <a href="/register" class="hidden sm:block text-sm px-4 py-1.5 rounded-lg bg-slate-100 text-slate-900 font-medium hover:bg-white transition">
           Get Started
         </a>
 {{/if}}
+
+        <button
+          onclick="{{ toggleMobileMenu() }}"
+          aria-label="Toggle menu"
+          aria-expanded="{{ mobileMenuOpen }}"
+          aria-controls="mobile-menu"
+          class="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition"
+        >
+{{#if mobileMenuOpen}}
+          ✕
+{{/if}}
+{{#if not mobileMenuOpen}}
+          ☰
+{{/if}}
+        </button>
       </div>
     </nav>
+
+{{#if mobileMenuOpen}}
+    <div id="mobile-menu" class="md:hidden border-b border-slate-900 bg-slate-950 px-6 py-5 flex flex-col gap-4">
+      <a href="https://tylix.dev/docs" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Docs</a>
+      <a href="https://github.com/tylixjs" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">GitHub</a>
+      <a href="https://discord.gg/tylix" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Discord</a>
+      <div class="h-px bg-slate-900 my-1"></div>
+{{#if loggedIn}}
+      <a href="/dashboard" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Dashboard</a>
+      <button onclick="{{ logout() }}" class="text-sm text-left text-slate-300 hover:text-slate-100 transition">Log out</button>
+{{/if}}
+{{#if not loggedIn}}
+      <a href="/login" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Login</a>
+      <a href="/register" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Get Started</a>
+{{/if}}
+    </div>
+{{/if}}
+
     <div data-tylix-slot="true"></div>
   </div>
 </template>

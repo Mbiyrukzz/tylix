@@ -3,6 +3,7 @@ page Login
 state
   email: ""
   password: ""
+  remember: false
   error: ""
   submitting: false
 
@@ -11,24 +12,36 @@ action
     this[field] = value
   }
 
+  toggleRemember() {
+    this.remember = not this.remember
+  }
+
   async submit() {
-  if not this.submitting {
+    if not this.submitting {
       this.submitting = true
       this.error = ""
 
       const response = await fetch("/api/login", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: this.email, password: this.password })
+        body: JSON.stringify({
+          email: this.email,
+          password: this.password,
+          remember: this.remember
+        })
       })
 
       const result = await response.json()
 
       if (response.ok) {
-        localStorage.setItem("tylix_token", result.token)
         window.location.href = "/dashboard"
+      } else if response.status is 422 and result.errors {
+        const firstField = Object.keys(result.errors)[0]
+        this.error = result.errors[firstField][0]
+        this.submitting = false
       } else {
-        this.error = "Invalid email or password."
+        this.error = result.error or "Invalid email or password."
         this.submitting = false
       }
     }
@@ -39,24 +52,24 @@ template
 
     <div class="hidden lg:flex flex-col justify-between bg-slate-900 border-r border-slate-800 p-12">
       <a href="/" class="flex items-center gap-2.5">
-        <img src="/logo-mark.png" class="w-7 h-7 rounded-md" />
+        <img src="/logo-mark.png" alt="Tylix" class="w-7 h-7 rounded-md" />
         <span class="text-slate-100 font-semibold tracking-tight">Tylix</span>
       </a>
 
       <div>
         <p class="text-2xl text-slate-100 font-medium leading-snug mb-4">
-          &ldquo;Went from idea to a working CRUD dashboard in under ten minutes.&rdquo;
+          "The compiler output is honestly readable. I can debug generated code like it's my own."
         </p>
-        <p class="text-slate-500 text-sm">Priya Nair &mdash; Indie hacker</p>
+        <p class="text-slate-500 text-sm">Daniel Kruger — Founder, Loopwave</p>
       </div>
 
-      <p class="text-slate-600 text-xs">&copy; 2026 Tylix</p>
+      <p class="text-slate-600 text-xs">© 2026 Tylix</p>
     </div>
 
     <div class="flex items-center justify-center px-6 py-16">
       <div class="w-full max-w-sm">
         <a href="/" class="lg:hidden flex items-center gap-2.5 justify-center mb-10">
-          <img src="/logo-mark.png" class="w-7 h-7 rounded-md" />
+          <img src="/logo-mark.png" alt="Tylix" class="w-7 h-7 rounded-md" />
           <span class="text-slate-100 font-semibold tracking-tight">Tylix</span>
         </a>
 
@@ -64,35 +77,74 @@ template
         <p class="text-slate-500 text-sm mb-8">Log in to continue to your dashboard.</p>
 
 {{#if error}}
-        <div class="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 mb-6">
+        <div role="alert" aria-live="polite" class="rounded-lg border border-red-900/50 bg-red-950/30 px-4 py-3 mb-6">
           <p class="text-red-400 text-sm">{{ error }}</p>
         </div>
 {{/if}}
 
-        <label class="block text-slate-400 text-xs font-medium mb-2">Email</label>
+        <label for="email" class="block text-slate-400 text-xs font-medium mb-2">Email</label>
         <input
+          id="email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          autofocus
           placeholder="you@example.com"
           value="{{ email }}"
           oninput="{{ setField('email', event.target.value) }}"
           class="w-full border border-slate-800 bg-slate-900 text-slate-100 rounded-lg px-4 py-2.5 mb-4 outline-none focus:border-tylix-blue transition"
         />
 
-        <label class="block text-slate-400 text-xs font-medium mb-2">Password</label>
+        <label for="password" class="block text-slate-400 text-xs font-medium mb-2">Password</label>
         <input
-          placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="••••••••"
           value="{{ password }}"
           oninput="{{ setField('password', event.target.value) }}"
-          class="w-full border border-slate-800 bg-slate-900 text-slate-100 rounded-lg px-4 py-2.5 mb-6 outline-none focus:border-tylix-blue transition"
+          class="w-full border border-slate-800 bg-slate-900 text-slate-100 rounded-lg px-4 py-2.5 mb-4 outline-none focus:border-tylix-blue transition"
         />
 
-        <button onclick="{{ submit() }}" class="w-full bg-tylix-blue text-white rounded-lg py-2.5 font-medium hover:opacity-90 transition">
+        <div class="flex items-center justify-between mb-6">
+          <label class="flex items-center gap-2 text-sm text-slate-400">
+{{#if remember}}
+            <input
+              type="checkbox"
+              checked
+              onclick="{{ toggleRemember() }}"
+              class="rounded border-slate-700 bg-slate-900 text-tylix-blue focus:ring-tylix-blue"
+            />
+{{/if}}
+{{#if not remember}}
+            <input
+              type="checkbox"
+              onclick="{{ toggleRemember() }}"
+              class="rounded border-slate-700 bg-slate-900 text-tylix-blue focus:ring-tylix-blue"
+            />
+{{/if}}
+            Remember me
+          </label>
+          <a href="/forgot-password" class="text-sm text-tylix-blue hover:underline">Forgot password?</a>
+        </div>
+
 {{#if submitting}}
-          Logging in&hellip;
+        <button
+          disabled
+          class="w-full bg-tylix-blue text-white rounded-lg py-2.5 font-medium opacity-50 transition"
+        >
+          Logging in…
+        </button>
 {{/if}}
 {{#if not submitting}}
+        <button
+          onclick="{{ submit() }}"
+          class="w-full bg-tylix-blue text-white rounded-lg py-2.5 font-medium hover:opacity-90 transition"
+        >
           Log In
-{{/if}}
         </button>
+{{/if}}
 
         <p class="text-sm text-slate-500 text-center mt-6">
           Need an account? <a href="/register" class="text-tylix-blue hover:underline">Sign up</a>

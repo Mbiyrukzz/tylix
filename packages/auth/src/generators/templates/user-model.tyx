@@ -18,11 +18,28 @@ export class User extends Model {
         "name",
         "email",
         "password",
+        "email_verified_at",
     ];
 
     static async create(data) {
         const hashed = await hashPassword(data.password);
         return super.create({ ...data, password: hashed });
+    }
+
+    // ASSUMPTION: Model exposes a generic `update(id, data)` — mirrors the
+    // pattern already used by `create`/`find` on this class. Adjust if your
+    // ORM's update method has a different signature.
+    static async updatePassword(id, plainPassword) {
+        const hashed = await hashPassword(plainPassword);
+        return this.update(id, { password: hashed });
+    }
+
+    static async markEmailVerified(id) {
+        return this.update(id, { email_verified_at: new Date().toISOString() });
+    }
+
+    static isEmailVerified(user) {
+        return Boolean(user?.email_verified_at);
     }
 
     static toSafeObject(user) {
