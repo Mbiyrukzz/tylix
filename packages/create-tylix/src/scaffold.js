@@ -224,7 +224,7 @@ function printSuccessScreen(config) {
   console.log('https://github.com/tylixjs')
   printHeavyDivider()
 
-  console.log('Happy building with Tylix 🚀')
+  console.log('Happy building with Tylix ')
 }
 
 export async function scaffold({ projectName: initialProjectName } = {}) {

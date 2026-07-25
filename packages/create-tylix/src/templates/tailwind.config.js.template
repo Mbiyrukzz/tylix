@@ -5,11 +5,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        tylix: {
-          blue: "#1d6fa5",
-          orange: "#e8912d",
-        },
-      },
+     tylix: {
+       blue: "#8b5cf6",   
+       orange: "#e879f9",
+     },
+   },
     },
   },
   plugins: [],

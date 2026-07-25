@@ -6,6 +6,8 @@ import { makeFeature } from './commands/makeFeature.js'
 import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
 import { makeComponent } from './commands/makeComponent.js'
+import { scheduleWork } from './commands/scheduleWork.js'
+import { queueWork } from './commands/queueWork.js'
 import { migrate } from './commands/migrate.js'
 import { dev } from './commands/dev.js'
 
@@ -21,6 +23,16 @@ async function main() {
     const portArg = rest.find((a) => a.startsWith('--port='))
     const port = portArg ? Number(portArg.split('=')[1]) : 3000
     await dev({ port })
+    return
+  }
+
+  if (command === 'schedule:work') {
+    await scheduleWork()
+    return
+  }
+
+  if (command === 'queue:work') {
+    await queueWork()
     return
   }
 

@@ -1,5 +1,5 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 const STARTER_TEMPLATE = (name) => `page ${name}
 
@@ -25,16 +25,16 @@ template
 
 style
   h1 { font-family: sans-serif; }
-`;
+`
 
 export async function makePage(name) {
-  const baseDir = process.cwd();
-  const pagesDir = path.join(baseDir, "app", "pages");
-  await fs.mkdir(pagesDir, { recursive: true });
+  const baseDir = process.cwd()
+  const pagesDir = path.join(baseDir, 'app', 'pages')
+  const filePath = path.join(pagesDir, `${name}.tyx`)
+  await fs.mkdir(path.dirname(filePath), { recursive: true }) // was already flat mkdir
 
-  const filePath = path.join(pagesDir, `${name}.tyx`);
-  await fs.writeFile(filePath, STARTER_TEMPLATE(name));
+  const pageName = path.basename(name)
+  await fs.writeFile(filePath, STARTER_TEMPLATE(pageName))
 
-  console.log(`\n✔ Page created: ${path.relative(baseDir, filePath)}\n`);
-  console.log(`Run "tylix dev" and visit http://localhost:3000/${name.toLowerCase()} to see it.\n`);
+  console.log(`\n✔ Page created: ${path.relative(baseDir, filePath)}\n`)
 }

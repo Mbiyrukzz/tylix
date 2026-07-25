@@ -11,15 +11,8 @@ onMount
     this.theme = savedTheme or (prefersDark ? "dark" : "light")
     document.documentElement.classList.toggle("dark", this.theme is "dark")
 
-    // Auth state is cookie-based session everywhere else (see Home,
-    // Dashboard, Register) -- this used to check a "tylix_token" in
-    // localStorage instead, which meant the nav could show "Login"
-    // for a user who was actually signed in via cookie, or vice
-    // versa. /api/me is now the single source of truth.
-    const response = await fetch("/api/me", {
-      credentials: "include"
-    })
-    if response.ok {
+    const me = await useApi("/api/me")
+    if me.ok {
       this.loggedIn = true
     }
   }
@@ -40,16 +33,13 @@ action
   }
 
   async logout() {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "include"
-    })
+    await useApi("/api/auth/logout", { method: "POST" })
     window.location.href = "/"
   }
 </script>
 <template>
   <div class="bg-slate-950 min-h-screen">
-    <nav class="px-6 md:px-10 h-16 flex items-center justify-between border-b border-slate-900 bg-slate-950/90 backdrop-blur sticky top-0 z-50">
+    <nav class="px-6 md:px-10 h-16 flex items-center justify-between border-b border-slate-800 bg-slate-950 sticky top-0 z-50">
       <a href="/" class="flex items-center gap-2.5">
         <img src="/logo-mark.png" alt="Tylix" class="w-7 h-7 rounded-md" />
         <span class="text-slate-100 font-semibold tracking-tight">Tylix</span>
@@ -65,7 +55,7 @@ action
         <button
           onclick="{{ toggleTheme() }}"
           aria-label="Toggle color theme"
-          class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-900 transition"
+          class="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:text-emerald-400 hover:bg-slate-900 transition"
         >
 {{#if theme is "dark"}}
           ☀
@@ -79,7 +69,7 @@ action
         <a href="/dashboard" class="hidden sm:block text-sm text-slate-300 hover:text-slate-100 transition px-3 py-1.5">
           Dashboard
         </a>
-        <button onclick="{{ logout() }}" class="hidden sm:block text-sm px-4 py-1.5 rounded-lg border border-slate-800 text-slate-300 font-medium hover:bg-slate-900 transition">
+        <button onclick="{{ logout() }}" class="hidden sm:block text-sm px-4 py-1.5 rounded-lg border border-slate-700 text-slate-300 font-medium hover:bg-slate-900 hover:border-slate-600 transition">
           Log out
         </button>
 {{/if}}
@@ -87,7 +77,7 @@ action
         <a href="/login" class="hidden sm:block text-sm text-slate-300 hover:text-slate-100 transition px-3 py-1.5">
           Login
         </a>
-        <a href="/register" class="hidden sm:block text-sm px-4 py-1.5 rounded-lg bg-slate-100 text-slate-900 font-medium hover:bg-white transition">
+        <a href="/register" class="hidden sm:block text-sm px-4 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
           Get Started
         </a>
 {{/if}}
@@ -110,11 +100,11 @@ action
     </nav>
 
 {{#if mobileMenuOpen}}
-    <div id="mobile-menu" class="md:hidden border-b border-slate-900 bg-slate-950 px-6 py-5 flex flex-col gap-4">
+    <div id="mobile-menu" class="md:hidden border-b border-slate-800 bg-slate-950 px-6 py-5 flex flex-col gap-4">
       <a href="https://tylix.dev/docs" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Docs</a>
       <a href="https://github.com/tylixjs" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">GitHub</a>
       <a href="https://discord.gg/tylix" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Discord</a>
-      <div class="h-px bg-slate-900 my-1"></div>
+      <div class="h-px bg-slate-800 my-1"></div>
 {{#if loggedIn}}
       <a href="/dashboard" onclick="{{ closeMobileMenu() }}" class="text-sm text-slate-300 hover:text-slate-100 transition">Dashboard</a>
       <button onclick="{{ logout() }}" class="text-sm text-left text-slate-300 hover:text-slate-100 transition">Log out</button>

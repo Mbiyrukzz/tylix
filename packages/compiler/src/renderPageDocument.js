@@ -51,10 +51,14 @@ function compileComponentSource(source, fallbackClassName) {
   return { classSource, code, rootVar, className: fallbackClassName }
 }
 
+const USE_API_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'useApi.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
 export function renderPageDocument(
   source,
   childComponents = {},
-  { layout = null, props = {} } = {},
+  { layout = null, props = {}, apiHelpers = '' } = {},
 ) {
   const { pageName, script, template, style } = parsePageFile(source)
 
@@ -113,6 +117,9 @@ ${layoutCompiled.code}
 
   const inlineScript = `
 ${RUNTIME_SOURCE}
+${USE_API_SOURCE}
+
+${apiHelpers}
 
 ${classSource}
 

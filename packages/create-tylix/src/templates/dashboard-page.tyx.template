@@ -14,40 +14,29 @@ state
 
 onMount
   async {
-    const response = await fetch("/api/me", {
-      credentials: "include"
-    })
+    const me = await useApi("/api/me")
 
-    if response.ok {
-      const result = await response.json()
-      this.user = result
-      this.checkedAuth = true
-
-      const featuresResponse = await fetch("/api/_tylix/features")
-      const featuresResult = await featuresResponse.json()
-      // Post has its own section above (with working links to
-      // /post/post-detail) -- the generic "/{name}dashboard" link
-      // pattern below was never built for it and 404s.
-      this.features = featuresResult.data.filter(f => f.table is not "posts")
-
-      const postsResponse = await fetch("/api/posts", {
-        credentials: "include"
-      })
-      if postsResponse.ok {
-        this.posts = await postsResponse.json()
-      }
-      this.postsLoading = false
-    } else {
+    if not me.ok {
       window.location.href = "/login"
+      return null
     }
+
+    this.user = me.data
+    this.checkedAuth = true
+
+    const featuresResult = await useApi("/api/_tylix/features")
+    this.features = featuresResult.data.data.filter(f => f.table is not "posts")
+
+    const postsResult = await getApi("posts")
+    if postsResult.ok {
+      this.posts = postsResult.data
+    }
+    this.postsLoading = false
   }
 
 action
   async logout() {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "include"
-    })
+    await useApi("/api/auth/logout", { method: "POST" })
     window.location.href = "/"
   }
 
@@ -76,25 +65,15 @@ action
     this.creating = true
     this.createError = ""
 
-    const response = await fetch("/api/posts", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: this.newPostTitle,
-        body: this.newPostBody
-      })
-    })
+    const result = await postApi("posts", { title: this.newPostTitle, body: this.newPostBody })
 
-    if response.ok {
-      const createdPost = await response.json()
-      this.posts = [createdPost].concat(this.posts)
+    if result.ok {
+      this.posts = [result.data].concat(this.posts)
       this.creating = false
       this.closeCreateModal()
-    } else if response.status is 401 {
+    } else if result.status is 401 {
       window.location.href = "/login"
     } else {
-      const result = await response.json()
       this.createError = result.error or "Couldn't create that post. Check the form and try again."
       this.creating = false
     }
@@ -104,8 +83,8 @@ template
 {{#if checkedAuth}}
   <div class="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[240px_1fr]">
 
-    <aside class="hidden lg:flex flex-col border-r border-slate-900 bg-slate-950 p-4">
-      <a href="/dashboard" aria-current="page" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-slate-100 text-sm font-medium mb-1">
+    <aside class="hidden lg:flex flex-col border-r border-slate-800 bg-slate-950 p-4">
+      <a href="/dashboard" aria-current="page" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-slate-100 text-sm font-medium mb-1">
         Overview
       </a>
       <p class="px-3 pt-4 pb-2 text-slate-600 text-xs font-medium uppercase tracking-wide">Data</p>
@@ -129,14 +108,14 @@ template
           <p class="text-slate-500 text-sm mt-1">Welcome back, {{ user.name }}.</p>
 {{/if}}
         </div>
-        <button onclick="{{ logout() }}" class="text-sm text-slate-400 hover:text-slate-100 border border-slate-800 rounded-lg px-4 py-2 hover:bg-slate-900 transition">
+        <button onclick="{{ logout() }}" class="text-sm text-slate-400 hover:text-slate-100 border border-slate-700 rounded-lg px-4 py-2 hover:bg-slate-900 hover:border-slate-600 transition">
           Log out
         </button>
       </div>
 
       <div class="flex items-center justify-between mb-5">
         <h2 class="text-slate-100 font-medium">Posts</h2>
-        <button onclick="{{ openCreateModal() }}" class="inline-flex items-center gap-1.5 text-sm bg-tylix-blue text-white rounded-lg px-4 py-2 hover:opacity-90 transition">
+        <button onclick="{{ openCreateModal() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
           <span class="text-base leading-none">+</span> New Post
         </button>
       </div>
@@ -148,7 +127,7 @@ template
 {{#if not postsLoading}}
 {{#if posts.length is 0}}
       <div class="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center mb-8">
-        <div class="w-12 h-12 rounded-lg bg-tylix-blue/10 flex items-center justify-center text-xl mx-auto mb-4">📝</div>
+        <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center text-xl mx-auto mb-4">📝</div>
         <h3 class="text-slate-100 font-medium mb-2">No posts yet</h3>
         <p class="text-slate-500 text-sm max-w-sm mx-auto">
           Click "New Post" above to create your first one.
@@ -173,7 +152,7 @@ template
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
 {{#each f in features}}
         <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="block rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-          <div class="w-10 h-10 rounded-lg bg-tylix-blue/10 flex items-center justify-center text-lg mb-4">🗂️</div>
+          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-lg mb-4">🗂️</div>
           <h3 class="text-slate-100 font-medium mb-1">{{ f.name }}</h3>
           <p class="text-slate-500 text-sm">Manage {{ f.table }}</p>
         </a>
@@ -190,7 +169,7 @@ template
         </div>
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <p class="text-slate-500 text-xs mb-1">Database</p>
-          <p class="text-slate-100 text-sm font-medium">Connected</p>
+          <p class="text-emerald-400 text-sm font-medium">Connected</p>
         </div>
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <p class="text-slate-500 text-xs mb-1">Posts</p>
@@ -198,19 +177,14 @@ template
         </div>
       </div>
 
-      <a href="/" class="inline-block text-tylix-blue text-sm hover:underline mt-8">← Back to home</a>
+      <a href="/" class="inline-block text-emerald-400 text-sm hover:underline mt-8">← Back to home</a>
     </div>
   </div>
 {{/if}}
 
 {{#if showCreateModal}}
-  <div
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="create-post-title"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6"
-  >
-    <div class="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6">
+  <div role="dialog" aria-modal="true" aria-labelledby="create-post-title" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+    <div class="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-6">
       <div class="flex items-center justify-between mb-5">
         <h3 id="create-post-title" class="text-slate-100 font-medium">New Post</h3>
         <button onclick="{{ closeCreateModal() }}" aria-label="Close" class="text-slate-500 hover:text-slate-200 text-sm">
@@ -225,7 +199,7 @@ template
         autofocus
         value="{{ newPostTitle }}"
         oninput="{{ newPostTitle = $event.target.value }}"
-        class="w-full mb-4 rounded-lg border border-slate-800 bg-slate-950 text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-tylix-blue"
+        class="w-full mb-4 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-emerald-500"
         placeholder="e.g. Launch week recap"
       />
 
@@ -235,7 +209,7 @@ template
         rows="4"
         value="{{ newPostBody }}"
         oninput="{{ newPostBody = $event.target.value }}"
-        class="w-full mb-4 rounded-lg border border-slate-800 bg-slate-950 text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-tylix-blue resize-none"
+        class="w-full mb-4 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-emerald-500 resize-none"
         placeholder="Write something…"
       ></textarea>
 
@@ -248,18 +222,12 @@ template
           Cancel
         </button>
 {{#if creating}}
-        <button
-          disabled
-          class="text-sm bg-tylix-blue text-white rounded-lg px-4 py-2 opacity-50 transition"
-        >
+        <button disabled class="text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 opacity-50 transition">
           Creating…
         </button>
 {{/if}}
 {{#if not creating}}
-        <button
-          onclick="{{ createPost() }}"
-          class="text-sm bg-tylix-blue text-white rounded-lg px-4 py-2 hover:opacity-90 transition"
-        >
+        <button onclick="{{ createPost() }}" class="text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
           Create Post
         </button>
 {{/if}}

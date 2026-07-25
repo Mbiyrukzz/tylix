@@ -16,8 +16,10 @@ import {
   discoverFeatures,
   registerFeatureRoutes,
   requireAuth,
+  loadCustomRoutes,
 } from '@tylix/core'
 import { renderPageDocument } from '@tylix/compiler'
+import { loadConfig, loadEnv } from '@tylix/shared'
 import {
   watchDirectoryTree,
   createHmrChannel,
@@ -29,6 +31,26 @@ import { renderErrorPage } from '../utils/error-page.js'
 // Runs the project's own locally-installed tailwindcss CLI (from
 // node_modules/.bin) rather than assuming a global install, since
 // create-tylix scaffolds tailwindcss as a project dependency.
+
+async function loadApiHelpers(baseDir) {
+  const apiDir = path.join(baseDir, 'app', 'useApi')
+  const exists = await fs
+    .access(apiDir)
+    .then(() => true)
+    .catch(() => false)
+  if (!exists) return ''
+
+  const entries = await fs.readdir(apiDir, { withFileTypes: true })
+  const sources = []
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith('.js')) {
+      const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
+      sources.push(raw.replace(/export\s+/g, ''))
+    }
+  }
+  return sources.join('\n\n')
+}
+
 async function buildTailwindCss(baseDir) {
   const binPath = path.join(baseDir, 'node_modules', '.bin', 'tailwindcss')
   const inputPath = path.join(baseDir, 'app', 'tailwind-input.css')
@@ -88,7 +110,7 @@ async function serveStaticAsset(req, res, baseDir) {
   res.end(await fs.readFile(filePath))
   return true
 }
-import { loadConfig } from '@tylix/shared'
+
 import { bootstrapDatabase } from '../bootstrap.js'
 
 // Auth isn't a "Feature" discovered via feature.json the way Post is —
@@ -225,16 +247,22 @@ async function loadComponents(pagesDir) {
     .catch(() => false)
   if (!exists) return {}
 
-  const entries = await fs.readdir(componentsDir, { withFileTypes: true })
   const components = {}
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.tyx')) continue
-    const name = entry.name.replace(/\.tyx$/, '')
-    components[name] = await fs.readFile(
-      path.join(componentsDir, entry.name),
-      'utf-8',
-    )
+
+  async function walk(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        await walk(fullPath)
+      } else if (entry.name.endsWith('.tyx')) {
+        const name = entry.name.replace(/\.tyx$/, '')
+        components[name] = await fs.readFile(fullPath, 'utf-8')
+      }
+    }
   }
+
+  await walk(componentsDir)
   return components
 }
 
@@ -266,8 +294,13 @@ async function registerPageRoutes(router, baseDir) {
       source = await fs.readFile(filePath, 'utf-8')
       const layout = await findLayoutForFile(pagesDir, filePath)
       const components = await loadComponents(pagesDir)
+      const apiHelpers = await loadApiHelpers(baseDir)
       const html = injectHmrScript(
-        renderPageDocument(source, components, { layout, props: params }),
+        renderPageDocument(source, components, {
+          layout,
+          props: params,
+          apiHelpers,
+        }),
       )
       return { html, ok: true }
     } catch (err) {
@@ -372,6 +405,7 @@ function printBanner({
 
 export async function dev({ port = 3000 } = {}) {
   const baseDir = process.cwd()
+  await loadEnv(baseDir)
   const config = await loadConfig(baseDir)
 
   await bootstrapDatabase()
@@ -382,6 +416,8 @@ export async function dev({ port = 3000 } = {}) {
 
   const features = await discoverFeatures(baseDir)
   const router = new Router()
+
+  await loadCustomRoutes(router, baseDir)
   // Previously called without a third argument, which meant
   // registerFeatureRoutes had no secret to verify tokens with and
   // could never actually enforce a feature's "auth": true flag (e.g.
