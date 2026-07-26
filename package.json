@@ -2,7 +2,7 @@
   "name": "tylix-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "The Laravel of JavaScript",
+  "description": "Create a new Tylix application",
   "workspaces": [
     "packages/*"
   ],
