@@ -55,11 +55,25 @@ export async function createProjectStructure(config) {
 
   await fs.writeFile(
     path.join(targetDir, '.env'),
-    `PORT=3000\nAUTH_SECRET=${crypto.randomUUID()}\nDATABASE_DRIVER=${config.database.driver ?? config.database}\n`,
+    [
+      `PORT=3000`,
+      `AUTH_SECRET=${crypto.randomUUID()}`,
+      `DATABASE_DRIVER=${config.database.driver ?? config.database}`,
+      ``,
+      `# Set to true only if you're developing @tylix/compiler itself`,
+      `TYLIX_HOT_RELOAD_COMPILER=true`,
+    ].join('\n') + '\n',
   )
   await fs.writeFile(
     path.join(targetDir, '.env.example'),
-    `PORT=3000\nAUTH_SECRET=\nDATABASE_DRIVER=sqlite\n`,
+    [
+      `PORT=3000`,
+      `AUTH_SECRET=`,
+      `DATABASE_DRIVER=sqlite`,
+      ``,
+      `# Set to true only if you're developing @tylix/compiler itself`,
+      `TYLIX_HOT_RELOAD_COMPILER=true`,
+    ].join('\n') + '\n',
   )
 
   await fs.writeFile(

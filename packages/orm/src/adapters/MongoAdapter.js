@@ -224,6 +224,12 @@ export class MongoAdapter extends DatabaseAdapter {
       .toArray()
   }
 
+  async listTables() {
+    this.ensureConnected()
+    const collections = await this.db.listCollections().toArray()
+    return collections.map((c) => c.name)
+  }
+
   columnType() {
     return null
   }

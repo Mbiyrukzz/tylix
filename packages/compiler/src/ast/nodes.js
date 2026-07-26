@@ -41,6 +41,10 @@ export function MemberExpr(object, property, computed = false) {
   return { type: 'MemberExpression', object, property, computed }
 }
 
+export function NewExpr(callee, args) {
+  return { type: 'NewExpression', callee, args }
+}
+
 export function Literal(value) {
   return { type: 'Literal', value }
 }

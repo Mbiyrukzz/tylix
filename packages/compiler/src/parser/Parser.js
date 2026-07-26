@@ -16,6 +16,7 @@ import {
   ReturnStatement,
   ExpressionStatement,
   CallExpr,
+  NewExpr,
   AwaitExpr,
   VariableDeclaration,
   ObjectExpr,
@@ -571,6 +572,22 @@ export class Parser {
   }
 
   parsePrimary() {
+    if (this.match(TokenType.NEW)) {
+      let callee = this.parsePrimary()
+      while (this.match(TokenType.DOT)) {
+        const property = this.expect(
+          TokenType.IDENTIFIER,
+          "Expected a property name after '.'",
+        ).value
+        callee = MemberExpr(callee, property)
+      }
+      let args = []
+      if (this.check(TokenType.LPAREN)) {
+        args = this.parseCallArguments()
+      }
+      return NewExpr(callee, args)
+    }
+
     if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
       return Literal(this.advance().value)
     }
@@ -606,7 +623,6 @@ export class Parser {
       `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
     )
   }
-
   parseArrayLiteral() {
     const elements = []
     while (!this.check(TokenType.RBRACKET)) {

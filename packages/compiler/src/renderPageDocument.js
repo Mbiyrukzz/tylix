@@ -15,11 +15,18 @@ const RUNTIME_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'reactive.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
-// Components come in two dialects: the tag-based <script>/<template>
-// format (parseComponent.js -- used by _layout.tyx and older child
-// components), and the bare-keyword "component Name" format (mirrors
-// "page Name" pages). Detected by whether the source starts with the
-// literal "component" keyword.
+const LOADING_INDICATOR_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'loadingIndicator.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
+const USE_API_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'useApi.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
+const USE_CHANNEL_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
 function compileComponentSource(source, fallbackClassName) {
   const isNativeComponent = /^\s*component\s+\w+/.test(source)
 
@@ -51,38 +58,49 @@ function compileComponentSource(source, fallbackClassName) {
   return { classSource, code, rootVar, className: fallbackClassName }
 }
 
+function applyLineOffset(err, offset) {
+  const match = /at line (\d+)/.exec(err.message)
+  if (match) {
+    const originalLine = Number(match[1])
+    const correctedLine = originalLine + offset - 1
+    err.message = err.message.replace(
+      `at line ${originalLine}`,
+      `at line ${correctedLine}`,
+    )
+    err.line = correctedLine
+  }
+  return err
+}
+
 function parseScriptWithLineOffset(script, offset) {
   try {
     return new Parser(new Lexer(script).tokenize()).parse()
   } catch (err) {
-    const match = /at line (\d+)/.exec(err.message)
-    if (match) {
-      const originalLine = Number(match[1])
-      const correctedLine = originalLine + offset - 1
-      err.message = err.message.replace(
-        `at line ${originalLine}`,
-        `at line ${correctedLine}`,
-      )
-      err.line = correctedLine // for CompileError-aware consumers, once migrated
-    }
-    throw err
+    throw applyLineOffset(err, offset)
   }
 }
-const USE_API_SOURCE = fs
-  .readFileSync(path.join(__dirname, 'runtime', 'useApi.js'), 'utf-8')
-  .replace(/export\s+/g, '')
 
-const USE_CHANNEL_SOURCE = fs
-  .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
-  .replace(/export\s+/g, '')
+function parseTemplateWithLineOffset(template, offset) {
+  try {
+    return parseTemplate(template)
+  } catch (err) {
+    throw applyLineOffset(err, offset)
+  }
+}
 
 export function renderPageDocument(
   source,
   childComponents = {},
   { layout = null, props = {}, apiHelpers = '', channelsPort = null } = {},
 ) {
-  const { pageName, script, template, style, scriptStartLine } =
-    parsePageFile(source)
+  const {
+    pageName,
+    script,
+    template,
+    style,
+    scriptStartLine,
+    templateStartLine,
+  } = parsePageFile(source)
 
   const pageNode =
     script.trim().length > 0
@@ -91,7 +109,7 @@ export function renderPageDocument(
 
   const classSource = generatePage(pageNode, pageName)
 
-  const templateNodes = parseTemplate(template)
+  const templateNodes = parseTemplateWithLineOffset(template, templateStartLine)
   const { code, rootVar } = generateTemplate(templateNodes)
 
   const childNames = Object.keys(childComponents)
@@ -145,6 +163,8 @@ ${layoutCompiled.code}
   const inlineScript = `
 ${RUNTIME_SOURCE}
 
+${LOADING_INDICATOR_SOURCE}
+
 ${USE_API_SOURCE}
 
 ${USE_CHANNEL_SOURCE}
@@ -169,6 +189,40 @@ ${layoutMountCode}
 `
 
   const styleTag = style.trim().length > 0 ? `<style>\n${style}\n</style>` : ''
+
+  const scriptSegments = [
+    { name: 'runtime (reactive.js)', code: RUNTIME_SOURCE },
+    { name: 'loading indicator', code: LOADING_INDICATOR_SOURCE },
+    { name: 'useApi', code: USE_API_SOURCE },
+    { name: 'useChannel', code: USE_CHANNEL_SOURCE },
+    { name: 'app/useApi helpers', code: apiHelpers },
+    { name: 'page class', code: classSource },
+    { name: 'child components', code: childClassSources },
+    { name: 'layout', code: layoutClassSource },
+  ]
+
+  for (const segment of scriptSegments) {
+    if (!segment.code || segment.code.trim().length === 0) continue
+    try {
+      new Function(segment.code)
+    } catch (err) {
+      const genErr = new Error(
+        `Generated JavaScript failed to parse in "${segment.name}": ${err.message}`,
+      )
+      genErr.source = segment.code
+      throw genErr
+    }
+  }
+
+  try {
+    new Function(inlineScript)
+  } catch (err) {
+    const genErr = new Error(
+      `Generated JavaScript failed to parse: ${err.message}`,
+    )
+    genErr.source = inlineScript
+    throw genErr
+  }
 
   return `<!DOCTYPE html>
 <html>

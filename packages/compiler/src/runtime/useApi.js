@@ -14,6 +14,7 @@ export async function useApi(url, options = {}) {
     finalBody = JSON.stringify(body)
   }
 
+  __tylixRequestStart()
   try {
     const response = await fetch(url, {
       method,
@@ -38,5 +39,7 @@ export async function useApi(url, options = {}) {
     return { ok: true, status: response.status, data, error: null }
   } catch (err) {
     return { ok: false, status: 0, data: null, error: err.message }
+  } finally {
+    __tylixRequestEnd()
   }
 }

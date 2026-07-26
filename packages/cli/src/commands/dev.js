@@ -18,7 +18,7 @@ import {
   requireAuth,
   loadCustomRoutes,
 } from '@tylix/core'
-import { renderPageDocument } from '@tylix/compiler'
+
 import { loadConfig, loadEnv } from '@tylix/shared'
 import {
   watchDirectoryTree,
@@ -31,6 +31,18 @@ import { renderErrorPage } from '../utils/error-page.js'
 // Runs the project's own locally-installed tailwindcss CLI (from
 // node_modules/.bin) rather than assuming a global install, since
 // create-tylix scaffolds tailwindcss as a project dependency.
+
+async function resolveCompilerSrcDir(baseDir) {
+  const pkgDir = path.join(baseDir, 'node_modules', '@tylix', 'compiler')
+  const realPkgDir = await fs.realpath(pkgDir)
+  return path.join(realPkgDir, 'src')
+}
+
+async function resolveCompilerEntryUrl(baseDir) {
+  const pkgDir = path.join(baseDir, 'node_modules', '@tylix', 'compiler')
+  const realPkgDir = await fs.realpath(pkgDir)
+  return pathToFileURL(path.join(realPkgDir, 'src', 'index.js')).href
+}
 
 async function loadApiHelpers(baseDir) {
   const apiDir = path.join(baseDir, 'app', 'useApi')
@@ -266,7 +278,7 @@ async function loadComponents(pagesDir) {
   return components
 }
 
-async function registerPageRoutes(router, baseDir) {
+async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   const exists = await fs
     .access(pagesDir)
@@ -276,21 +288,21 @@ async function registerPageRoutes(router, baseDir) {
 
   const files = await walkPagesDir(pagesDir)
 
-  async function renderFile(filePath, params = {}) {
-    const source = await fs.readFile(filePath, 'utf-8')
-    const layout = await findLayoutForFile(pagesDir, filePath)
-    const components = await loadComponents(pagesDir)
-    return injectHmrScript(
-      renderPageDocument(source, components, { layout, props: params }),
-    )
-  }
+  const staticCompiler = hotReloadCompiler
+    ? null
+    : await import('@tylix/compiler')
 
-  // Wraps renderFile so a compile error never reaches Server.js's
-  // generic JSON catch-all -- page requests get the HTML debug page
-  // instead of a raw {"error": "..."} body on a blank page.
+  const compilerEntryUrl = hotReloadCompiler
+    ? await resolveCompilerEntryUrl(baseDir)
+    : null
+
   async function renderFileSafely(filePath, params = {}) {
     let source = null
     try {
+      const { renderPageDocument } = hotReloadCompiler
+        ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
+        : staticCompiler
+
       source = await fs.readFile(filePath, 'utf-8')
       const layout = await findLayoutForFile(pagesDir, filePath)
       const components = await loadComponents(pagesDir)
@@ -410,21 +422,15 @@ export async function dev({ port = 3000 } = {}) {
   await loadEnv(baseDir)
   const config = await loadConfig(baseDir)
 
-  await bootstrapDatabase()
+  const hotReloadCompiler = process.env.TYLIX_HOT_RELOAD_COMPILER === 'true'
 
-  // Build Tailwind's CSS once before the server starts, so the very
-  // first page load has real compiled styles rather than a 404.
+  await bootstrapDatabase()
   await buildTailwindCss(baseDir)
 
   const features = await discoverFeatures(baseDir)
   const router = new Router()
 
   await loadCustomRoutes(router, baseDir)
-  // Previously called without a third argument, which meant
-  // registerFeatureRoutes had no secret to verify tokens with and
-  // could never actually enforce a feature's "auth": true flag (e.g.
-  // the Post feature). config.auth may be undefined on projects that
-  // don't have auth enabled at all, hence the optional chaining.
   registerFeatureRoutes(router, features, { secret: config.auth?.secret })
 
   router.get('/api/_tylix/features', (req, res) => {
@@ -439,7 +445,9 @@ export async function dev({ port = 3000 } = {}) {
   })
 
   const authEnabled = await registerAuthRoutes(router, baseDir, config.auth)
-  const pageRoutes = await registerPageRoutes(router, baseDir)
+  const pageRoutes = await registerPageRoutes(router, baseDir, {
+    hotReloadCompiler,
+  })
 
   const hmr = createHmrChannel(router)
   const watchedDirs = [
@@ -449,9 +457,11 @@ export async function dev({ port = 3000 } = {}) {
     'validators',
     'Features',
   ].map((d) => path.join(baseDir, 'app', d))
-  // .tyx files can gain/lose Tailwind class usage on every edit, so
-  // rebuild the CSS before notifying the browser to reload -- otherwise
-  // the reload can race ahead of the new stylesheet.
+
+  if (hotReloadCompiler) {
+    watchedDirs.push(await resolveCompilerSrcDir(baseDir))
+  }
+
   const watchers = watchedDirs.map((dir) =>
     watchDirectoryTree(dir, async () => {
       await buildTailwindCss(baseDir)

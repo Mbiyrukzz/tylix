@@ -31,12 +31,21 @@ export function generateTemplateExpression(node, scope = new Set()) {
   if (node.type === 'AssignmentExpression') {
     return `${generateTemplateExpression(node.target, scope)} = ${generateTemplateExpression(node.value, scope)}`
   }
+
   if (node.type === 'CallExpression') {
     const args = node.args
       .map((a) => generateTemplateExpression(a, scope))
       .join(', ')
     return `${generateTemplateExpression(node.callee, scope)}(${args})`
   }
+
+  if (node.type === 'NewExpression') {
+    const args = node.args
+      .map((a) => generateTemplateExpression(a, scope))
+      .join(', ')
+    return `new ${generateTemplateExpression(node.callee, scope)}(${args})`
+  }
+
   if (node.type === 'Literal') {
     return generateExpression(node)
   }

@@ -9,6 +9,7 @@ export const TokenType = {
   TEMPLATE: 'TEMPLATE',
   PROPS: 'PROPS',
   ONMOUNT: 'ONMOUNT',
+  NEW: 'NEW',
 
   // Literals
   IDENTIFIER: 'IDENTIFIER',
@@ -88,6 +89,7 @@ export const KEYWORDS = {
   template: TokenType.TEMPLATE,
   props: TokenType.PROPS,
   onMount: TokenType.ONMOUNT,
+  new: TokenType.NEW,
   return: TokenType.RETURN,
   async: TokenType.ASYNC,
   await: TokenType.AWAIT,

@@ -1,25 +1,3 @@
-/**
- * Parses Tylix's native .tyx file format -- no <script>/<template>
- * wrapper tags, just top-level keyword sections:
- *
- *   page Home
- *
- *   state
- *     count: 0
- *
- *   action
- *     increment() { this.count = this.count + 1 }
- *
- *   template
- *     <div>{{ count }}</div>
- *
- * "template" and "style" mark the start of raw (non-script) content
- * that runs to the next top-level section keyword or end of file, so
- * this is a lightweight text split, not full tokenization -- the
- * script portion (page/state/computed/action) is handed to the real
- * Lexer/Parser; template/style content is handled by their own
- * dedicated parsers (parseTemplate, and style is passed through as-is).
- */
 const SECTION_KEYWORDS = ['state', 'computed', 'action', 'template', 'style']
 
 export function parsePageFile(source) {
@@ -53,14 +31,30 @@ export function parsePageFile(source) {
   const styleBoundary = boundaries.find((b) => b.keyword === 'style')
 
   let template = ''
+  let templateStartLine = null
   if (templateBoundary) {
     const templateEnd =
       styleBoundary && styleBoundary.start > templateBoundary.start
         ? styleBoundary.start
         : afterPageDeclaration.length
-    template = afterPageDeclaration
-      .slice(templateBoundary.contentStart, templateEnd)
-      .trim()
+    const rawTemplateSource = afterPageDeclaration.slice(
+      templateBoundary.contentStart,
+      templateEnd,
+    )
+    template = rawTemplateSource.trim()
+
+    const templateLeadingWhitespaceLength =
+      rawTemplateSource.length - rawTemplateSource.trimStart().length
+    const templateTrimmedPrefix = rawTemplateSource.slice(
+      0,
+      templateLeadingWhitespaceLength,
+    )
+    const absoluteContentStart =
+      pageMatch.index + pageMatch[0].length + templateBoundary.contentStart
+    const linesBeforeTemplate =
+      source.slice(0, absoluteContentStart).split('\n').length - 1
+    templateStartLine =
+      linesBeforeTemplate + templateTrimmedPrefix.split('\n').length
   }
 
   let style = ''
@@ -72,12 +66,16 @@ export function parsePageFile(source) {
     throw new Error('.tyx file is missing a required "template" section.')
   }
 
-  return { pageName, script: scriptSource, template, style, scriptStartLine }
+  return {
+    pageName,
+    script: scriptSource,
+    template,
+    style,
+    scriptStartLine,
+    templateStartLine,
+  }
 }
 
-// Finds each top-level section keyword that appears at the start of
-// its own line (ignoring leading whitespace), returning its position
-// and where its content begins (right after the keyword itself).
 export function findSectionBoundaries(source) {
   const boundaries = []
   const lineStartPattern =

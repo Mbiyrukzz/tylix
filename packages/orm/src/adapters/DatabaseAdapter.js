@@ -1,4 +1,4 @@
-import { buildSelectSql } from "../query/buildSelectSql.js";
+import { buildSelectSql } from '../query/buildSelectSql.js'
 
 /**
  * Base contract every Tylix database adapter must implement.
@@ -9,35 +9,39 @@ import { buildSelectSql } from "../query/buildSelectSql.js";
  */
 export class DatabaseAdapter {
   async connect() {
-    throw new Error("connect() not implemented");
+    throw new Error('connect() not implemented')
   }
 
   async close() {
-    throw new Error("close() not implemented");
+    throw new Error('close() not implemented')
   }
 
   async run(sql, params = []) {
-    throw new Error("run() not implemented");
+    throw new Error('run() not implemented')
   }
 
   async get(sql, params = []) {
-    throw new Error("get() not implemented");
+    throw new Error('get() not implemented')
   }
 
   async all(sql, params = []) {
-    throw new Error("all() not implemented");
+    throw new Error('all() not implemented')
   }
 
   columnType(logicalType) {
-    throw new Error("columnType() not implemented");
+    throw new Error('columnType() not implemented')
   }
 
   async count(table) {
-    throw new Error("count() not implemented");
+    throw new Error('count() not implemented')
   }
 
   async paginate(table, limit, offset) {
-    throw new Error("paginate() not implemented");
+    throw new Error('paginate() not implemented')
+  }
+
+  async listTables() {
+    throw new Error('listTables() not implemented')
   }
 
   /**
@@ -51,7 +55,7 @@ export class DatabaseAdapter {
    * overrides this entirely since it has no SQL layer to delegate to.
    */
   async query(table, descriptor = {}) {
-    const { sql, params } = buildSelectSql(table, descriptor);
-    return this.all(sql, params);
+    const { sql, params } = buildSelectSql(table, descriptor)
+    return this.all(sql, params)
   }
 }

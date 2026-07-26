@@ -19,6 +19,11 @@ export function generateExpression(node) {
         ? `${generateExpression(node.object)}[${generateExpression(node.property)}]`
         : `${generateExpression(node.object)}.${node.property}`
 
+    case 'NewExpression': {
+      const args = node.args.map((a) => generateExpression(a)).join(', ')
+      return `new ${generateExpression(node.callee)}(${args})`
+    }
+
     case 'BinaryExpression':
       return `(${generateExpression(node.left)} ${node.operator} ${generateExpression(node.right)})`
 
