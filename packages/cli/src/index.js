@@ -8,6 +8,10 @@ import { makePage } from './commands/makePage.js'
 import { makeComponent } from './commands/makeComponent.js'
 import { scheduleWork } from './commands/scheduleWork.js'
 import { queueWork } from './commands/queueWork.js'
+import { fieldAdd } from './commands/fieldAdd.js'
+import { fieldRemove } from './commands/fieldRemove.js'
+import { tinker } from './commands/tinker.js'
+import { doctor } from './commands/doctor.js'
 import { migrate } from './commands/migrate.js'
 import { dev } from './commands/dev.js'
 
@@ -23,6 +27,28 @@ async function main() {
     const portArg = rest.find((a) => a.startsWith('--port='))
     const port = portArg ? Number(portArg.split('=')[1]) : 3000
     await dev({ port })
+    return
+  }
+
+  if (command === 'tinker') {
+    await tinker()
+    return
+  }
+
+  if (command === 'doctor') {
+    await doctor()
+    return
+  }
+
+  if (command === 'field:add') {
+    const [featureName, ...fieldArgs] = rest
+    await fieldAdd(featureName, fieldArgs)
+    return
+  }
+
+  if (command === 'field:remove') {
+    const [featureName, ...fieldNames] = rest
+    await fieldRemove(featureName, fieldNames)
     return
   }
 

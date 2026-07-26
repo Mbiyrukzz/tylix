@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { JobRecord } from '@tylix/core'
+import { bootstrapDatabase } from '../bootstrap.js'
 
 async function loadJobHandler(baseDir, jobName) {
   const jobPath = path.join(baseDir, 'app', 'jobs', `${jobName}.js`)
@@ -25,6 +26,8 @@ async function loadJobHandler(baseDir, jobName) {
 export async function queueWork() {
   const baseDir = process.cwd()
   console.log('Queue worker running — polling every 2s for pending jobs...\n')
+
+  await bootstrapDatabase()
 
   let isPolling = false
 

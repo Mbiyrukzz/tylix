@@ -55,11 +55,7 @@ export class FeatureGenerator {
       controller: `${blueprint.name}Controller`,
       validator: `validate${blueprint.name}`,
       fields: blueprint.fields,
-      // registerFeatureRoutes wraps every route for this feature in
-      // requireAuth when this is true — this was previously tracked
-      // on the blueprint (blueprint.auth()) but never made it into
-      // the manifest, so auth-gated features were never actually
-      // gated at the routing layer.
+      relations: blueprint.relations,
       auth: Boolean(blueprint.options.auth),
       permissions: [
         `${blueprint.name.toLowerCase()}.view`,
