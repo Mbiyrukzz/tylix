@@ -51,20 +51,42 @@ function compileComponentSource(source, fallbackClassName) {
   return { classSource, code, rootVar, className: fallbackClassName }
 }
 
+function parseScriptWithLineOffset(script, offset) {
+  try {
+    return new Parser(new Lexer(script).tokenize()).parse()
+  } catch (err) {
+    const match = /at line (\d+)/.exec(err.message)
+    if (match) {
+      const originalLine = Number(match[1])
+      const correctedLine = originalLine + offset - 1
+      err.message = err.message.replace(
+        `at line ${originalLine}`,
+        `at line ${correctedLine}`,
+      )
+      err.line = correctedLine // for CompileError-aware consumers, once migrated
+    }
+    throw err
+  }
+}
 const USE_API_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'useApi.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
+const USE_CHANNEL_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
 export function renderPageDocument(
   source,
   childComponents = {},
-  { layout = null, props = {}, apiHelpers = '' } = {},
+  { layout = null, props = {}, apiHelpers = '', channelsPort = null } = {},
 ) {
-  const { pageName, script, template, style } = parsePageFile(source)
+  const { pageName, script, template, style, scriptStartLine } =
+    parsePageFile(source)
 
   const pageNode =
     script.trim().length > 0
-      ? new Parser(new Lexer(script).tokenize()).parse()
+      ? parseScriptWithLineOffset(script, scriptStartLine)
       : { props: [], state: [], computed: [], actions: [] }
 
   const classSource = generatePage(pageNode, pageName)
@@ -115,9 +137,17 @@ ${layoutCompiled.code}
     })(document, layoutInstance, ${rootVar});`
   }
 
+  const channelsPortScript =
+    channelsPort !== null
+      ? `<script>window.__TYLIX_CHANNELS_PORT__ = ${JSON.stringify(channelsPort)};</script>`
+      : ''
+
   const inlineScript = `
 ${RUNTIME_SOURCE}
+
 ${USE_API_SOURCE}
+
+${USE_CHANNEL_SOURCE}
 
 ${apiHelpers}
 
@@ -144,6 +174,7 @@ ${layoutMountCode}
 <html>
 <head>
   <meta charset="UTF-8">
+  ${channelsPortScript}
   <script>
     (function () {
       var stored = localStorage.getItem("theme");

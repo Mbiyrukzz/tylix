@@ -1,0 +1,47 @@
+
+page {{PageName}}
+
+state
+  messages: []
+  draft: ""
+  channel: null
+
+onMount
+  async {
+    this.channel = useChannel("{{channelName}}")
+ this.channel.onMessage((data) => this.messages = this.messages.concat([data]))
+  }
+
+action
+  send() {
+    if this.draft.trim() is not "" {
+      this.channel.send({ text: this.draft })
+      this.draft = ""
+    }
+  }
+
+template
+  <div class="max-w-lg mx-auto px-6 py-10">
+    <h1 class="text-xl font-semibold text-slate-100 mb-4">{{PageName}} — live via useChannel("{{channelName}}")</h1>
+
+    <div class="rounded-lg border border-slate-800 bg-slate-900 p-4 mb-4 min-h-[200px] flex flex-col gap-2">
+{{#if messages.length is 0}}
+      <p class="text-slate-600 text-sm italic">No messages yet — open this page in two tabs and try it.</p>
+{{/if}}
+{{#each m in messages}}
+      <p class="text-slate-300 text-sm">{{ m.text }}</p>
+{{/each}}
+    </div>
+
+    <div class="flex gap-2">
+      <input
+        value="{{ draft }}"
+        oninput="{{ draft = $event.target.value }}"
+        placeholder="Type a message…"
+        class="flex-1 border border-slate-700 bg-slate-900 text-slate-100 rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
+      />
+      <button onclick="{{ send() }}" class="bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
+        Send
+      </button>
+    </div>
+  </div>

@@ -295,11 +295,13 @@ async function registerPageRoutes(router, baseDir) {
       const layout = await findLayoutForFile(pagesDir, filePath)
       const components = await loadComponents(pagesDir)
       const apiHelpers = await loadApiHelpers(baseDir)
+      const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
       const html = injectHmrScript(
         renderPageDocument(source, components, {
           layout,
           props: params,
           apiHelpers,
+          channelsPort,
         }),
       )
       return { html, ok: true }

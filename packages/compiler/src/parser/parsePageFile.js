@@ -38,7 +38,16 @@ export function parsePageFile(source) {
   const scriptEnd =
     boundaries.find((b) => b.keyword === 'template')?.start ??
     afterPageDeclaration.length
-  const scriptSource = afterPageDeclaration.slice(0, scriptEnd).trim()
+  const rawScriptSource = afterPageDeclaration.slice(0, scriptEnd)
+  const scriptSource = rawScriptSource.trim()
+
+  const leadingWhitespaceLength =
+    rawScriptSource.length - rawScriptSource.trimStart().length
+  const trimmedPrefix = rawScriptSource.slice(0, leadingWhitespaceLength)
+  const linesBeforeScript =
+    source.slice(0, pageMatch.index + pageMatch[0].length).split('\n').length -
+    1
+  const scriptStartLine = linesBeforeScript + trimmedPrefix.split('\n').length
 
   const templateBoundary = boundaries.find((b) => b.keyword === 'template')
   const styleBoundary = boundaries.find((b) => b.keyword === 'style')
@@ -63,7 +72,7 @@ export function parsePageFile(source) {
     throw new Error('.tyx file is missing a required "template" section.')
   }
 
-  return { pageName, script: scriptSource, template, style }
+  return { pageName, script: scriptSource, template, style, scriptStartLine }
 }
 
 // Finds each top-level section keyword that appears at the start of

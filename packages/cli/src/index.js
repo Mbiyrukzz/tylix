@@ -7,11 +7,14 @@ import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
 import { makeComponent } from './commands/makeComponent.js'
 import { scheduleWork } from './commands/scheduleWork.js'
+import { channelsWork } from './commands/channelsWork.js'
 import { queueWork } from './commands/queueWork.js'
+import { makeChannel } from './commands/makeChannel.js'
 import { fieldAdd } from './commands/fieldAdd.js'
 import { fieldRemove } from './commands/fieldRemove.js'
 import { tinker } from './commands/tinker.js'
 import { doctor } from './commands/doctor.js'
+import { dbSeed } from './commands/dbSeed.js'
 import { migrate } from './commands/migrate.js'
 import { dev } from './commands/dev.js'
 
@@ -27,6 +30,11 @@ async function main() {
     const portArg = rest.find((a) => a.startsWith('--port='))
     const port = portArg ? Number(portArg.split('=')[1]) : 3000
     await dev({ port })
+    return
+  }
+
+  if (command === 'db:seed') {
+    await dbSeed()
     return
   }
 
@@ -59,6 +67,21 @@ async function main() {
 
   if (command === 'queue:work') {
     await queueWork()
+    return
+  }
+
+  if (command === 'channels:work') {
+    await channelsWork()
+    return
+  }
+
+  if (command === 'make:channel') {
+    const [name] = rest
+    if (!name) {
+      console.error('Usage: tylix make:channel <name>')
+      process.exit(1)
+    }
+    await makeChannel(name)
     return
   }
 
