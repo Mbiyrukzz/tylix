@@ -160,9 +160,20 @@ function compileElement(node, lines, scope) {
   if (isComponentTag(node.tag)) {
     const varName = nextVar('component')
     const tagLiteral = JSON.stringify(node.tag)
+
+    const propEntries = node.attributes.map((attr) => {
+      const expr = attr.dynamic
+        ? generateTemplateExpression(attr.value, scope)
+        : JSON.stringify(attr.value)
+      return `${JSON.stringify(attr.name)}: ${expr}`
+    })
+    const propsExpr = `{ ${propEntries.join(', ')} }`
+
     lines.push(`let ${varName};`)
     lines.push(`if (components[${tagLiteral}]) {`)
-    lines.push(`  ${varName} = components[${tagLiteral}].mount(document).node;`)
+    lines.push(
+      `  ${varName} = components[${tagLiteral}].mount(document, ${propsExpr}).node;`,
+    )
     lines.push(`} else {`)
     lines.push(
       `  console.warn('Component "' + ${tagLiteral} + '" not found. Did you forget to restart tylix dev after creating it?');`,

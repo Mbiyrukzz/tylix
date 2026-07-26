@@ -4,6 +4,7 @@ import {
   printHeavyDivider,
   printSection,
 } from './utils/banner.js'
+import { createProgressBar } from './utils/progress.js'
 import { select, confirm, text } from './utils/prompt.js'
 import { createProjectStructure } from './steps/createProjectStructure.js'
 import { installPackages } from './steps/installPackages.js'
@@ -126,42 +127,55 @@ async function runWizard(initialProjectName) {
 async function runBuildSteps(config) {
   console.log('\nCreating your Tylix application...\n')
 
-  async function step(label, fn) {
-    await fn()
-    console.log(`✔ ${label}`)
-  }
-
-  await step('Creating project structure', () => createProjectStructure(config))
+  const steps = [
+    ['Creating project structure', () => createProjectStructure(config)],
+  ]
   if (config.installNow) {
-    await step('Installing packages', () => installPackages(config))
+    steps.push(['Installing packages', () => installPackages(config)])
   }
-  await step('Configuring compiler', () => writeCompilerConfig(config))
-  await step('Configuring ORM', () => writeOrmConfig(config))
-  await step('Configuring database', () => writeDatabaseConfig(config))
-  await step('Configuring styling', () => writeStylingConfig(config))
+  steps.push(
+    ['Configuring compiler', () => writeCompilerConfig(config)],
+    ['Configuring ORM', () => writeOrmConfig(config)],
+    ['Configuring database', () => writeDatabaseConfig(config)],
+    ['Configuring styling', () => writeStylingConfig(config)],
+  )
   if (config.authEnabled) {
-    await step('Generating authentication', () => generateAuth(config))
+    steps.push(['Generating authentication', () => generateAuth(config)])
   }
-  await step('Creating dashboard', () => writePage(config, 'Dashboard'))
-  await step('Creating Home page', () => writePage(config, 'Home'))
+  steps.push(
+    ['Creating dashboard', () => writePage(config, 'Dashboard')],
+    ['Creating Home page', () => writePage(config, 'Home')],
+  )
   if (config.authEnabled) {
-    await step('Creating Login page', () => writePage(config, 'Login'))
-    await step('Creating Register page', () => writePage(config, 'Register'))
+    steps.push(
+      ['Creating Login page', () => writePage(config, 'Login')],
+      ['Creating Register page', () => writePage(config, 'Register')],
+    )
   }
-  await step('Creating middleware', () => writeMiddleware(config))
-  await step('Creating layouts', () => writeLayout(config))
-  await step('Creating components', () => writeComponents(config))
-  await step('Creating API routes', () => writeApiRoutes(config))
+  steps.push(
+    ['Creating middleware', () => writeMiddleware(config)],
+    ['Creating layouts', () => writeLayout(config)],
+    ['Creating components', () => writeComponents(config)],
+    ['Creating API routes', () => writeApiRoutes(config)],
+  )
   if (config.starter === 'starter' && config.authEnabled) {
-    await step('Creating Post feature', () => generatePostBoilerplate(config))
+    steps.push(['Creating Post feature', () => generatePostBoilerplate(config)])
   }
-  await step('Creating migrations', () => runMigrations(config))
+  steps.push(['Creating migrations', () => runMigrations(config)])
   if (config.gitInit) {
-    await step('Initializing Git repository', () => initGit(config))
+    steps.push(['Initializing Git repository', () => initGit(config)])
   }
-  await step('Finalizing project', () => finalize(config))
-}
+  steps.push(['Finalizing project', () => finalize(config)])
 
+  const progress = createProgressBar(steps.length)
+  for (let i = 0; i < steps.length; i++) {
+    const [label, fn] = steps[i]
+    progress.render(label, i)
+    await fn()
+  }
+  progress.render('Done', steps.length)
+  console.log()
+}
 function printSuccessScreen(config) {
   printHeavyDivider()
   console.log('🎉  Success!')

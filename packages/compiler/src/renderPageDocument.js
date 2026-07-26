@@ -124,8 +124,8 @@ export function renderPageDocument(
       const compiled = compileComponentSource(childComponents[name], name)
       const { code: childCode, rootVar: childRootVar, className } = compiled
       return `  components[${JSON.stringify(name)}] = {
-    mount(document) {
-      const instance = new ${className}();
+    mount(document, props = {}) {
+      const instance = new ${className}(props);
       const node = (function (document, instance) {
 ${childCode}
         return ${childRootVar};

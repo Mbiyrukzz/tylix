@@ -1,0 +1,26 @@
+component CTASection
+
+props
+  loggedIn: boolean
+
+template
+  <section class="px-6 py-28 text-center">
+{{#if not loggedIn}}
+    <h2 class="text-4xl font-semibold text-slate-100 mb-4 tracking-tight">Ready to build something real?</h2>
+    <p class="text-slate-400 mb-10 max-w-md mx-auto">
+      Scaffold a full project — auth, database, and styling included — in under a minute.
+    </p>
+    <a href="/register" class="inline-block px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
+      Get Started for Free
+    </a>
+{{/if}}
+{{#if loggedIn}}
+    <h2 class="text-4xl font-semibold text-slate-100 mb-4 tracking-tight">Keep building</h2>
+    <p class="text-slate-400 mb-10 max-w-md mx-auto">
+      Jump back into your dashboard to manage your data and features.
+    </p>
+    <a href="/dashboard" class="inline-block px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
+      Go to Dashboard
+    </a>
+{{/if}}
+  </section>

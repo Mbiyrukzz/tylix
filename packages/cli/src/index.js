@@ -16,6 +16,7 @@ import { tinker } from './commands/tinker.js'
 import { doctor } from './commands/doctor.js'
 import { dbSeed } from './commands/dbSeed.js'
 import { migrate } from './commands/migrate.js'
+import { makeIcon } from './commands/makeIcon.js'
 import { dev } from './commands/dev.js'
 
 const [, , command, ...rest] = process.argv
@@ -35,6 +36,17 @@ async function main() {
 
   if (command === 'db:seed') {
     await dbSeed()
+    return
+  }
+
+  if (command === 'make:icon') {
+    const [name, ...pathParts] = rest
+    const pathData = pathParts.join(' ')
+    if (!name || !pathData) {
+      console.error('Usage: tylix make:icon <Name> "<svg path d attribute>"')
+      process.exit(1)
+    }
+    await makeIcon(name, pathData)
     return
   }
 
