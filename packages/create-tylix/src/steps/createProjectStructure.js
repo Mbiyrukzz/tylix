@@ -61,7 +61,7 @@ export async function createProjectStructure(config) {
       `DATABASE_DRIVER=${config.database.driver ?? config.database}`,
       ``,
       `# Set to true only if you're developing @tylix/compiler itself`,
-      `TYLIX_HOT_RELOAD_COMPILER=true`,
+      `TYLIX_HOT_RELOAD_COMPILER=false`,
     ].join('\n') + '\n',
   )
   await fs.writeFile(
@@ -72,7 +72,7 @@ export async function createProjectStructure(config) {
       `DATABASE_DRIVER=sqlite`,
       ``,
       `# Set to true only if you're developing @tylix/compiler itself`,
-      `TYLIX_HOT_RELOAD_COMPILER=true`,
+      `TYLIX_HOT_RELOAD_COMPILER=false`,
     ].join('\n') + '\n',
   )
 
@@ -112,18 +112,16 @@ export async function createProjectStructure(config) {
     path.join(targetDir, 'app', 'seeders', 'DatabaseSeeder.js'),
     `export async function seed() {\n  // e.g.:\n  // await Post.create({ title: 'First post', body: '...' })\n}\n`,
   )
-
   const dependencies = {
-    '@tylix/cli': `file:${path.join(MONOREPO_ROOT, 'packages', 'cli')}`,
-    '@tylix/core': `file:${path.join(MONOREPO_ROOT, 'packages', 'core')}`,
-    '@tylix/compiler': `file:${path.join(MONOREPO_ROOT, 'packages', 'compiler')}`,
-    '@tylix/generator': `file:${path.join(MONOREPO_ROOT, 'packages', 'generator')}`,
-    '@tylix/orm': `file:${path.join(MONOREPO_ROOT, 'packages', 'orm')}`,
-    '@tylix/shared': `file:${path.join(MONOREPO_ROOT, 'packages', 'shared')}`,
+    '@tylix/cli': '^0.1.0',
+    '@tylix/core': '^0.1.0',
+    '@tylix/compiler': '^0.1.0',
+    '@tylix/generator': '^0.1.0',
+    '@tylix/orm': '^0.1.1',
+    '@tylix/shared': '^0.1.1',
   }
   if (config.authEnabled) {
-    dependencies['@tylix/auth'] =
-      `file:${path.join(MONOREPO_ROOT, 'packages', 'auth')}`
+    dependencies['@tylix/auth'] = '^0.1.0'
   }
 
   const devDependencies = {}
