@@ -28,24 +28,24 @@ async function ensurePackageJson(baseDir) {
   }
 }
 
-async function ensureTylixPackagesLinked(baseDir) {
-  const nodeModulesTylix = path.join(baseDir, 'node_modules', '@tylix')
-  await fs.mkdir(nodeModulesTylix, { recursive: true })
+// async function ensureTylixPackagesLinked(baseDir) {
+//   const nodeModulesTylix = path.join(baseDir, 'node_modules', '@tylix')
+//   await fs.mkdir(nodeModulesTylix, { recursive: true })
 
-  const neededPackages = ['shared', 'orm', 'auth', 'compiler']
+//   const neededPackages = ['shared', 'orm', 'auth', 'compiler']
 
-  for (const pkg of neededPackages) {
-    const linkPath = path.join(nodeModulesTylix, pkg)
-    const alreadyLinked = await fs
-      .access(linkPath)
-      .then(() => true)
-      .catch(() => false)
-    if (alreadyLinked) continue
+//   for (const pkg of neededPackages) {
+//     const linkPath = path.join(nodeModulesTylix, pkg)
+//     const alreadyLinked = await fs
+//       .access(linkPath)
+//       .then(() => true)
+//       .catch(() => false)
+//     if (alreadyLinked) continue
 
-    const sourcePath = path.join(MONOREPO_PACKAGES, pkg)
-    await fs.symlink(sourcePath, linkPath, 'dir')
-  }
-}
+//     const sourcePath = path.join(MONOREPO_PACKAGES, pkg)
+//     await fs.symlink(sourcePath, linkPath, 'dir')
+//   }
+// }
 
 export async function makeFeature(
   name,
@@ -77,7 +77,7 @@ export async function makeFeature(
 
   const baseDir = process.cwd()
   await ensurePackageJson(baseDir)
-  await ensureTylixPackagesLinked(baseDir)
+  // await ensureTylixPackagesLinked(baseDir)
 
   const generator = new FeatureGenerator()
   const results = await generator.generate(blueprint, baseDir)

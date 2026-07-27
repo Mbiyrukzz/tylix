@@ -6,9 +6,10 @@
   "bin": {
     "create-tylix": "./src/index.js"
   },
-  "dependencies": {
-    "@tylix/auth": "*",
-    "@tylix/core": "*",
-    "@tylix/generator": "*"
-  }
+"dependencies": {
+  "@tylix/auth": "^0.1.0",
+  "@tylix/core": "^0.1.0",
+  "@tylix/generator": "^0.1.0",
+  "@tylix/shared": "^0.1.0"
+}
 }

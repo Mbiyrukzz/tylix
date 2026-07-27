@@ -6,9 +6,9 @@
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
-  "dependencies": {
-    "@tylix/auth": "*",
-    "@tylix/orm": "*",
-    "@tylix/shared": "*"
-  }
+ "dependencies": {
+  "@tylix/auth": "^0.1.0",
+  "@tylix/orm": "^0.1.0",
+  "@tylix/shared": "^0.1.0"
+}
 }

@@ -3,7 +3,7 @@ import {
   printDivider,
   printHeavyDivider,
   printSection,
-} from './utils/banner.js'
+} from '@tylix/shared'
 import { createProgressBar } from './utils/progress.js'
 import { select, confirm, text } from './utils/prompt.js'
 import { createProjectStructure } from './steps/createProjectStructure.js'

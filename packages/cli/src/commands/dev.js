@@ -3,11 +3,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import {
-  printBox,
-  printChecklist,
-  printLinkSection,
-} from '../../../create-tylix/src/utils/banner.js'
+import { printBox, printChecklist, printLinkSection } from '@tylix/shared'
 
 const execFileAsync = promisify(execFile)
 import {
