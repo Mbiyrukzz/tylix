@@ -19,15 +19,16 @@ import type { TylixRequest, TylixResponse } from "@tylix/core";
 import { Post } from "../models/Post.js";
 import { validatePost } from "../validators/PostValidator.js";
 
-interface PostRow {
+export interface PostRow {
     id: number;
-    title: string;
-    body: string;
-    user_id: number;
+    name: string;
+    email: string;
+    password: string;
+    email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    [key: string]: unknown;
 }
-
 export class PostController {
     async index(req: TylixRequest, res: TylixResponse) {
         const posts = await Post.all() as PostRow[];

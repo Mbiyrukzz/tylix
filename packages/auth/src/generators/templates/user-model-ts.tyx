@@ -19,6 +19,7 @@ export interface UserAttributes {
     email_verified_at: string | null;
     created_at: string;
     updated_at: string;
+    [key: string]: unknown;
 }
 
 export type SafeUser = Omit<UserAttributes, "password">;
@@ -32,18 +33,25 @@ interface UserCreateInput {
 export class User extends Model {
     static table = "users";
 
-    static fillable: (keyof UserAttributes)[] = [
-        "name",
-        "email",
-        "password",
-        "email_verified_at",
-    ];
+  static fillable: string[] = [
+    "name",
+    "email",
+    "password",
+    "email_verified_at",
+];
 
-    static async create(data: UserCreateInput) {
-        const hashed = await hashPassword(data.password);
-        return super.create({ ...data, password: hashed });
-    }
+    static async all(): Promise<UserAttributes[]> {
+    return (await super.all()) as UserAttributes[];
+}
 
+static async find(id: number | string): Promise<UserAttributes | null> {
+    return (await super.find(id)) as UserAttributes | null;
+}
+
+static async create(data: Record<string, unknown>): Promise<UserAttributes | null> {
+    const hashed = await hashPassword(data.password as string);
+    return (await super.create({ ...data, password: hashed })) as UserAttributes | null;
+}
     static async updatePassword(id: number, plainPassword: string) {
         const hashed = await hashPassword(plainPassword);
         return this.update(id, { password: hashed });
@@ -62,4 +70,6 @@ export class User extends Model {
         const { password, ...safe } = user;
         return safe;
     }
+
+    
 }

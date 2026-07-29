@@ -1,9 +1,10 @@
+// orm/src/model/Model.d.ts
 import { QueryBuilder } from '../query/QueryBuilder.js';
 
 interface PaginateOptions {
     page?: number;
     limit?: number;
-    where?: Record<string, unknown>;  
+    where?: Record<string, unknown>;
 }
 
 interface PaginateResult<T> {
@@ -24,35 +25,25 @@ export declare class Model {
     static getTable(): string;
     static getAdapter(): unknown;
 
-    static all<T extends typeof Model>(this: T): Promise<InstanceType<T>[]>;
-    static query<T extends typeof Model>(this: T): QueryBuilder<InstanceType<T>>;
-    static paginate<T extends typeof Model>(
-        this: T,
-        options?: PaginateOptions,
-    ): Promise<PaginateResult<InstanceType<T>>>;
-    static find<T extends typeof Model>(this: T, id: number): Promise<InstanceType<T> | null>;
-    static create<T extends typeof Model>(
-        this: T,
-        data: Record<string, unknown>,
-    ): Promise<InstanceType<T> | null>;
-    static update<T extends typeof Model>(
-        this: T,
-        id: number,
-        data: Record<string, unknown>,
-    ): Promise<InstanceType<T> | null>;
-    static delete(id: number): Promise<boolean>;
+    static all(): Promise<Record<string, unknown>[]>;
+    static query(): QueryBuilder<Record<string, unknown>>;
+    static paginate(options?: PaginateOptions): Promise<PaginateResult<Record<string, unknown>>>;
+    static find(id: number | string): Promise<Record<string, unknown> | null>;
+    static create(data: Record<string, unknown>): Promise<Record<string, unknown> | null>;
+    static update(id: number | string, data: Record<string, unknown>): Promise<Record<string, unknown> | null>;
+    static delete(id: number | string): Promise<boolean>;
 
-    static belongsTo<T extends typeof Model>(
+    static belongsTo(
         row: Record<string, unknown> | null,
         foreignKey: string,
-        RelatedModel: T,
-    ): Promise<InstanceType<T> | null>;
-    static hasMany<T extends typeof Model>(
+        RelatedModel: typeof Model,
+    ): Promise<Record<string, unknown> | null>;
+    static hasMany(
         row: { id: number },
-        RelatedModel: T,
+        RelatedModel: typeof Model,
         foreignKey: string,
-    ): Promise<InstanceType<T>[]>;
+    ): Promise<Record<string, unknown>[]>;
 
-    static first<T extends typeof Model>(this: T): Promise<InstanceType<T> | null>;
+    static first(): Promise<Record<string, unknown> | null>;
     static count(): Promise<number>;
 }

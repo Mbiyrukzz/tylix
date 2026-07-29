@@ -8,8 +8,10 @@
  * Do not edit this section.
  */
 
-export const up = async (schema) => {
-    await schema.createTable("users", (table) => {
+import type { Schema, CreateTableBuilder } from "@tylix/shared";
+
+export const up = async (schema: Schema) => {
+    await schema.createTable("users", (table: CreateTableBuilder) => {
         table.increments("id");
         table.string("name");
         table.string("email").unique();
@@ -19,6 +21,6 @@ export const up = async (schema) => {
     });
 };
 
-export const down = async (schema) => {
+export const down = async (schema: Schema) => {
     await schema.dropTable("users");
 };

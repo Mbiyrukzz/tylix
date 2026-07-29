@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
- "dependencies": {
+"dependencies": {
+  "@tylix/core": "^0.1.0",
   "@tylix/generator": "^0.1.0",
   "@tylix/orm": "^0.1.0",
   "@tylix/shared": "^0.1.0"

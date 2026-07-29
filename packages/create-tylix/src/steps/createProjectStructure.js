@@ -151,16 +151,31 @@ export async function createProjectStructure(config) {
     path.join(targetDir, 'app', 'seeders', `DatabaseSeeder.${ext}`),
     `export async function seed() {\n  // e.g.:\n  // await Post.create({ title: 'First post', body: '...' })\n}\n`,
   )
+  // const dependencies = {
+  //   '@tylix/cli': '^0.1.0',
+  //   '@tylix/core': '^0.1.0',
+  //   '@tylix/compiler': '^0.1.0',
+  //   '@tylix/generator': '^0.1.0',
+  //   '@tylix/orm': '^0.1.1',
+  //   '@tylix/shared': '^0.1.1',
+  // }
+  // if (config.authEnabled) {
+  //   dependencies['@tylix/auth'] = '^0.1.0'
+  // }
+
+  const MONOREPO_PACKAGES_DIR = path.join(MONOREPO_ROOT, 'packages')
+
   const dependencies = {
-    '@tylix/cli': '^0.1.0',
-    '@tylix/core': '^0.1.0',
-    '@tylix/compiler': '^0.1.0',
-    '@tylix/generator': '^0.1.0',
-    '@tylix/orm': '^0.1.1',
-    '@tylix/shared': '^0.1.1',
+    '@tylix/cli': `file:${path.join(MONOREPO_PACKAGES_DIR, 'cli')}`,
+    '@tylix/core': `file:${path.join(MONOREPO_PACKAGES_DIR, 'core')}`,
+    '@tylix/compiler': `file:${path.join(MONOREPO_PACKAGES_DIR, 'compiler')}`,
+    '@tylix/generator': `file:${path.join(MONOREPO_PACKAGES_DIR, 'generator')}`,
+    '@tylix/orm': `file:${path.join(MONOREPO_PACKAGES_DIR, 'orm')}`,
+    '@tylix/shared': `file:${path.join(MONOREPO_PACKAGES_DIR, 'shared')}`,
   }
   if (config.authEnabled) {
-    dependencies['@tylix/auth'] = '^0.1.0'
+    dependencies['@tylix/auth'] =
+      `file:${path.join(MONOREPO_PACKAGES_DIR, 'auth')}`
   }
 
   const devDependencies = {}

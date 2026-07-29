@@ -31,18 +31,18 @@ const resetPasswordSchema = {
     password: [required, isString],
 };
 
-export function validateRegister(data) {
+export function validateRegister(data: Record<string, unknown>) {
     return validate(data, registerSchema);
 }
 
-export function validateLogin(data) {
+export function validateLogin(data: Record<string, unknown>) {
     return validate(data, loginSchema);
 }
 
-export function validateForgotPassword(data) {
+export function validateForgotPassword(data: Record<string, unknown>) {
     return validate(data, forgotPasswordSchema);
 }
 
-export function validateResetPassword(data) {
+export function validateResetPassword(data: Record<string, unknown>) {
     return validate(data, resetPasswordSchema);
 }
