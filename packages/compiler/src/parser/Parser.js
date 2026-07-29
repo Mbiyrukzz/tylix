@@ -175,53 +175,88 @@ export class Parser {
   }
 
   parsePropEntry() {
+    const startLine = this.peek().line
     const name = this.expect(TokenType.IDENTIFIER, 'Expected prop name').value
+    const optional = this.match(TokenType.QUESTION)
     this.expect(TokenType.COLON, "Expected ':' after prop name")
-    const propType = this.expect(
-      TokenType.IDENTIFIER,
-      'Expected prop type',
-    ).value
-    return PropNode(name, propType)
+    const propType = this.parseTypeExpression()
+    return { ...PropNode(name, propType, optional), line: startLine }
   }
-
   parseStateEntry() {
+    const startLine = this.peek().line
     const name = this.expect(TokenType.IDENTIFIER, 'Expected state name').value
+
+    let typeAnnotation = null
+    if (this.match(TokenType.LPAREN)) {
+      typeAnnotation = this.parseTypeExpression()
+      this.expect(
+        TokenType.RPAREN,
+        "Expected ')' to close state type annotation",
+      )
+    }
+
     this.expect(TokenType.COLON, "Expected ':' after state name")
     if (this.match(TokenType.MINUS)) {
       const num = this.expect(
         TokenType.NUMBER,
         "Expected a number after '-'",
       ).value
-      return StateNode(name, Literal(-num))
+      return {
+        ...StateNode(name, Literal(-num), typeAnnotation),
+        line: startLine,
+      }
     }
     const value = this.parsePrimary()
-    return StateNode(name, value)
+    return { ...StateNode(name, value, typeAnnotation), line: startLine }
   }
-
   parseMethod() {
+    const startLine = this.peek().line
     const isAsync = this.match(TokenType.ASYNC)
     const name = this.expect(TokenType.IDENTIFIER, 'Expected method name').value
     this.expect(TokenType.LPAREN, "Expected '(' after method name")
+
     const params = []
     while (!this.check(TokenType.RPAREN)) {
-      params.push(
-        this.expect(TokenType.IDENTIFIER, 'Expected parameter name').value,
-      )
+      const paramName = this.expect(
+        TokenType.IDENTIFIER,
+        'Expected parameter name',
+      ).value
+      let paramType = null
+      if (this.match(TokenType.COLON)) {
+        paramType = this.parseTypeExpression()
+      }
+      params.push({ name: paramName, typeAnnotation: paramType })
       this.match(TokenType.COMMA)
     }
     this.expect(TokenType.RPAREN, "Expected ')' after parameters")
-    this.expect(TokenType.LBRACE, "Expected '{' to start method body")
 
+    let returnType = null
+    if (this.match(TokenType.COLON)) {
+      returnType = this.parseTypeExpression()
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' to start method body")
     const body = []
     while (!this.check(TokenType.RBRACE)) {
       body.push(this.parseStatement())
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close method body")
 
-    return { ...MethodNode(name, params, body), isAsync }
+    return {
+      ...MethodNode(name, params, body, returnType),
+      isAsync,
+      line: startLine,
+    }
   }
 
   parseStatement() {
+    const startLine = this.peek().line
+    const node = this.parseStatementInner()
+    node.line = node.line ?? startLine
+    return node
+  }
+
+  parseStatementInner() {
     if (this.match(TokenType.RETURN)) {
       const hasValue =
         !this.check(TokenType.SEMICOLON) && !this.check(TokenType.RBRACE)
@@ -268,7 +303,6 @@ export class Parser {
     this.match(TokenType.SEMICOLON)
     return ExpressionStatement(expression)
   }
-
   parseIfStatement() {
     const hasParen = this.match(TokenType.LPAREN)
     const condition = this.parseExpression()
@@ -623,6 +657,82 @@ export class Parser {
       `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
     )
   }
+
+  // Type expressions are captured as plain strings, not a full type
+  // AST -- Tylix's own codegen never interprets the, it only needs the exact TS source text to paste into the
+  // virtual .ts file handed to the TypeScript compiler API.
+  parseTypeExpression() {
+    let left = this.parseUnionTypeOperand()
+    while (this.check(TokenType.PIPE)) {
+      this.advance()
+      const right = this.parseUnionTypeOperand()
+      left = `${left} | ${right}`
+    }
+    return left
+  }
+
+  parseUnionTypeOperand() {
+    let type = this.parsePrimaryType()
+    while (this.check(TokenType.LBRACKET)) {
+      this.advance()
+      this.expect(TokenType.RBRACKET, "Expected ']' to close array type")
+      type = `${type}[]`
+    }
+    return type
+  }
+
+  parsePrimaryType() {
+    if (this.check(TokenType.LBRACE)) {
+      return this.parseObjectTypeLiteral()
+    }
+    if (this.match(TokenType.LPAREN)) {
+      const inner = this.parseTypeExpression()
+      this.expect(TokenType.RPAREN, "Expected ')' to close grouped type")
+      return `(${inner})`
+    }
+
+    let name = this.expect(TokenType.IDENTIFIER, 'Expected a type name').value
+    while (this.match(TokenType.DOT)) {
+      const prop = this.expect(
+        TokenType.IDENTIFIER,
+        "Expected a property name after '.'",
+      ).value
+      name += `.${prop}`
+    }
+
+    if (this.match(TokenType.LT)) {
+      const args = [this.parseTypeExpression()]
+      while (this.match(TokenType.COMMA)) {
+        args.push(this.parseTypeExpression())
+      }
+      this.expect(TokenType.GT, "Expected '>' to close generic type arguments")
+      name += `<${args.join(', ')}>`
+    }
+
+    return name
+  }
+
+  parseObjectTypeLiteral() {
+    this.expect(TokenType.LBRACE, "Expected '{' to start object type")
+    const members = []
+    while (!this.check(TokenType.RBRACE)) {
+      const key = this.expect(
+        TokenType.IDENTIFIER,
+        'Expected a property name',
+      ).value
+      const optional = this.match(TokenType.QUESTION)
+      this.expect(
+        TokenType.COLON,
+        "Expected ':' after property name in object type",
+      )
+      const valueType = this.parseTypeExpression()
+      members.push(`${key}${optional ? '?' : ''}: ${valueType}`)
+      if (!this.match(TokenType.COMMA)) this.match(TokenType.SEMICOLON)
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close object type")
+    return `{ ${members.join('; ')} }`
+  }
+
   parseArrayLiteral() {
     const elements = []
     while (!this.check(TokenType.RBRACKET)) {

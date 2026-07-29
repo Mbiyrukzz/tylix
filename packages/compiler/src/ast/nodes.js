@@ -13,16 +13,16 @@ export function PageNode({
   return { type: 'Page', props, state, computed, actions, onMount }
 }
 
-export function PropNode(name, propType) {
-  return { type: 'Prop', name, propType }
+export function PropNode(name, propType, optional = false) {
+  return { type: 'Prop', name, propType, optional }
 }
 
-export function StateNode(name, value) {
-  return { type: 'State', name, value }
+export function StateNode(name, value, typeAnnotation = null) {
+  return { type: 'State', name, value, typeAnnotation }
 }
 
-export function MethodNode(name, params, body) {
-  return { type: 'Method', name, params, body }
+export function MethodNode(name, params, body, returnType = null) {
+  return { type: 'Method', name, params, body, returnType }
 }
 
 export function AssignmentExpr(target, value) {

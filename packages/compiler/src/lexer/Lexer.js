@@ -68,6 +68,12 @@ export class Lexer {
         continue
       }
 
+      if (char === '|') {
+        this.pushToken(TokenType.PIPE, '|')
+        this.pos++
+        continue
+      }
+
       // Compound assignment operators must be checked before their
       // single-char fallbacks below, same lookahead-before-fallback
       // pattern already used for '=>', '>=', '<=' above.

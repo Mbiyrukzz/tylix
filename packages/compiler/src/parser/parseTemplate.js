@@ -69,10 +69,34 @@ class TemplateParser {
   constructor(source) {
     this.source = source
     this.pos = 0
+    // Precomputed once so lineAt() is a binary search instead of
+    // rescanning from the start on every node -- parsing jumps around
+    // via indexOf() in several places (interpolations, {{#if}}/
+    // {{#each}} headers), so a running line counter threaded
+    // incrementally (the way Lexer does it) would miss newlines that
+    // fall inside a skipped range.
+    this.lineStarts = [0]
+    for (let i = 0; i < source.length; i++) {
+      if (source[i] === '\n') this.lineStarts.push(i + 1)
+    }
   }
 
   remaining() {
     return this.source.slice(this.pos)
+  }
+
+  // 1-based line number containing `pos`. Binary search over
+  // lineStarts -- called once per node, so this stays cheap even on
+  // large templates.
+  lineAt(pos) {
+    let lo = 0
+    let hi = this.lineStarts.length - 1
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1
+      if (this.lineStarts[mid] <= pos) lo = mid
+      else hi = mid - 1
+    }
+    return lo + 1
   }
 
   // Parses sibling nodes. `stopTag` (an HTML tag name) or `stopMarker`
@@ -144,6 +168,7 @@ class TemplateParser {
   }
 
   parseInterpolation() {
+    const line = this.lineAt(this.pos)
     const start = this.pos + 2
     const end = this.source.indexOf('}}', start)
     if (end === -1) {
@@ -151,10 +176,11 @@ class TemplateParser {
     }
     const exprSource = this.source.slice(start, end).trim()
     this.pos = end + 2
-    return InterpolationNode(parseExpressionString(exprSource))
+    return { ...InterpolationNode(parseExpressionString(exprSource)), line }
   }
 
   parseIfBlock() {
+    const line = this.lineAt(this.pos)
     this.pos += 2 // "{{"
     this.pos += 3 // "#if"
     this.skipWhitespace()
@@ -166,10 +192,14 @@ class TemplateParser {
     this.pos = end + 2
 
     const children = this.parseNodes(null, '{{/if}}')
-    return IfNode(parseExpressionString(conditionSource), children)
+    return {
+      ...IfNode(parseExpressionString(conditionSource), children),
+      line,
+    }
   }
 
   parseEachBlock() {
+    const line = this.lineAt(this.pos)
     this.pos += 2 // "{{"
     this.pos += 5 // "#each"
     this.skipWhitespace()
@@ -190,10 +220,14 @@ class TemplateParser {
     const iterableSource = match[2].trim()
 
     const children = this.parseNodes(null, '{{/each}}')
-    return EachNode(itemName, parseExpressionString(iterableSource), children)
+    return {
+      ...EachNode(itemName, parseExpressionString(iterableSource), children),
+      line,
+    }
   }
 
   parseElement() {
+    const line = this.lineAt(this.pos)
     this.pos++
     const tag = this.readTagName()
     const attributes = this.parseAttributes()
@@ -201,7 +235,7 @@ class TemplateParser {
     this.skipWhitespace()
     if (this.remaining().startsWith('/>')) {
       this.pos += 2
-      return ElementNode(tag, attributes, [])
+      return { ...ElementNode(tag, attributes, []), line }
     }
 
     if (this.source[this.pos] !== '>') {
@@ -223,11 +257,14 @@ class TemplateParser {
       }
       const rawContent = this.source.slice(this.pos, closeIndex)
       this.pos = closeIndex + closeTag.length
-      return ElementNode(tag, attributes, [TextNode(rawContent)])
+      return {
+        ...ElementNode(tag, attributes, [TextNode(rawContent)]),
+        line,
+      }
     }
 
     const children = this.parseNodes(tag)
-    return ElementNode(tag, attributes, children)
+    return { ...ElementNode(tag, attributes, children), line }
   }
 
   consumeClosingTag(expectedTag) {
@@ -269,6 +306,7 @@ class TemplateParser {
   }
 
   parseAttribute() {
+    const line = this.lineAt(this.pos)
     const nameMatch = ATTR_NAME_RE.exec(this.remaining())
     if (!nameMatch) {
       throw new Error(`Expected an attribute name at position ${this.pos}`)
@@ -283,7 +321,7 @@ class TemplateParser {
     // convention, so devs coming from plain HTML don't hit a
     // surprising "Expected '=' after attribute name" wall.
     if (this.source[this.pos] !== '=') {
-      return AttributeNode(name, true, false)
+      return { ...AttributeNode(name, true, false), line }
     }
 
     this.pos++
@@ -306,9 +344,12 @@ class TemplateParser {
 
     const interpMatch = INTERP_ATTR_RE.exec(rawValue)
     if (interpMatch) {
-      return AttributeNode(name, parseExpressionString(interpMatch[1]), true)
+      return {
+        ...AttributeNode(name, parseExpressionString(interpMatch[1]), true),
+        line,
+      }
     }
-    return AttributeNode(name, rawValue, false)
+    return { ...AttributeNode(name, rawValue, false), line }
   }
 
   skipWhitespace() {

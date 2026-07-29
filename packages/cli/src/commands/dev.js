@@ -300,11 +300,24 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
   async function renderFileSafely(filePath, params = {}) {
     let source = null
     try {
-      const { renderPageDocument } = hotReloadCompiler
+      const { renderPageDocument, typecheckPage } = hotReloadCompiler
         ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
         : staticCompiler
 
       source = await fs.readFile(filePath, 'utf-8')
+
+      const language = await detectLanguage(baseDir)
+      if (language === 'typescript') {
+        const pageName = path.basename(filePath, '.tyx')
+        const diagnostics = typecheckPage(source, pageName)
+        if (diagnostics.length > 0) {
+          const message = diagnostics
+            .map((d) => `Line ${d.line}: ${d.message}`)
+            .join('\n')
+          throw new Error(`TypeScript errors in ${filePath}:\n${message}`)
+        }
+      }
+
       const layout = await findLayoutForFile(pagesDir, filePath)
       const components = await loadComponents(pagesDir)
       const apiHelpers = await loadApiHelpers(baseDir)

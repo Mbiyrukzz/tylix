@@ -46,6 +46,7 @@ export const TokenType = {
   LT: 'LT',
   GTE: 'GTE', // >=
   LTE: 'LTE', // <=
+  PIPE: 'PIPE', // |
 
   // Word operators (Tylix-native, not symbol-based)
   AND: 'AND', // and

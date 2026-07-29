@@ -1,4 +1,4 @@
-import { generateStatement } from "./generateStatement.js";
+import { generateStatement } from './generateStatement.js'
 
 /**
  * Compiles a MethodNode (used for both `computed` and `action` entries)
@@ -6,8 +6,10 @@ import { generateStatement } from "./generateStatement.js";
  * generated output.
  */
 export function generateMethod(node) {
-  const params = node.params.join(", ");
-  const body = node.body.map((stmt) => `    ${generateStatement(stmt)}`).join("\n");
-  const asyncPrefix = node.isAsync ? "async " : "";
-  return `  ${asyncPrefix}${node.name}(${params}) {\n${body}\n  }`;
+  const params = node.params.map((p) => p.name).join(', ')
+  const body = node.body
+    .map((stmt) => `    ${generateStatement(stmt)}`)
+    .join('\n')
+  const asyncPrefix = node.isAsync ? 'async ' : ''
+  return `  ${asyncPrefix}${node.name}(${params}) {\n${body}\n  }`
 }
