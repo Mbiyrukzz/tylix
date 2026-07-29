@@ -3,7 +3,7 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { loadConfig, loadEnv } from '@tylix/shared'
+import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
 import { discoverFeatures } from '@tylix/core'
 import { bootstrapDatabase } from '../bootstrap.js'
 
@@ -32,8 +32,6 @@ async function pathExists(p) {
     .catch(() => false)
 }
 
-// Mirrors dev.js's walkPagesDir -- kept local so doctor doesn't need
-// to import an internal dev-command helper.
 async function walkPagesDir(dir) {
   const exists = await pathExists(dir)
   if (!exists) return []
@@ -55,6 +53,8 @@ export async function doctor() {
   const baseDir = process.cwd()
   const startedAt = performance.now()
   const results = []
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
 
   console.log('Tylix Doctor')
   console.log('─'.repeat(28))
@@ -95,13 +95,11 @@ export async function doctor() {
   )
   await loadEnv(baseDir)
 
-  // Shallow: confirms app/routes/web.js exists and exports an async
-  // routes() function. Does not verify the routes it registers work.
   results.push(
     await check('routes', async () => {
-      const routesPath = path.join(baseDir, 'app', 'routes', 'web.js')
+      const routesPath = path.join(baseDir, 'app', 'routes', `web.${ext}`)
       if (!(await pathExists(routesPath))) {
-        throw new Error('app/routes/web.js missing')
+        throw new Error(`app/routes/web.${ext} missing`)
       }
       const mod = await import(pathToFileURL(routesPath).href)
       if (typeof mod.routes !== 'function') {
@@ -110,13 +108,11 @@ export async function doctor() {
     }),
   )
 
-  // Shallow: confirms app/schedule.js exists and exports schedule().
-  // Does not verify any scheduled jobs actually run.
   results.push(
     await check('scheduler', async () => {
-      const schedulePath = path.join(baseDir, 'app', 'schedule.js')
+      const schedulePath = path.join(baseDir, 'app', `schedule.${ext}`)
       if (!(await pathExists(schedulePath))) {
-        throw new Error('app/schedule.js missing')
+        throw new Error(`app/schedule.${ext} missing`)
       }
       const mod = await import(pathToFileURL(schedulePath).href)
       if (typeof mod.schedule !== 'function') {
@@ -125,9 +121,6 @@ export async function doctor() {
     }),
   )
 
-  // Shallow: app/middleware/ is scaffolded as an empty directory with
-  // no default file or export contract, so existence is all there is
-  // to check today.
   results.push(
     await check('middleware', async () => {
       const middlewareDir = path.join(baseDir, 'app', 'middleware')
@@ -153,7 +146,7 @@ export async function doctor() {
         if (!(await pathExists(migrationsDir))) return 'no migrations directory'
 
         const files = (await fs.readdir(migrationsDir)).filter((f) =>
-          f.endsWith('.js'),
+          f.endsWith(`.${ext}`),
         )
         const ranRows = await adapter
           .all('SELECT * FROM migrations')
@@ -169,14 +162,12 @@ export async function doctor() {
       }),
     )
 
-    // Shallow: imports every file in app/models/ and confirms it
-    // doesn't throw. Does not verify models against actual DB schema.
     results.push(
       await check('models loaded', async () => {
         const modelsDir = path.join(baseDir, 'app', 'models')
         if (!(await pathExists(modelsDir))) return '0 models'
         const files = (await fs.readdir(modelsDir)).filter((f) =>
-          f.endsWith('.js'),
+          f.endsWith(`.${ext}`),
         )
         for (const file of files) {
           await import(pathToFileURL(path.join(modelsDir, file)).href)
@@ -191,9 +182,6 @@ export async function doctor() {
 
   // ---- Compiler ----
   printSectionHeader('Compiler')
-  // Deep: actually compiles a throwaway .tyx source string end to end
-  // (lexer -> parser -> codegen) rather than just checking the
-  // package resolves.
   results.push(
     await check('parser', async () => {
       const { renderPageDocument } = await import('@tylix/compiler')
@@ -202,15 +190,12 @@ export async function doctor() {
     }),
   )
 
-  // Shallow: confirms the runtime source files @tylix/compiler embeds
-  // into every generated page (reactive.js, etc.) exist and are
-  // readable. Does not execute the runtime in a real DOM.
   results.push(
     await check('runtime', async () => {
       const compilerEntryPath = fileURLToPath(
         await import.meta.resolve('@tylix/compiler'),
       )
-      const compilerSrcDir = path.dirname(compilerEntryPath) // .../compiler/src
+      const compilerSrcDir = path.dirname(compilerEntryPath)
       const runtimeFile = path.join(compilerSrcDir, 'runtime', 'reactive.js')
       if (!(await pathExists(runtimeFile))) {
         throw new Error(
@@ -220,9 +205,6 @@ export async function doctor() {
     }),
   )
 
-  // Shallow: confirms the HMR SSE endpoint helper resolves. Does not
-  // open a real connection or verify a browser receives a reload
-  // message.
   results.push(
     await check('HMR', async () => {
       await import('../hotReload.js')

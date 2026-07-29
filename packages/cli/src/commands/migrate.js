@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { bootstrapDatabase } from '../bootstrap.js'
+import { detectLanguage } from '@tylix/shared'
 
 function buildSchema(adapter) {
   return {
@@ -103,7 +104,9 @@ function buildSchema(adapter) {
 }
 
 export async function migrate() {
-  const adapter = await bootstrapDatabase()
+  const cwd = process.cwd()
+  const language = await detectLanguage(cwd)
+  const adapter = await bootstrapDatabase(cwd)
 
   await adapter.run(`
     CREATE TABLE IF NOT EXISTS migrations (
@@ -113,7 +116,7 @@ export async function migrate() {
     )
   `)
 
-  const migrationsDir = path.join(process.cwd(), 'database', 'migrations')
+  const migrationsDir = path.join(cwd, 'database', 'migrations')
   const exists = await fs
     .access(migrationsDir)
     .then(() => true)
@@ -125,8 +128,10 @@ export async function migrate() {
     return
   }
 
+  const extension = language === 'typescript' ? '.ts' : '.js'
+
   const files = (await fs.readdir(migrationsDir))
-    .filter((f) => f.endsWith('.js'))
+    .filter((f) => f.endsWith(extension))
     .sort()
 
   const alreadyRun = await adapter.all('SELECT * FROM migrations')

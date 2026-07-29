@@ -1,9 +1,13 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { detectLanguage } from '@tylix/shared'
 
 export async function loadCustomRoutes(router, baseDir) {
-  const routesPath = path.join(baseDir, 'app', 'routes', 'web.js')
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
+  const routesPath = path.join(baseDir, 'app', 'routes', `web.${ext}`)
+
   const exists = await fs
     .access(routesPath)
     .then(() => true)

@@ -1,0 +1,1 @@
+export declare function parseBody(req: import('node:http').IncomingMessage): Promise<Record<string, unknown>>

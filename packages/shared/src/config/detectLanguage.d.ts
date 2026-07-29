@@ -1,0 +1,1 @@
+export declare function detectLanguage(baseDir?: string): Promise<'typescript' | 'javascript'>;

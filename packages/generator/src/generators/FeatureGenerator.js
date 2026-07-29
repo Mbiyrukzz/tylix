@@ -1,9 +1,10 @@
 import path from 'node:path'
-import { writeFile } from '@tylix/shared'
+import { writeFile, detectLanguage } from '@tylix/shared'
 import { ModelGenerator } from './ModelGenerator.js'
 import { MigrationGenerator } from './MigrationGenerator.js'
 import { ControllerGenerator } from './ControllerGenerator.js'
 import { ValidatorGenerator } from './ValidatorGenerator.js'
+import { ApiHelperGenerator } from './ApiHelperGenerator.js'
 
 export class FeatureGenerator {
   constructor({
@@ -11,49 +12,65 @@ export class FeatureGenerator {
     migrationGenerator = new MigrationGenerator(),
     controllerGenerator = new ControllerGenerator(),
     validatorGenerator = new ValidatorGenerator(),
+    apiHelperGenerator = new ApiHelperGenerator(),
   } = {}) {
     this.modelGenerator = modelGenerator
     this.migrationGenerator = migrationGenerator
     this.controllerGenerator = controllerGenerator
     this.validatorGenerator = validatorGenerator
+    this.apiHelperGenerator = apiHelperGenerator
   }
 
   async generate(blueprint, baseDir) {
     const results = {}
+    const language = await detectLanguage(baseDir)
 
     results.model = await this.modelGenerator.generate(
       blueprint,
       path.join(baseDir, 'app', 'models'),
+      language,
     )
 
     results.migration = await this.migrationGenerator.generate(
       blueprint,
       path.join(baseDir, 'database', 'migrations'),
+      language,
     )
 
     results.validator = await this.validatorGenerator.generate(
       blueprint,
       path.join(baseDir, 'app', 'validators'),
+      language,
     )
 
     results.controller = await this.controllerGenerator.generate(
       blueprint,
       path.join(baseDir, 'app', 'controllers'),
+      language,
     )
 
-    results.manifest = await this.writeManifest(blueprint, baseDir)
+    results.apiHelper = await this.apiHelperGenerator.generate(
+      blueprint,
+      path.join(baseDir, 'app', 'useApi'),
+      language,
+    )
+
+    results.manifest = await this.writeManifest(blueprint, baseDir, language)
 
     return results
   }
 
-  async writeManifest(blueprint, baseDir) {
+  async writeManifest(blueprint, baseDir, language) {
+    const ext = language === 'typescript' ? 'ts' : 'js'
+
     const manifest = {
       name: blueprint.name,
       version: '1.0.0',
       table: blueprint.tableName,
       model: blueprint.name,
       controller: `${blueprint.name}Controller`,
-      validator: `validate${blueprint.name}`,
+      validator: `${blueprint.name}Validator`,
+      language,
       fields: blueprint.fields,
       relations: blueprint.relations,
       auth: Boolean(blueprint.options.auth),

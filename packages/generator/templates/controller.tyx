@@ -11,12 +11,21 @@
 import { {{Model}} } from "../models/{{Model}}.js";
 import { validate{{Model}} } from "../validators/{{Model}}Validator.js";
 
+const FILTERABLE_FIELDS = {{filterableFields}};
+
 export class {{Model}}Controller {
     async index(req, res) {
         const page = req.query.page ? parseInt(req.query.page, 10) : 1;
         const limit = req.query.limit ? parseInt(req.query.limit, 10) : 20;
 
-        const result = await {{Model}}.paginate({ page, limit });
+        const where = {};
+        for (const field of FILTERABLE_FIELDS) {
+            if (req.query[field] !== undefined) {
+                where[field] = req.query[field];
+            }
+        }
+
+        const result = await {{Model}}.paginate({ page, limit, where });
         return res.json(result);
     }
 

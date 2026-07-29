@@ -3,6 +3,7 @@
   "version": "0.1.1",
   "type": "module",
   "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
@@ -12,5 +13,9 @@
     "@tylix/orm": "^0.1.0",
     "@tylix/shared": "^0.1.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/ws": "^8.18.1"
   }
 }

@@ -1,18 +1,21 @@
-import path from "node:path";
-import { Blueprint, ControllerGenerator } from "@tylix/generator";
+import path from 'node:path'
+import { Blueprint, ControllerGenerator } from '@tylix/generator'
+import { detectLanguage } from '@tylix/shared'
 
 export async function makeController(name, fieldArgs = []) {
-  const blueprint = new Blueprint(name);
+  const baseDir = process.cwd()
+  const blueprint = new Blueprint(name)
 
   for (const arg of fieldArgs) {
-    const [fieldName, fieldType = "string", modifier] = arg.split(":");
-    const options = modifier === "unique" ? { unique: true } : {};
-    blueprint.field(fieldName, fieldType, options);
+    const [fieldName, fieldType = 'string', modifier] = arg.split(':')
+    const options = modifier === 'unique' ? { unique: true } : {}
+    blueprint.field(fieldName, fieldType, options)
   }
 
-  const generator = new ControllerGenerator();
-  const outputDir = path.join(process.cwd(), "app", "controllers");
-  const outputPath = await generator.generate(blueprint, outputDir);
+  const language = await detectLanguage(baseDir)
+  const generator = new ControllerGenerator()
+  const outputDir = path.join(baseDir, 'app', 'controllers')
+  const outputPath = await generator.generate(blueprint, outputDir, language)
 
-  console.log(`✔ Controller created: ${path.relative(process.cwd(), outputPath)}`);
+  console.log(`✔ Controller created: ${path.relative(baseDir, outputPath)}`)
 }

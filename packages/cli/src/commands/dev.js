@@ -15,7 +15,7 @@ import {
   loadCustomRoutes,
 } from '@tylix/core'
 
-import { loadConfig, loadEnv } from '@tylix/shared'
+import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
 import {
   watchDirectoryTree,
   createHmrChannel,
@@ -127,12 +127,16 @@ import { bootstrapDatabase } from '../bootstrap.js'
 // calls precisely when the access token is missing/expired, so gating
 // them behind a valid access token would make them unreachable exactly
 // when they're needed. Only `me` needs an active session.
+
 async function registerAuthRoutes(router, baseDir, authConfig) {
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
+
   const controllerPath = path.join(
     baseDir,
     'app',
     'controllers',
-    'AuthController.js',
+    `AuthController.${ext}`,
   )
   const exists = await fs
     .access(controllerPath)
@@ -141,6 +145,7 @@ async function registerAuthRoutes(router, baseDir, authConfig) {
   if (!exists) return false
 
   const { AuthController } = await import(pathToFileURL(controllerPath).href)
+
   const controller = new AuthController({
     secret: authConfig.secret,
     tokenExpiresInSeconds: authConfig.tokenExpiresInSeconds,

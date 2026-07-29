@@ -2,22 +2,26 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { JobRecord } from '@tylix/core'
+import { detectLanguage } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 
 async function loadJobHandler(baseDir, jobName) {
-  const jobPath = path.join(baseDir, 'app', 'jobs', `${jobName}.js`)
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
+
+  const jobPath = path.join(baseDir, 'app', 'jobs', `${jobName}.${ext}`)
   const exists = await fs
     .access(jobPath)
     .then(() => true)
     .catch(() => false)
   if (!exists) {
-    throw new Error(`No job handler found at app/jobs/${jobName}.js`)
+    throw new Error(`No job handler found at app/jobs/${jobName}.${ext}`)
   }
   const mod = await import(pathToFileURL(jobPath).href)
   const handler = mod[jobName]
   if (!handler || typeof handler.handle !== 'function') {
     throw new Error(
-      `app/jobs/${jobName}.js must export "${jobName}" with a handle(payload) method`,
+      `app/jobs/${jobName}.${ext} must export "${jobName}" with a handle(payload) method`,
     )
   }
   return handler
@@ -32,7 +36,7 @@ export async function queueWork() {
   let isPolling = false
 
   setInterval(async () => {
-    if (isPolling) return // don't overlap if a batch is still processing
+    if (isPolling) return
     isPolling = true
 
     try {

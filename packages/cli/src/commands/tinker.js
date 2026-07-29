@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { bootstrapDatabase } from '../bootstrap.js'
-import { loadConfig } from '@tylix/shared'
+import { loadConfig, detectLanguage } from '@tylix/shared'
 import { cache, discoverFeatures } from '@tylix/core'
 import { ConnectionManager } from '@tylix/orm'
 import { migrate } from './migrate.js'
@@ -31,6 +31,9 @@ export async function tinker() {
   const baseDir = process.cwd()
   await bootstrapDatabase()
 
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
+
   const modelsDir = path.join(baseDir, 'app', 'models')
   const context = {}
 
@@ -39,9 +42,11 @@ export async function tinker() {
     .then(() => true)
     .catch(() => false)
   if (modelExists) {
-    const files = (await fs.readdir(modelsDir)).filter((f) => f.endsWith('.js'))
+    const files = (await fs.readdir(modelsDir)).filter((f) =>
+      f.endsWith(`.${ext}`),
+    )
     for (const file of files) {
-      const exportName = file.replace(/\.js$/, '')
+      const exportName = file.replace(new RegExp(`\\.${ext}$`), '')
       const mod = await import(pathToFileURL(path.join(modelsDir, file)).href)
       if (mod[exportName]) context[exportName] = mod[exportName]
     }
@@ -51,13 +56,18 @@ export async function tinker() {
   context.cache = cache
 
   context.seed = async () => {
-    const seederPath = path.join(baseDir, 'app', 'seeders', 'DatabaseSeeder.js')
+    const seederPath = path.join(
+      baseDir,
+      'app',
+      'seeders',
+      `DatabaseSeeder.${ext}`,
+    )
     const exists = await fs
       .access(seederPath)
       .then(() => true)
       .catch(() => false)
     if (!exists)
-      throw new Error('No seeder found at app/seeders/DatabaseSeeder.js')
+      throw new Error(`No seeder found at app/seeders/DatabaseSeeder.${ext}`)
     const mod = await import(pathToFileURL(seederPath).href)
     return mod.seed()
   }
@@ -150,7 +160,7 @@ export async function tinker() {
     }
 
     const authControllerExists = await fs
-      .access(path.join(baseDir, 'app', 'controllers', 'AuthController.js'))
+      .access(path.join(baseDir, 'app', 'controllers', `AuthController.${ext}`))
       .then(() => true)
       .catch(() => false)
     if (authControllerExists) {
@@ -173,13 +183,13 @@ export async function tinker() {
   }
 
   context.mail = async () => {
-    const mailerPath = path.join(baseDir, 'app', 'mail', 'mailer.js')
+    const mailerPath = path.join(baseDir, 'app', 'mail', `mailer.${ext}`)
     const exists = await fs
       .access(mailerPath)
       .then(() => true)
       .catch(() => false)
     if (!exists) {
-      console.log(`No Mailer file found at app/mail/mailer.js.`)
+      console.log(`No Mailer file found at app/mail/mailer.${ext}.`)
       return
     }
     const mod = await import(pathToFileURL(mailerPath).href)
@@ -187,7 +197,7 @@ export async function tinker() {
       'sendVerificationEmail',
       'sendPasswordResetEmail',
     ].filter((fn) => typeof mod[fn] === 'function')
-    console.log(`Mailer: app/mail/mailer.js`)
+    console.log(`Mailer: app/mail/mailer.${ext}`)
     console.log(`Functions: ${available.join(', ') || '(none found)'}`)
     console.log(
       `Currently console.log-only (dev stub) — swap in a real provider before production.`,

@@ -1,8 +1,8 @@
-// packages/cli/src/commands/scheduleWork.js
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Scheduler } from '@tylix/core'
+import { detectLanguage } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 
 export async function scheduleWork() {
@@ -10,7 +10,9 @@ export async function scheduleWork() {
 
   await bootstrapDatabase()
 
-  const schedulePath = path.join(baseDir, 'app', 'schedule.js')
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
+  const schedulePath = path.join(baseDir, 'app', `schedule.${ext}`)
 
   const exists = await fs
     .access(schedulePath)
@@ -18,7 +20,7 @@ export async function scheduleWork() {
     .catch(() => false)
   if (!exists) {
     console.error(
-      `No app/schedule.js found at ${schedulePath}. Create one exporting an async "schedule(scheduler)" function.`,
+      `No app/schedule.${ext} found at ${schedulePath}. Create one exporting an async "schedule(scheduler)" function.`,
     )
     process.exit(1)
   }
@@ -26,7 +28,7 @@ export async function scheduleWork() {
   const mod = await import(pathToFileURL(schedulePath).href)
   if (typeof mod.schedule !== 'function') {
     console.error(
-      'app/schedule.js must export an async function named "schedule(scheduler)".',
+      `app/schedule.${ext} must export an async function named "schedule(scheduler)".`,
     )
     process.exit(1)
   }

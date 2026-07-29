@@ -1,28 +1,33 @@
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-import fs from "node:fs/promises";
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+import fs from 'node:fs/promises'
 
 const DEFAULT_CONFIG = {
   database: {
-    driver: "sqlite",
-    filename: "database.sqlite",
+    driver: 'sqlite',
+    filename: 'database.sqlite',
   },
   auth: {
-    secret: "tylix-dev-secret-change-me",
+    secret: 'tylix-dev-secret-change-me',
     tokenExpiresInSeconds: 60 * 60 * 24 * 7, // 7 days
   },
-};
+}
 
-export async function loadConfig(cwd = process.cwd()) {
-  const configPath = path.join(cwd, "tylix.config.js");
+export async function loadConfig(cwd = process.cwd(), language = 'javascript') {
+  const extension = language === 'typescript' ? 'ts' : 'js'
+  const configPath = path.join(cwd, `tylix.config.${extension}`)
 
-  const exists = await fs.access(configPath).then(() => true).catch(() => false);
+  const exists = await fs
+    .access(configPath)
+    .then(() => true)
+    .catch(() => false)
+
   if (!exists) {
-    return DEFAULT_CONFIG;
+    return DEFAULT_CONFIG
   }
 
-  const module = await import(pathToFileURL(configPath).href);
-  const userConfig = module.default ?? {};
+  const module = await import(pathToFileURL(configPath).href)
+  const userConfig = module.default ?? {}
 
   return {
     ...DEFAULT_CONFIG,
@@ -35,5 +40,5 @@ export async function loadConfig(cwd = process.cwd()) {
       ...DEFAULT_CONFIG.auth,
       ...(userConfig.auth ?? {}),
     },
-  };
+  }
 }

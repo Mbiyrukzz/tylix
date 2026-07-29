@@ -8,8 +8,12 @@ import {
   AlterMigrationGenerator,
 } from '@tylix/generator'
 
+import { detectLanguage } from '@tylix/shared'
+
 export async function fieldAdd(name, fieldArgs = []) {
   const baseDir = process.cwd()
+  const language = await detectLanguage(baseDir)
+
   const manifestPath = path.join(
     baseDir,
     'app',
@@ -53,7 +57,9 @@ export async function fieldAdd(name, fieldArgs = []) {
   const migrationPath = await new AlterMigrationGenerator().generateAdd(
     alterBlueprint,
     migrationsDir,
+    language,
   )
+
   console.log(`✔ Migration created: ${path.relative(baseDir, migrationPath)}`)
 
   manifest.fields = [...manifest.fields, ...newFields]
@@ -76,14 +82,17 @@ export async function fieldAdd(name, fieldArgs = []) {
   await new ModelGenerator().generate(
     fullBlueprint,
     path.join(baseDir, 'app', 'models'),
+    language,
   )
   await new ControllerGenerator().generate(
     fullBlueprint,
     path.join(baseDir, 'app', 'controllers'),
+    language,
   )
   await new ValidatorGenerator().generate(
     fullBlueprint,
     path.join(baseDir, 'app', 'validators'),
+    language,
   )
 
   console.log(`✔ Model, controller, and validator regenerated for ${name}`)

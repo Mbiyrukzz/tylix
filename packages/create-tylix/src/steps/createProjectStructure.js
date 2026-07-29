@@ -9,6 +9,8 @@ const MONOREPO_ROOT = path.resolve(PACKAGE_ROOT, '../..')
 
 export async function createProjectStructure(config) {
   const targetDir = path.join(process.cwd(), config.projectName)
+  const isTs = config.language === 'typescript'
+  const ext = isTs ? 'ts' : 'js'
 
   const exists = await fs
     .access(targetDir)
@@ -16,6 +18,25 @@ export async function createProjectStructure(config) {
     .catch(() => false)
   if (exists) {
     throw new Error(`Directory "${config.projectName}" already exists.`)
+  }
+
+  await fs.mkdir(targetDir, { recursive: true })
+
+  if (isTs) {
+    const tsconfigTemplate = await fs.readFile(
+      path.join(PACKAGE_ROOT, 'src', 'templates', 'tsconfig.json.template'),
+      'utf-8',
+    )
+    await fs.writeFile(path.join(targetDir, 'tsconfig.json'), tsconfigTemplate)
+
+    // Ambient declaration for the framework-injected `useApi` global.
+    // Without this, every generated .ts file that calls useApi() fails
+    // with "Cannot find name 'useApi'" (TS2304).
+    await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
+    await fs.writeFile(
+      path.join(targetDir, 'app', 'types', 'globals.d.ts'),
+      `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n`,
+    )
   }
 
   await fs.mkdir(path.join(targetDir, 'app', 'models'), { recursive: true })
@@ -31,26 +52,36 @@ export async function createProjectStructure(config) {
 
   await fs.mkdir(path.join(targetDir, 'app', 'routes'), { recursive: true })
   await fs.writeFile(
-    path.join(targetDir, 'app', 'routes', 'web.js'),
-    `export async function routes(router) {\n  // router.use(someMiddleware)\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n`,
+    path.join(targetDir, 'app', 'routes', `web.${ext}`),
+    isTs
+      ? `import type { Router } from '@tylix/core'\n\nexport async function routes(router: Router) {\n  // router.use(someMiddleware)\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n`
+      : `export async function routes(router) {\n  // router.use(someMiddleware)\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n`,
   )
 
   await fs.mkdir(path.join(targetDir, 'app', 'useApi'), { recursive: true })
   await fs.writeFile(
-    path.join(targetDir, 'app', 'useApi', 'getApi.js'),
-    `export const getApi = (table) => useApi(\`/api/\${table}\`)\n`,
+    path.join(targetDir, 'app', 'useApi', `getApi.${ext}`),
+    isTs
+      ? `export const getApi = (table: string) => useApi(\`/api/\${table}\`)\n`
+      : `export const getApi = (table) => useApi(\`/api/\${table}\`)\n`,
   )
   await fs.writeFile(
-    path.join(targetDir, 'app', 'useApi', 'postApi.js'),
-    `export const postApi = (table, data) => useApi(\`/api/\${table}\`, { method: 'POST', body: data })\n`,
+    path.join(targetDir, 'app', 'useApi', `postApi.${ext}`),
+    isTs
+      ? `export const postApi = (table: string, data: unknown) =>\n  useApi(\`/api/\${table}\`, { method: 'POST', body: data })\n`
+      : `export const postApi = (table, data) => useApi(\`/api/\${table}\`, { method: 'POST', body: data })\n`,
   )
   await fs.writeFile(
-    path.join(targetDir, 'app', 'useApi', 'putApi.js'),
-    `export const putApi = (table, id, data) => useApi(\`/api/\${table}/\${id}\`, { method: 'PUT', body: data })\n`,
+    path.join(targetDir, 'app', 'useApi', `putApi.${ext}`),
+    isTs
+      ? `export const putApi = (table: string, id: number | string, data: unknown) =>\n  useApi(\`/api/\${table}/\${id}\`, { method: 'PUT', body: data })\n`
+      : `export const putApi = (table, id, data) => useApi(\`/api/\${table}/\${id}\`, { method: 'PUT', body: data })\n`,
   )
   await fs.writeFile(
-    path.join(targetDir, 'app', 'useApi', 'deleteApi.js'),
-    `export const deleteApi = (table, id) => useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`,
+    path.join(targetDir, 'app', 'useApi', `deleteApi.${ext}`),
+    isTs
+      ? `export const deleteApi = (table: string, id: number | string) =>\n  useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`
+      : `export const deleteApi = (table, id) => useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`,
   )
 
   await fs.writeFile(
@@ -77,8 +108,10 @@ export async function createProjectStructure(config) {
   )
 
   await fs.writeFile(
-    path.join(targetDir, 'app', 'schedule.js'),
-    `export async function schedule(scheduler) {\n  // scheduler.daily('03:00', async () => { /* cleanup */ })\n  // scheduler.every('5m', async () => { /* poll */ })\n}\n`,
+    path.join(targetDir, 'app', `schedule.${ext}`),
+    isTs
+      ? `import type { Scheduler } from '@tylix/core'\n\nexport async function schedule(scheduler: Scheduler) {\n  // scheduler.daily('03:00', async () => { /* cleanup */ })\n  // scheduler.every('5m', async () => { /* poll */ })\n}\n`
+      : `export async function schedule(scheduler) {\n  // scheduler.daily('03:00', async () => { /* cleanup */ })\n  // scheduler.every('5m', async () => { /* poll */ })\n}\n`,
   )
 
   await fs.writeFile(
@@ -86,9 +119,11 @@ export async function createProjectStructure(config) {
       targetDir,
       'database',
       'migrations',
-      `${Date.now()}_create_jobs_table.js`,
+      `${Date.now()}_create_jobs_table.${ext}`,
     ),
-    `/**\n * Generated by Tylix\n *\n * Generator: MigrationGenerator\n * Version: 0.1.0\n * Feature: Job\n *\n * Do not edit this section.\n */\n\nexport const up = async (schema) => {\n    await schema.createTable("jobs", (table) => {\n        table.increments("id");\n        table.string("job");\n        table.text("payload");\n        table.string("status");\n        table.integer("attempts");\n        table.text("error");\n        table.timestamps();\n    });\n};\n\nexport const down = async (schema) => {\n    await schema.dropTable("jobs");\n};\n`,
+    isTs
+      ? `/**\n * Generated by Tylix\n *\n * Generator: MigrationGenerator\n * Version: 0.1.0\n * Feature: Job\n *\n * Do not edit this section.\n */\n\nimport type { Schema, CreateTableBuilder } from '@tylix/shared'\n\nexport const up = async (schema: Schema) => {\n    await schema.createTable("jobs", (table: CreateTableBuilder) => {\n        table.increments("id");\n        table.string("job");\n        table.text("payload");\n        table.string("status");\n        table.integer("attempts");\n        table.text("error");\n        table.timestamps();\n    });\n};\n\nexport const down = async (schema: Schema) => {\n    await schema.dropTable("jobs");\n};\n`
+      : `/**\n * Generated by Tylix\n *\n * Generator: MigrationGenerator\n * Version: 0.1.0\n * Feature: Job\n *\n * Do not edit this section.\n */\n\nexport const up = async (schema) => {\n    await schema.createTable("jobs", (table) => {\n        table.increments("id");\n        table.string("job");\n        table.text("payload");\n        table.string("status");\n        table.integer("attempts");\n        table.text("error");\n        table.timestamps();\n    });\n};\n\nexport const down = async (schema) => {\n    await schema.dropTable("jobs");\n};\n`,
   )
 
   await fs.writeFile(
@@ -96,20 +131,24 @@ export async function createProjectStructure(config) {
       targetDir,
       'database',
       'migrations',
-      `${Date.now() + 1}_create_cache_table.js`,
+      `${Date.now() + 1}_create_cache_table.${ext}`,
     ),
-    `/**\n * Generated by Tylix\n *\n * Generator: MigrationGenerator\n * Version: 0.1.0\n * Feature: Cache\n *\n * Do not edit this section.\n */\n\nexport const up = async (schema) => {\n    await schema.createTable("cache", (table) => {\n        table.increments("id");\n        table.string("key").unique();\n        table.text("value");\n        table.datetime("expires_at");\n        table.timestamps();\n    });\n};\n\nexport const down = async (schema) => {\n    await schema.dropTable("cache");\n};\n`,
+    isTs
+      ? `/**\n * Generated by Tylix\n *\n * Generator: MigrationGenerator\n * Version: 0.1.0\n * Feature: Cache\n *\n * Do not edit this section.\n */\n\nimport type { Schema, CreateTableBuilder } from '@tylix/shared'\n\nexport const up = async (schema: Schema) => {\n    await schema.createTable("cache", (table: CreateTableBuilder) => {\n        table.increments("id");\n        table.string("key").unique();\n        table.text("value");\n        table.datetime("expires_at");\n        table.timestamps();\n    });\n};\n\nexport const down = async (schema: Schema) => {\n    await schema.dropTable("cache");\n};\n`
+      : `/**\n * Generated by Tylix\n *\n * Generator: MigrationGenerator\n * Version: 0.1.0\n * Feature: Cache\n *\n * Do not edit this section.\n */\n\nexport const up = async (schema) => {\n    await schema.createTable("cache", (table) => {\n        table.increments("id");\n        table.string("key").unique();\n        table.text("value");\n        table.datetime("expires_at");\n        table.timestamps();\n    });\n};\n\nexport const down = async (schema) => {\n    await schema.dropTable("cache");\n};\n`,
   )
 
   await fs.mkdir(path.join(targetDir, 'app', 'jobs'), { recursive: true })
   await fs.writeFile(
-    path.join(targetDir, 'app', 'jobs', 'SendWelcomeEmail.js'),
-    `export const SendWelcomeEmail = {\n  async handle(payload) {\n    // payload.userId, etc.\n  },\n}\n`,
+    path.join(targetDir, 'app', 'jobs', `SendWelcomeEmail.${ext}`),
+    isTs
+      ? `export const SendWelcomeEmail = {\n  async handle(payload: { userId: string | number; [key: string]: unknown }) {\n    // payload.userId, etc.\n  },\n}\n`
+      : `export const SendWelcomeEmail = {\n  async handle(payload) {\n    // payload.userId, etc.\n  },\n}\n`,
   )
 
   await fs.mkdir(path.join(targetDir, 'app', 'seeders'), { recursive: true })
   await fs.writeFile(
-    path.join(targetDir, 'app', 'seeders', 'DatabaseSeeder.js'),
+    path.join(targetDir, 'app', 'seeders', `DatabaseSeeder.${ext}`),
     `export async function seed() {\n  // e.g.:\n  // await Post.create({ title: 'First post', body: '...' })\n}\n`,
   )
   const dependencies = {
@@ -134,6 +173,13 @@ export async function createProjectStructure(config) {
   } else if (config.styling === 'sass') {
     devDependencies.sass = '^1.77.0'
   }
+  if (isTs) {
+    Object.assign(devDependencies, {
+      typescript: '^5.5.0',
+      tsx: '^4.16.0',
+      '@types/node': '^22.0.0',
+    })
+  }
 
   const scripts = {
     dev: 'tylix dev',
@@ -144,6 +190,9 @@ export async function createProjectStructure(config) {
       'tailwindcss -i ./app/tailwind-input.css -o ./public/tailwind.css'
     scripts['css:watch'] =
       'tailwindcss -i ./app/tailwind-input.css -o ./public/tailwind.css --watch'
+  }
+  if (isTs) {
+    scripts.typecheck = 'tsc --noEmit'
   }
 
   const packageJson = {

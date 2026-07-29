@@ -1,0 +1,1 @@
+export declare function parseQuery(url: string): Record<string, string>

@@ -10,6 +10,8 @@ export async function makeChannel(name) {
   const baseDir = process.cwd()
   const channelName = name.toLowerCase()
   const pageName = pascalCase(name)
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? 'ts' : 'js'
 
   const templatePath = path.join(
     PACKAGE_ROOT,
@@ -28,7 +30,7 @@ export async function makeChannel(name) {
   await fs.writeFile(pagePath, rendered)
   console.log(`✔ Demo page created: ${path.relative(baseDir, pagePath)}`)
 
-  const channelsPath = path.join(baseDir, 'app', 'channels.js')
+  const channelsPath = path.join(baseDir, 'app', `channels.${ext}`)
   const exists = await fs
     .access(channelsPath)
     .then(() => true)

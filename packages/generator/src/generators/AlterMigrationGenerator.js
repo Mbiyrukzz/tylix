@@ -9,9 +9,17 @@ const ADD_TEMPLATE_PATH = path.join(
   __dirname,
   '../../templates/alter-add-migration.tyx',
 )
+const ADD_TEMPLATE_PATH_TS = path.join(
+  __dirname,
+  '../../templates/alter-add-migration-ts.tyx',
+)
 const REMOVE_TEMPLATE_PATH = path.join(
   __dirname,
   '../../templates/alter-remove-migration.tyx',
+)
+const REMOVE_TEMPLATE_PATH_TS = path.join(
+  __dirname,
+  '../../templates/alter-remove-migration-ts.tyx',
 )
 
 export class AlterMigrationGenerator {
@@ -35,7 +43,7 @@ export class AlterMigrationGenerator {
       .join('\n')
   }
 
-  timestampedFilename(action, table, fieldNames) {
+  timestampedFilename(action, table, fieldNames, language = 'javascript') {
     const now = new Date()
     const stamp = now
       .toISOString()
@@ -43,11 +51,14 @@ export class AlterMigrationGenerator {
       .slice(0, 14)
     const suffix = fieldNames.join('_')
     const preposition = action === 'add' ? 'to' : 'from'
-    return `${stamp}_${action}_${suffix}_${preposition}_${table}_table.js`
+    const ext = language === 'typescript' ? 'ts' : 'js'
+    return `${stamp}_${action}_${suffix}_${preposition}_${table}_table.${ext}`
   }
 
-  async generateAdd(blueprint, outputDir) {
-    const template = await fs.readFile(ADD_TEMPLATE_PATH, 'utf-8')
+  async generateAdd(blueprint, outputDir, language = 'javascript') {
+    const templatePath =
+      language === 'typescript' ? ADD_TEMPLATE_PATH_TS : ADD_TEMPLATE_PATH
+    const template = await fs.readFile(templatePath, 'utf-8')
     const fieldNames = blueprint.fields.map((f) => f.name)
 
     const code = this.templateEngine.render(template, {
@@ -60,14 +71,20 @@ export class AlterMigrationGenerator {
       'add',
       blueprint.tableName,
       fieldNames,
+      language,
     )
     return writeFile(path.join(outputDir, filename), code, { overwrite: true })
   }
 
-  // fieldDescriptors: [{ name, type, unique }] -- needed so down() can
-  // re-add the exact same columns, reversing a "remove" migration.
-  async generateRemove(tableName, fieldDescriptors, outputDir) {
-    const template = await fs.readFile(REMOVE_TEMPLATE_PATH, 'utf-8')
+  async generateRemove(
+    tableName,
+    fieldDescriptors,
+    outputDir,
+    language = 'javascript',
+  ) {
+    const templatePath =
+      language === 'typescript' ? REMOVE_TEMPLATE_PATH_TS : REMOVE_TEMPLATE_PATH
+    const template = await fs.readFile(templatePath, 'utf-8')
     const fieldNames = fieldDescriptors.map((f) => f.name)
 
     const code = this.templateEngine.render(template, {
@@ -76,7 +93,12 @@ export class AlterMigrationGenerator {
       addColumns: this.formatAddColumns(fieldDescriptors),
     })
 
-    const filename = this.timestampedFilename('remove', tableName, fieldNames)
+    const filename = this.timestampedFilename(
+      'remove',
+      tableName,
+      fieldNames,
+      language,
+    )
     return writeFile(path.join(outputDir, filename), code, { overwrite: true })
   }
 }

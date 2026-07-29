@@ -1,7 +1,13 @@
 #!/usr/bin/env node
+import { createRequire } from 'node:module'
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import { makeModel } from './commands/makeModel.js'
 import { makeMigration } from './commands/makeMigration.js'
 import { makeController } from './commands/makeController.js'
+import { makeValidator } from './commands/makeValidator.js'
 import { makeFeature } from './commands/makeFeature.js'
 import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
@@ -18,6 +24,16 @@ import { dbSeed } from './commands/dbSeed.js'
 import { migrate } from './commands/migrate.js'
 import { makeIcon } from './commands/makeIcon.js'
 import { dev } from './commands/dev.js'
+
+const projectRoot = process.cwd()
+if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
+  const requireFromProject = createRequire(
+    path.join(projectRoot, 'package.json'),
+  )
+  const tsxApiPath = requireFromProject.resolve('tsx/esm/api')
+  const { register } = await import(pathToFileURL(tsxApiPath).href)
+  register()
+}
 
 const [, , command, ...rest] = process.argv
 
@@ -109,6 +125,16 @@ async function main() {
       process.exit(1)
     }
     await makePage(name)
+    return
+  }
+
+  if (command === 'make:validator') {
+    const [name, ...fieldArgs] = rest
+    if (!name) {
+      console.error('Usage: tylix make:validator <Name> [field:type ...]')
+      process.exit(1)
+    }
+    await makeValidator(name, fieldArgs)
     return
   }
 

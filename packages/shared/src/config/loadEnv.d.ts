@@ -1,0 +1,1 @@
+export declare function loadEnv(baseDir?: string): Promise<void>;

@@ -1,0 +1,1 @@
+export declare function resolveColumnType(fieldType: string): string;
