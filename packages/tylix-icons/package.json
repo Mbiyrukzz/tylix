@@ -1,10 +1,29 @@
 {
   "name": "tylix-icons",
   "version": "0.1.0",
-  "description": "A set of common UI icon components for Tylix pages and components.",
+  "description": "Official icon library for the Tylix framework.",
+  "license": "MIT",
   "private": false,
+  "type": "module",
+  "keywords": [
+    "tylix",
+    "icons",
+    "ui",
+    "components",
+    "svg"
+  ],
   "files": [
     "icons",
-    "tylix-components.json"
-  ]
+    "tylix-components.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mbiyrukzz/tylix.git"
+  },
+  "homepage": "https://tylix.dev",
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  }
 }

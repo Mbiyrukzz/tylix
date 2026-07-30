@@ -158,6 +158,7 @@ export async function createProjectStructure(config) {
   //   '@tylix/generator': '^0.1.0',
   //   '@tylix/orm': '^0.1.1',
   //   '@tylix/shared': '^0.1.1',
+  //   'tylix-icons': '^0.1.0',
   // }
   // if (config.authEnabled) {
   //   dependencies['@tylix/auth'] = '^0.1.0'
@@ -172,6 +173,7 @@ export async function createProjectStructure(config) {
     '@tylix/generator': `file:${path.join(MONOREPO_PACKAGES_DIR, 'generator')}`,
     '@tylix/orm': `file:${path.join(MONOREPO_PACKAGES_DIR, 'orm')}`,
     '@tylix/shared': `file:${path.join(MONOREPO_PACKAGES_DIR, 'shared')}`,
+    'tylix-icons': `file:${(path.join(MONOREPO_PACKAGES_DIR), 'tylix-icons')}`,
   }
   if (config.authEnabled) {
     dependencies['@tylix/auth'] =

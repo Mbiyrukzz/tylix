@@ -1,5 +1,7 @@
 component InstallSnippet
 
+import { IconCheck, IconClipboard } from "tylix-icons"
+
 state
   copied: false
   installing: false
@@ -24,14 +26,14 @@ template
         <button
           onclick="{{ copyInstallCommand() }}"
           aria-label="Copy install command"
-          class="text-xs text-slate-400 hover:text-emerald-400 transition px-2 py-1 rounded hover:bg-slate-800"
+          class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-400 transition px-2 py-1 rounded hover:bg-slate-800"
         >
-          <span aria-live="polite">
+          <span class="inline-flex items-center gap-1.5" aria-live="polite">
 {{#if copied}}
-            Copied &#10003;
+            <IconCheck class="w-3.5 h-3.5" /> Copied
 {{/if}}
 {{#if not copied}}
-            Copy
+            <IconClipboard class="w-3.5 h-3.5" /> Copy
 {{/if}}
           </span>
         </button>

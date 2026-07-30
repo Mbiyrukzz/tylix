@@ -11,5 +11,6 @@
     "@tylix/core": "^0.1.0",
     "@tylix/generator": "^0.1.0",
     "@tylix/shared": "^0.1.0"
+    
   }
 }
