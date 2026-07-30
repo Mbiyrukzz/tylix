@@ -1,6 +1,10 @@
 import ts from 'typescript'
+import { fileURLToPath } from 'node:url'
 
 const VIRTUAL_FILE_NAME = '__tylix_virtual_page.ts'
+const GLOBALS_FILE = fileURLToPath(
+  new URL('./tylix-globals.d.ts', import.meta.url),
+)
 
 export function typecheckSource(virtualSource, compilerOptions = {}) {
   const options = {
@@ -25,7 +29,11 @@ export function typecheckSource(virtualSource, compilerOptions = {}) {
   host.readFile = (fileName) =>
     fileName === VIRTUAL_FILE_NAME ? virtualSource : ts.sys.readFile(fileName)
 
-  const program = ts.createProgram([VIRTUAL_FILE_NAME], options, host)
+  const program = ts.createProgram(
+    [VIRTUAL_FILE_NAME, GLOBALS_FILE],
+    options,
+    host,
+  )
   const diagnostics = ts.getPreEmitDiagnostics(program)
 
   return diagnostics

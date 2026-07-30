@@ -24,6 +24,7 @@ import { dbSeed } from './commands/dbSeed.js'
 import { migrate } from './commands/migrate.js'
 import { makeIcon } from './commands/makeIcon.js'
 import { dev } from './commands/dev.js'
+import { build } from './commands/build.js'
 
 const projectRoot = process.cwd()
 if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
@@ -47,6 +48,11 @@ async function main() {
     const portArg = rest.find((a) => a.startsWith('--port='))
     const port = portArg ? Number(portArg.split('=')[1]) : 3000
     await dev({ port })
+    return
+  }
+
+  if (command === 'build') {
+    await build()
     return
   }
 

@@ -106,8 +106,10 @@ export class Parser {
         page.computed = this.parseSectionBlock(this.parseMethod.bind(this))
       } else if (this.match(TokenType.ACTION)) {
         page.actions = this.parseSectionBlock(this.parseMethod.bind(this))
-      } else if (this.match(TokenType.ONMOUNT)) {
-        page.onMount = this.parseOnMountBody()
+      } else if (this.check(TokenType.ONMOUNT)) {
+        const startLine = this.peek().line
+        this.advance()
+        page.onMount = { ...this.parseOnMountBody(), line: startLine }
       } else {
         throw new Error(
           `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
@@ -415,22 +417,38 @@ export class Parser {
   // reopening the entire statement grammar inside an expression
   // position.
   tryParseArrowFunction() {
+    // single-param form: x => expr  or  x: Type => expr
     if (this.check(TokenType.IDENTIFIER)) {
       const next = this.tokens[this.pos + 1]
       if (next && next.type === TokenType.ARROW) {
         const param = this.advance().value
         this.advance() // consume '=>'
         const body = this.parseAssignment()
-        return ArrowFunctionExpr([param], body)
+        return ArrowFunctionExpr([param], body, [null])
+      }
+      if (next && next.type === TokenType.COLON) {
+        const savedPos = this.pos
+        const param = this.advance().value
+        this.advance() // consume ':'
+        const paramType = this.parseTypeExpression()
+        if (this.check(TokenType.ARROW)) {
+          this.advance()
+          const body = this.parseAssignment()
+          return ArrowFunctionExpr([param], body, [paramType])
+        }
+        // wasn't actually a typed arrow param -- back out
+        this.pos = savedPos
       }
       return null
     }
 
+    // (a, b) => expr  or  (a: Type, b: Type) => expr
     if (this.check(TokenType.LPAREN)) {
       const savedPos = this.pos
-      this.pos++ // consume '('
+      this.pos++
 
       const params = []
+      const paramTypes = []
       let isValidParamList = true
 
       if (!this.check(TokenType.RPAREN)) {
@@ -440,28 +458,26 @@ export class Parser {
             break
           }
           params.push(this.advance().value)
+          paramTypes.push(
+            this.match(TokenType.COLON) ? this.parseTypeExpression() : null,
+          )
           if (this.match(TokenType.COMMA)) continue
           break
         }
       }
 
       if (isValidParamList && this.check(TokenType.RPAREN)) {
-        this.pos++ // consume ')'
+        this.pos++
         if (this.check(TokenType.ARROW)) {
-          this.pos++ // consume '=>'
+          this.pos++
           const body = this.parseAssignment()
-          return ArrowFunctionExpr(params, body)
+          return ArrowFunctionExpr(params, body, paramTypes)
         }
       }
 
-      // Not actually an arrow function (either the parameter list
-      // wasn't a plain comma-separated identifier list, or there was
-      // no '=>' after the closing paren) -- back out completely so
-      // the normal parsePrimary grouped-expression path handles it.
       this.pos = savedPos
       return null
     }
-
     return null
   }
 

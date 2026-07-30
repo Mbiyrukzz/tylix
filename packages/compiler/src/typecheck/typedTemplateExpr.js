@@ -56,39 +56,49 @@ const EVENT_TARGET_TYPES = {
 }
 
 // Walks a parsed template AST (from parseTemplate) collecting every
-// bindable expression -- interpolations, #if conditions, #each
-// iterables, and dynamic attributes -- as { expr, line, eventType }
-// entries ready to drop into a synthetic __render() method.
-// eventType is non-null only for event-handler attributes (oninput,
-// onclick, etc.), and tells buildVirtualPageTs which DOM type to give
-// that check's local $event so `$event.target` resolves to something
-// real instead of the generic (and mostly useless) EventTarget.
+// bindable expression as a tree of check entries, ready for
+// buildVirtualPageTs to emit into a synthetic __render() method.
+// Entries come in two kinds:
+//   { kind: 'check', expr, line, eventType } -- a single expression
+//     to typecheck (interpolation, #if condition, dynamic attribute)
+//   { kind: 'each', itemName, iterableExpr, line, children } -- an
+//     #each block; children is itself a list of these same entries
+// The 'each' kind exists so the emitted TS can wrap its children in
+// a real `for (const f of ...)` -- without an actual declaration for
+// the loop variable, TS has no way to resolve identifiers like `f`
+// inside the block, regardless of what our own scope-tracking says.
 export function collectTemplateChecks(nodes, scope, out) {
   for (const node of nodes) {
     if (node.type === 'Interpolation') {
       out.push({
+        kind: 'check',
         expr: typedTemplateExpr(node.expression, scope),
         line: node.line,
         eventType: null,
       })
     } else if (node.type === 'If') {
       out.push({
+        kind: 'check',
         expr: typedTemplateExpr(node.condition, scope),
         line: node.line,
         eventType: null,
       })
       collectTemplateChecks(node.children, scope, out)
     } else if (node.type === 'Each') {
-      out.push({
-        expr: typedTemplateExpr(node.iterable, scope),
-        line: node.line,
-        eventType: null,
-      })
+      const iterableExpr = typedTemplateExpr(node.iterable, scope)
+      const children = []
       collectTemplateChecks(
         node.children,
         new Set([...scope, node.itemName]),
-        out,
+        children,
       )
+      out.push({
+        kind: 'each',
+        itemName: node.itemName,
+        iterableExpr,
+        line: node.line,
+        children,
+      })
     } else if (node.type === 'Element') {
       for (const attr of node.attributes) {
         if (!attr.dynamic) continue
@@ -97,6 +107,7 @@ export function collectTemplateChecks(nodes, scope, out) {
           ? new Set([...scope, '$event', 'event'])
           : scope
         out.push({
+          kind: 'check',
           expr: typedTemplateExpr(attr.value, attrScope),
           line: attr.line,
           eventType: eventMatch

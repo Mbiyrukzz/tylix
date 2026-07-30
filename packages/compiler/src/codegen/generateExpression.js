@@ -1,10 +1,15 @@
 /**
- * Compiles a single expression AST node into a JS source string.
- * Used both for method-body statements and template interpolations,
- * so every consumer (class codegen, template codegen) shares one
- * source of truth for expression -> JS translation.
+ * Compiles a single expression AST node into a JS (or, when
+ * typed=true, TypeScript) source string. Used both for method-body
+ * statements/template interpolations (typed=false, real JS output)
+ * and the virtual .ts file handed to the TypeScript compiler API
+ * (typed=true) -- one source of truth for expression -> source
+ * translation, so the two outputs can never structurally drift from
+ * each other. `typed` only changes ONE thing: whether an arrow
+ * function's params get a `: Type` annotation. Everything else emits
+ * identically either way.
  */
-export function generateExpression(node) {
+export function generateExpression(node, typed = false) {
   switch (node.type) {
     case 'Literal':
       return typeof node.value === 'string'
@@ -16,26 +21,40 @@ export function generateExpression(node) {
 
     case 'MemberExpression':
       return node.computed
-        ? `${generateExpression(node.object)}[${generateExpression(node.property)}]`
-        : `${generateExpression(node.object)}.${node.property}`
+        ? `${generateExpression(node.object, typed)}[${generateExpression(node.property, typed)}]`
+        : `${generateExpression(node.object, typed)}.${node.property}`
 
     case 'NewExpression': {
-      const args = node.args.map((a) => generateExpression(a)).join(', ')
-      return `new ${generateExpression(node.callee)}(${args})`
+      const args = node.args.map((a) => generateExpression(a, typed)).join(', ')
+      return `new ${generateExpression(node.callee, typed)}(${args})`
     }
 
     case 'BinaryExpression':
-      return `(${generateExpression(node.left)} ${node.operator} ${generateExpression(node.right)})`
+      return `(${generateExpression(node.left, typed)} ${node.operator} ${generateExpression(node.right, typed)})`
 
     case 'UnaryExpression':
-      return `(${node.operator}${generateExpression(node.argument)})`
+      return `(${node.operator}${generateExpression(node.argument, typed)})`
 
     case 'TernaryExpression':
-      return `(${generateExpression(node.condition)} ? ${generateExpression(node.consequent)} : ${generateExpression(node.alternate)})`
+      return `(${generateExpression(node.condition, typed)} ? ${generateExpression(node.consequent, typed)} : ${generateExpression(node.alternate, typed)})`
 
     case 'ArrowFunctionExpression': {
-      const params = node.params.join(', ')
-      return `(${params}) => (${generateExpression(node.body)})`
+      // paramTypes is a parallel array of type strings or null,
+      // populated by tryParseArrowFunction when a dev writes
+      // `f: Post => ...`; absent/null entries mean "no annotation
+      // was written" -- in typed mode those fall back to `any`
+      // rather than being left bare, since a bare untyped param in a
+      // .ts arrow function has no implicit-any exemption the way
+      // real JS does.
+      const paramTypes = node.paramTypes ?? node.params.map(() => null)
+      const params = node.params
+        .map((name, i) => {
+          if (!typed) return name
+          const paramType = paramTypes[i]
+          return `${name}: ${paramType ?? 'any'}`
+        })
+        .join(', ')
+      return `(${params}) => (${generateExpression(node.body, typed)})`
     }
 
     case 'TemplateLiteralExpression': {
@@ -43,33 +62,36 @@ export function generateExpression(node) {
         .map((p) =>
           p.type === 'text'
             ? escapeTemplateText(p.value)
-            : `\${${generateExpression(p.expression)}}`,
+            : `\${${generateExpression(p.expression, typed)}}`,
         )
         .join('')
       return `\`${inner}\``
     }
 
     case 'AssignmentExpression':
-      return `${generateExpression(node.target)} = ${generateExpression(node.value)}`
+      return `${generateExpression(node.target, typed)} = ${generateExpression(node.value, typed)}`
 
     case 'CallExpression': {
-      const args = node.args.map((a) => generateExpression(a)).join(', ')
-      return `${generateExpression(node.callee)}(${args})`
+      const args = node.args.map((a) => generateExpression(a, typed)).join(', ')
+      return `${generateExpression(node.callee, typed)}(${args})`
     }
 
     case 'AwaitExpression':
-      return `await ${generateExpression(node.argument)}`
+      return `await ${generateExpression(node.argument, typed)}`
 
     case 'ObjectExpression': {
       const props = node.properties
-        .map((p) => `${JSON.stringify(p.key)}: ${generateExpression(p.value)}`)
+        .map(
+          (p) =>
+            `${JSON.stringify(p.key)}: ${generateExpression(p.value, typed)}`,
+        )
         .join(', ')
       return `{ ${props} }`
     }
 
     case 'ArrayExpression': {
       const elements = node.elements
-        .map((e) => generateExpression(e))
+        .map((e) => generateExpression(e, typed))
         .join(', ')
       return `[${elements}]`
     }

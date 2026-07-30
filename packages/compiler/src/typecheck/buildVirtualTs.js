@@ -4,10 +4,39 @@ import { collectTemplateChecks } from './typedTemplateExpr.js'
 function paramListWithTypes(params) {
   return params
     .map(
-      (p) =>
-        `${p.name}${p.typeAnnotation ? `: ${p.typeAnnotation}` : ': unknown'}`,
+      (p) => `${p.name}${p.typeAnnotation ? `: ${p.typeAnnotation}` : ': any'}`,
     )
     .join(', ')
+}
+
+// Recursively emits a check tree (see collectTemplateChecks) into
+// the virtual __render() body. `each` entries open a real
+// `for (const item of (iterable as any[]))` so the loop variable is
+// an actual TS declaration, not a bare identifier the checker has
+// never seen -- `as any[]` since state/props are typically `any`
+// here anyway, and iterating `any` never fails strict mode regardless.
+function emitChecks(checks, sink, indent) {
+  for (const c of checks) {
+    if (c.kind === 'each') {
+      sink.pushLine(
+        `${indent}for (const ${c.itemName} of (${c.iterableExpr} as any[])) {`,
+        c.line,
+      )
+      emitChecks(c.children, sink, indent + '  ')
+      sink.pushLine(`${indent}}`, null)
+    } else if (c.eventType) {
+      sink.pushLine(`${indent}{`, null)
+      sink.pushLine(
+        `${indent}  const event: Event & { target: ${c.eventType} } = new Event("synthetic") as unknown as Event & { target: ${c.eventType} };`,
+        null,
+      )
+      sink.pushLine(`${indent}  const $event = event;`, null)
+      sink.pushLine(`${indent}  (${c.expr});`, c.line)
+      sink.pushLine(`${indent}}`, null)
+    } else {
+      sink.pushLine(`${indent}(${c.expr});`, c.line)
+    }
+  }
 }
 
 export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
@@ -35,6 +64,7 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
   }
 
   sink.pushLine(`class ${className} {`, null)
+  sink.pushLine(`  [key: string]: any;`, null)
   if (pageNode.props.length > 0) {
     sink.pushLine(`  props!: ${className}Props;`, null)
   }
@@ -68,29 +98,22 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
     sink.pushLine(`  }`, null)
   }
 
+  if (pageNode.onMount && pageNode.onMount.body.length > 0) {
+    sink.pushLine(``, null)
+    sink.pushLine(`  async __onMount(): Promise<any> {`, pageNode.onMount.line)
+    for (const stmt of pageNode.onMount.body) {
+      emitStatementLines(stmt, sink, '    ')
+    }
+    sink.pushLine(`  }`, null)
+  }
+
   if (templateNodes) {
     const checks = []
     collectTemplateChecks(templateNodes, new Set(), checks)
     if (checks.length > 0) {
       sink.pushLine(``, null)
       sink.pushLine(`  __render() {`, null)
-      for (const { expr, line, eventType } of checks) {
-        if (eventType) {
-          // Block-scoped so each event binding gets its own
-          // correctly-typed $event, instead of one shared untyped
-          // Event forcing every oninput/onchange binding to fail
-          // strict-null checks on $event.target.
-          sink.pushLine(`    {`, null)
-          sink.pushLine(
-            `      const $event: Event & { target: ${eventType} } = new Event("synthetic") as unknown as Event & { target: ${eventType} };`,
-            null,
-          )
-          sink.pushLine(`      (${expr});`, line)
-          sink.pushLine(`    }`, null)
-        } else {
-          sink.pushLine(`    (${expr});`, line)
-        }
-      }
+      emitChecks(checks, sink, '    ')
       sink.pushLine(`  }`, null)
     }
   }

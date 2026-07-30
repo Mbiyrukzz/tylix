@@ -40,7 +40,7 @@ async function resolveCompilerEntryUrl(baseDir) {
   return pathToFileURL(path.join(realPkgDir, 'src', 'index.js')).href
 }
 
-async function loadApiHelpers(baseDir) {
+async function loadApiHelpers(baseDir, transpileTsToJs) {
   const apiDir = path.join(baseDir, 'app', 'useApi')
   const exists = await fs
     .access(apiDir)
@@ -48,12 +48,18 @@ async function loadApiHelpers(baseDir) {
     .catch(() => false)
   if (!exists) return ''
 
+  const language = await detectLanguage(baseDir)
+  const ext = language === 'typescript' ? '.ts' : '.js'
+
   const entries = await fs.readdir(apiDir, { withFileTypes: true })
   const sources = []
   for (const entry of entries) {
-    if (entry.isFile() && entry.name.endsWith('.js')) {
+    if (entry.isFile() && entry.name.endsWith(ext)) {
       const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
-      sources.push(raw.replace(/export\s+/g, ''))
+      const stripped = raw.replace(/export\s+/g, '')
+      sources.push(
+        language === 'typescript' ? transpileTsToJs(stripped) : stripped,
+      )
     }
   }
   return sources.join('\n\n')
@@ -300,16 +306,16 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
   async function renderFileSafely(filePath, params = {}) {
     let source = null
     try {
-      const { renderPageDocument, typecheckPage } = hotReloadCompiler
-        ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
-        : staticCompiler
+      const { renderPageDocument, typecheckPage, transpileTsToJs } =
+        hotReloadCompiler
+          ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
+          : staticCompiler
 
       source = await fs.readFile(filePath, 'utf-8')
 
       const language = await detectLanguage(baseDir)
       if (language === 'typescript') {
-        const pageName = path.basename(filePath, '.tyx')
-        const diagnostics = typecheckPage(source, pageName)
+        const diagnostics = typecheckPage(source)
         if (diagnostics.length > 0) {
           const message = diagnostics
             .map((d) => `Line ${d.line}: ${d.message}`)
@@ -320,7 +326,7 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
 
       const layout = await findLayoutForFile(pagesDir, filePath)
       const components = await loadComponents(pagesDir)
-      const apiHelpers = await loadApiHelpers(baseDir)
+      const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
       const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
       const html = injectHmrScript(
         renderPageDocument(source, components, {
