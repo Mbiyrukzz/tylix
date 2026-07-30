@@ -166,9 +166,21 @@ function compileElement(node, lines, scope, inSvg = false) {
     const tagLiteral = JSON.stringify(node.tag)
 
     const propEntries = node.attributes.map((attr) => {
-      const expr = attr.dynamic
-        ? generateTemplateExpression(attr.value, scope)
-        : JSON.stringify(attr.value)
+      let expr
+      if (attr.dynamic) {
+        expr = generateTemplateExpression(attr.value, scope)
+        // Callback props (onXxx="{{ methodName }}") pass a bare
+        // instance-method reference. `generateTemplateExpression`
+        // turns `methodName` into `instance.methodName`, but handing
+        // that off as a plain value loses its `this` binding the
+        // moment the child calls it. Bind it here, while we still
+        // have `instance` in scope.
+        if (/^on[A-Z]/.test(attr.name) && attr.value.type === 'Identifier') {
+          expr = `(${expr}).bind(instance)`
+        }
+      } else {
+        expr = JSON.stringify(attr.value)
+      }
       return `${JSON.stringify(attr.name)}: ${expr}`
     })
     const propsExpr = `{ ${propEntries.join(', ')} }`

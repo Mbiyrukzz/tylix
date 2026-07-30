@@ -10,6 +10,7 @@ import {
   TernaryExpr,
   ArrowFunctionExpr,
   TemplateLiteralExpr,
+  SpreadElement,
   Identifier,
   MemberExpr,
   Literal,
@@ -614,7 +615,11 @@ export class Parser {
     this.expect(TokenType.LPAREN, "Expected '(' to start call arguments")
     const args = []
     while (!this.check(TokenType.RPAREN)) {
-      args.push(this.parseExpression())
+      if (this.match(TokenType.SPREAD)) {
+        args.push(SpreadElement(this.parseExpression()))
+      } else {
+        args.push(this.parseExpression())
+      }
       this.match(TokenType.COMMA)
     }
     this.expect(TokenType.RPAREN, "Expected ')' to close call arguments")
@@ -752,7 +757,11 @@ export class Parser {
   parseArrayLiteral() {
     const elements = []
     while (!this.check(TokenType.RBRACKET)) {
-      elements.push(this.parseExpression())
+      if (this.match(TokenType.SPREAD)) {
+        elements.push(SpreadElement(this.parseExpression()))
+      } else {
+        elements.push(this.parseExpression())
+      }
       this.match(TokenType.COMMA)
     }
     this.expect(TokenType.RBRACKET, "Expected ']' to close array literal")

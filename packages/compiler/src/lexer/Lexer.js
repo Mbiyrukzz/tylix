@@ -9,6 +9,7 @@ const SINGLE_CHAR_TOKENS = {
   '.': TokenType.DOT,
   '[': TokenType.LBRACKET,
   ']': TokenType.RBRACKET,
+  '.': TokenType.DOT,
 }
 
 export class Lexer {
@@ -152,6 +153,16 @@ export class Lexer {
       if (char === '=') {
         this.pushToken(TokenType.EQUALS, '=')
         this.pos++
+        continue
+      }
+
+      if (
+        char === '.' &&
+        this.source[this.pos + 1] === '.' &&
+        this.source[this.pos + 2] === '.'
+      ) {
+        this.pushToken(TokenType.SPREAD, '...')
+        this.pos += 3
         continue
       }
 

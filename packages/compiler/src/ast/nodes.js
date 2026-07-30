@@ -134,10 +134,14 @@ export function ContinueStatement() {
   return { type: 'ContinueStatement' }
 }
 
-export function ArrowFunctionExpr(params, body) {
-  return { type: 'ArrowFunctionExpression', params, body }
+export function ArrowFunctionExpr(params, body, paramTypes = null) {
+  return { type: 'ArrowFunctionExpression', params, body, paramTypes }
 }
 
 export function TemplateLiteralExpr(parts) {
   return { type: 'TemplateLiteralExpression', parts }
+}
+
+export function SpreadElement(argument) {
+  return { type: 'SpreadElement', argument }
 }

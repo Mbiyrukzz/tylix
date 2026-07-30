@@ -13,16 +13,17 @@ const HOME_COMPONENTS = [
   'Testimonials',
   'CTASection',
   'SiteFooter',
+  'CreatePostForm',
 ]
 
 const STARTER_ICONS = [
-  'IconCheck',
-  'IconX',
-  'IconArrowRight',
-  'IconHeart',
-  'IconSearch',
-  'IconMenu',
-  'IconTrash',
+  // 'IconCheck',
+  // 'IconX',
+  // 'IconArrowRight',
+  // 'IconHeart',
+  // 'IconSearch',
+  // 'IconMenu',
+  // 'IconTrash',
 ]
 
 export async function writeComponents(config) {

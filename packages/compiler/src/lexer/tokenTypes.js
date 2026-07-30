@@ -28,6 +28,7 @@ export const TokenType = {
   DOT: 'DOT', // .
   LBRACKET: 'LBRACKET', // [
   RBRACKET: 'RBRACKET', // ]
+  SPREAD: 'SPREAD', // ...
   ARROW: 'ARROW', // =>
   QUESTION: 'QUESTION', // ?
   RETURN: 'RETURN',

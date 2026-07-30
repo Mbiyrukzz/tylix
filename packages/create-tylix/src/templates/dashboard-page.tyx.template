@@ -1,6 +1,6 @@
 page Dashboard
 
-import { IconHome, IconDocument, IconFolder, IconArrowLeft, IconUser, IconDatabase } from "tylix-icons"
+import { IconHome, IconDocument, IconFolder, IconArrowLeft, IconUser, IconDatabase, IconSun, IconMoon } from "tylix-icons"
 
 state
   user: null
@@ -8,9 +8,32 @@ state
   features: []
   posts: []
   postsLoading: true
+  theme: "dark"
+
+action
+  addPost(post) {
+    this.posts = [post, ...this.posts]
+  }
+
+  async logout() {
+    await useApi("/api/auth/logout", { method: "POST" })
+    window.location.href = "/"
+  }
+
+  toggleTheme() {
+    this.theme = this.theme is "dark" ? "light" : "dark"
+    document.documentElement.classList.toggle("dark", this.theme is "dark")
+    localStorage.setItem("theme", this.theme)
+  }
 
 onMount
   async {
+    const savedTheme = localStorage.getItem("theme")
+    if savedTheme {
+      this.theme = savedTheme
+    }
+    document.documentElement.classList.toggle("dark", this.theme is "dark")
+
     const me = await useApi("/api/me")
 
     if not me.ok {
@@ -31,29 +54,23 @@ onMount
     this.postsLoading = false
   }
 
-action
-  async logout() {
-    await useApi("/api/auth/logout", { method: "POST" })
-    window.location.href = "/"
-  }
-
 template
 {{#if checkedAuth}}
-  <div class="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[240px_1fr]">
+  <div class="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[240px_1fr] bg-slate-50 dark:bg-slate-950 transition-colors">
 
-    <aside class="hidden lg:flex flex-col border-r border-slate-800 bg-slate-950 p-4">
-      <a href="/dashboard" aria-current="page" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-slate-100 text-sm font-medium mb-1">
-        <IconHome class="w-4 h-4" />
+    <aside class="hidden lg:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4">
+      <a href="/dashboard" aria-current="page" class="flex items-center gap-2 px-3 py-2 rounded-lg border-l-2 border-emerald-500 bg-emerald-500/5 text-slate-900 dark:text-slate-100 text-sm font-medium mb-1">
+        <IconHome class="w-4 h-4 text-emerald-500" />
         Overview
       </a>
-      <p class="px-3 pt-4 pb-2 text-slate-600 text-xs font-medium uppercase tracking-wide">Data</p>
+      <p class="px-3 pt-4 pb-2 text-slate-400 dark:text-slate-600 text-xs font-medium uppercase tracking-wide">Data</p>
 {{#if features.length is 0}}
-      <p class="px-3 py-2 text-slate-600 text-sm italic">
+      <p class="px-3 py-2 text-slate-400 dark:text-slate-600 text-sm italic">
         No features yet
       </p>
 {{/if}}
 {{#each f in features}}
-      <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-400 text-sm hover:bg-slate-900 hover:text-slate-100 transition">
+      <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 text-sm hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
         {{ f.name }}
       </a>
 {{/each}}
@@ -62,19 +79,29 @@ template
     <div class="px-6 lg:px-10 py-10">
       <div class="flex items-center justify-between mb-10">
         <div>
-          <h1 class="text-2xl font-semibold text-slate-100">Dashboard</h1>
+          <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Dashboard</h1>
 {{#if user}}
           <p class="text-slate-500 text-sm mt-1">Welcome back, {{ user.name }}.</p>
 {{/if}}
         </div>
-        <button onclick="{{ logout() }}" class="text-sm text-slate-400 hover:text-slate-100 border border-slate-700 rounded-lg px-4 py-2 hover:bg-slate-900 hover:border-slate-600 transition">
-          Log out
-        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="{{ toggleTheme() }}" aria-label="Toggle color theme" class="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
+{{#if theme is "dark"}}
+            <IconSun class="w-4 h-4" />
+{{/if}}
+{{#if theme is not "dark"}}
+            <IconMoon class="w-4 h-4" />
+{{/if}}
+          </button>
+          <button onclick="{{ logout() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
+            Log out
+          </button>
+        </div>
       </div>
 
       <div class="flex items-center justify-between mb-5">
-        <h2 class="text-slate-100 font-medium">Posts</h2>
-        <CreatePostForm />
+        <h2 class="text-slate-900 dark:text-slate-100 font-medium">Posts</h2>
+        <CreatePostForm onCreated="{{ addPost }}" />
       </div>
 
 {{#if postsLoading}}
@@ -83,11 +110,11 @@ template
 
 {{#if not postsLoading}}
 {{#if posts.length is 0}}
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center mb-8">
-        <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
-          <IconDocument class="w-6 h-6 text-emerald-400" />
+      <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center mb-8">
+        <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+          <IconDocument class="w-5 h-5 text-emerald-500" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">No posts yet</h3>
+        <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1.5">No posts yet</h3>
         <p class="text-slate-500 text-sm max-w-sm mx-auto">
           Click "New Post" above to create your first one.
         </p>
@@ -95,10 +122,10 @@ template
 {{/if}}
 
 {{#if posts.length is not 0}}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
 {{#each p in posts}}
-        <a href="{{ '/post/post-detail?id=' + p.id }}" class="block rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-          <h3 class="text-slate-100 font-medium mb-2">{{ p.title }}</h3>
+        <a href="{{ '/post/post-detail?id=' + p.id }}" class="block rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-sm transition-all">
+          <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1.5">{{ p.title }}</h3>
           <p class="text-slate-500 text-sm line-clamp-2">{{ p.body }}</p>
         </a>
 {{/each}}
@@ -107,47 +134,47 @@ template
 {{/if}}
 
 {{#if features.length is not 0}}
-      <p class="px-1 pb-3 text-slate-600 text-xs font-medium uppercase tracking-wide">Scaffolded Features</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+      <p class="pb-3 text-slate-400 dark:text-slate-600 text-xs font-medium uppercase tracking-wide">Scaffolded Features</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
 {{#each f in features}}
-        <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="block rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-            <IconFolder class="w-5 h-5 text-emerald-400" />
+        <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="block rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-sm transition-all">
+          <div class="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+            <IconFolder class="w-4 h-4 text-emerald-500" />
           </div>
-          <h3 class="text-slate-100 font-medium mb-1">{{ f.name }}</h3>
+          <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1">{{ f.name }}</h3>
           <p class="text-slate-500 text-sm">Manage {{ f.table }}</p>
         </a>
 {{/each}}
       </div>
 {{/if}}
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 grid grid-cols-1 md:grid-cols-3">
+        <div class="p-5">
           <div class="flex items-center gap-1.5 mb-1">
-            <IconUser class="w-3.5 h-3.5 text-slate-500" />
-            <p class="text-slate-500 text-xs">Signed in as</p>
+            <IconUser class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            <p class="text-slate-400 dark:text-slate-500 text-xs">Signed in as</p>
           </div>
 {{#if user}}
-          <p class="text-slate-100 text-sm font-medium">{{ user.email }}</p>
+          <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ user.email }}</p>
 {{/if}}
         </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <div class="p-5">
           <div class="flex items-center gap-1.5 mb-1">
-            <IconDatabase class="w-3.5 h-3.5 text-slate-500" />
-            <p class="text-slate-500 text-xs">Database</p>
+            <IconDatabase class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            <p class="text-slate-400 dark:text-slate-500 text-xs">Database</p>
           </div>
-          <p class="text-emerald-400 text-sm font-medium">Connected</p>
+          <p class="text-emerald-500 text-sm font-medium">Connected</p>
         </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
+        <div class="p-5">
           <div class="flex items-center gap-1.5 mb-1">
-            <IconDocument class="w-3.5 h-3.5 text-slate-500" />
-            <p class="text-slate-500 text-xs">Posts</p>
+            <IconDocument class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            <p class="text-slate-400 dark:text-slate-500 text-xs">Posts</p>
           </div>
-          <p class="text-slate-100 text-sm font-medium">{{ posts.length }} created</p>
+          <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ posts.length }} created</p>
         </div>
       </div>
 
-      <a href="/" class="inline-flex items-center gap-1.5 text-emerald-400 text-sm hover:underline mt-8">
+      <a href="/" class="inline-flex items-center gap-1.5 text-emerald-500 text-sm hover:underline mt-8">
         <IconArrowLeft class="w-4 h-4" /> Back to home
       </a>
     </div>

@@ -72,7 +72,13 @@ export function generateExpression(node, typed = false) {
       return `${generateExpression(node.target, typed)} = ${generateExpression(node.value, typed)}`
 
     case 'CallExpression': {
-      const args = node.args.map((a) => generateExpression(a, typed)).join(', ')
+      const args = node.args
+        .map((a) =>
+          a.type === 'SpreadElement'
+            ? `...${generateExpression(a.argument, typed)}`
+            : generateExpression(a, typed),
+        )
+        .join(', ')
       return `${generateExpression(node.callee, typed)}(${args})`
     }
 
@@ -91,7 +97,11 @@ export function generateExpression(node, typed = false) {
 
     case 'ArrayExpression': {
       const elements = node.elements
-        .map((e) => generateExpression(e, typed))
+        .map((e) =>
+          e.type === 'SpreadElement'
+            ? `...${generateExpression(e.argument, typed)}`
+            : generateExpression(e, typed),
+        )
         .join(', ')
       return `[${elements}]`
     }
