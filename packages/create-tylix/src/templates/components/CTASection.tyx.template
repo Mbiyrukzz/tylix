@@ -1,5 +1,7 @@
 component CTASection
 
+import { IconArrowRight } from "tylix-icons"
+
 props
   loggedIn: boolean
 
@@ -10,8 +12,9 @@ template
     <p class="text-slate-400 mb-10 max-w-md mx-auto">
       Scaffold a full project — auth, database, and styling included — in under a minute.
     </p>
-    <a href="/register" class="inline-block px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
+    <a href="/register" class="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
       Get Started for Free
+      <IconArrowRight class="w-4 h-4" />
     </a>
 {{/if}}
 {{#if loggedIn}}
@@ -19,8 +22,9 @@ template
     <p class="text-slate-400 mb-10 max-w-md mx-auto">
       Jump back into your dashboard to manage your data and features.
     </p>
-    <a href="/dashboard" class="inline-block px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
+    <a href="/dashboard" class="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold hover:bg-emerald-400 transition">
       Go to Dashboard
+      <IconArrowRight class="w-4 h-4" />
     </a>
 {{/if}}
   </section>

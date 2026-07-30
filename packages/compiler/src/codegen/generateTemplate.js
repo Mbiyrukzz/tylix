@@ -3,6 +3,8 @@ import { generateTemplateExpression } from './generateTemplateExpression.js'
 const EVENT_ATTR_PREFIX = /^on(click|input|change|submit)$/i
 const COMPONENT_TAG_PATTERN = /^[A-Z]/
 
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
 let nodeCounter = 0
 function nextVar(prefix) {
   return `${prefix}${nodeCounter++}`
@@ -19,7 +21,9 @@ function nextVar(prefix) {
 export function generateTemplate(nodes) {
   nodeCounter = 0
   const lines = []
-  const rootVars = nodes.map((node) => compileNode(node, lines, new Set()))
+  const rootVars = nodes.map((node) =>
+    compileNode(node, lines, new Set(), false),
+  )
 
   if (rootVars.length === 1) {
     return { code: lines.join('\n'), rootVar: rootVars[0] }
@@ -31,7 +35,7 @@ export function generateTemplate(nodes) {
   return { code: lines.join('\n'), rootVar: fragmentVar }
 }
 
-function compileNode(node, lines, scope) {
+function compileNode(node, lines, scope, inSvg = false) {
   if (node.type === 'Text') {
     const varName = nextVar('text')
     lines.push(
@@ -49,28 +53,27 @@ function compileNode(node, lines, scope) {
   }
 
   if (node.type === 'If') {
-    return compileIf(node, lines, scope)
+    return compileIf(node, lines, scope, inSvg)
   }
 
   if (node.type === 'Each') {
-    return compileEach(node, lines, scope)
+    return compileEach(node, lines, scope, inSvg)
   }
 
   if (node.type === 'Element') {
-    return compileElement(node, lines, scope)
+    return compileElement(node, lines, scope, inSvg)
   }
 
   throw new Error(`generateTemplate: unknown node type "${node.type}"`)
 }
-
 // Renders node.children into a local fragment and returns the lines
 // needed to build it plus the fragment's own variable name, without
 // touching the caller's `lines` array directly (used inside effect
 // callbacks below, which need their own nested block of statements).
-function compileChildrenIntoFragment(children, scope, fragVar) {
+function compileChildrenIntoFragment(children, scope, fragVar, inSvg = false) {
   const childLines = []
   const childVars = children.map((child) =>
-    compileNode(child, childLines, scope),
+    compileNode(child, childLines, scope, inSvg),
   )
   childLines.push(...childVars.map((v) => `${fragVar}.appendChild(${v});`))
   return childLines
@@ -82,7 +85,7 @@ function compileChildrenIntoFragment(children, scope, fragVar) {
 // same fragment that holds the anchor. On every later run (state
 // changed), previous nodes are removed and new ones inserted right
 // after the anchor in the live DOM.
-function compileIf(node, lines, scope) {
+function compileIf(node, lines, scope, inSvg = false) {
   const anchorVar = nextVar('ifAnchor')
   const containerVar = nextVar('ifContainer')
   const nodesVar = nextVar('ifNodes')
@@ -99,7 +102,12 @@ function compileIf(node, lines, scope) {
   lines.push(`  ${nodesVar} = [];`)
   lines.push(`  if (${condExpr}) {`)
   lines.push(`    const frag = document.createDocumentFragment();`)
-  const childLines = compileChildrenIntoFragment(node.children, scope, 'frag')
+  const childLines = compileChildrenIntoFragment(
+    node.children,
+    scope,
+    'frag',
+    inSvg,
+  )
   childLines.forEach((l) => lines.push(`    ${l}`))
   lines.push(`    ${nodesVar} = Array.from(frag.childNodes);`)
   lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
@@ -113,11 +121,7 @@ function compileIf(node, lines, scope) {
   return containerVar
 }
 
-// List rendering, same anchor/rebuild strategy as compileIf, but
-// iterating a reactive array each time the effect runs. Not keyed
-// diffing -- every dependency change rebuilds the whole list, which
-// is the deliberate simplification for v1.
-function compileEach(node, lines, scope) {
+function compileEach(node, lines, scope, inSvg = false) {
   const anchorVar = nextVar('eachAnchor')
   const containerVar = nextVar('eachContainer')
   const nodesVar = nextVar('eachNodes')
@@ -138,6 +142,7 @@ function compileEach(node, lines, scope) {
     node.children,
     innerScope,
     'frag',
+    inSvg,
   )
   childLines.forEach((l) => lines.push(`    ${l}`))
   lines.push(`  }`)
@@ -151,12 +156,11 @@ function compileEach(node, lines, scope) {
 
   return containerVar
 }
-
 function isComponentTag(tag) {
   return COMPONENT_TAG_PATTERN.test(tag)
 }
 
-function compileElement(node, lines, scope) {
+function compileElement(node, lines, scope, inSvg = false) {
   if (isComponentTag(node.tag)) {
     const varName = nextVar('component')
     const tagLiteral = JSON.stringify(node.tag)
@@ -185,23 +189,37 @@ function compileElement(node, lines, scope) {
     return varName
   }
 
+  // Once we're inside an <svg>, every descendant (path, circle, g,
+  // etc.) needs the SVG namespace too -- createElement() without a
+  // namespace produces a non-rendering element that still LOOKS
+  // correct in the DOM inspector (right tag name, right attributes),
+  // which is exactly what made this bug so hard to spot.
+  const isSvgRoot = node.tag === 'svg'
+  const nsForThisNode = inSvg || isSvgRoot
+  const childInSvg = isSvgRoot ? true : inSvg
+
   const varName = nextVar('el')
-  lines.push(
-    `const ${varName} = document.createElement(${JSON.stringify(node.tag)});`,
-  )
+  if (nsForThisNode) {
+    lines.push(
+      `const ${varName} = document.createElementNS(${JSON.stringify(SVG_NS)}, ${JSON.stringify(node.tag)});`,
+    )
+  } else {
+    lines.push(
+      `const ${varName} = document.createElement(${JSON.stringify(node.tag)});`,
+    )
+  }
 
   for (const attr of node.attributes) {
     compileAttribute(varName, node.tag, attr, lines, scope)
   }
 
   for (const child of node.children) {
-    const childVar = compileNode(child, lines, scope)
+    const childVar = compileNode(child, lines, scope, childInSvg)
     lines.push(`${varName}.appendChild(${childVar});`)
   }
 
   return varName
 }
-
 // Attributes that reflect live user-editable DOM state -- setting
 // them via setAttribute() only seeds the *initial* value; once the
 // user interacts with the control, the live property diverges from

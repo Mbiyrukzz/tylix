@@ -1,5 +1,7 @@
 page Dashboard
 
+import { IconHome, IconPlus, IconDocument, IconFolder, IconArrowLeft, IconX, IconUser, IconDatabase } from "tylix-icons"
+
 state
   user: null
   checkedAuth: false
@@ -85,6 +87,7 @@ template
 
     <aside class="hidden lg:flex flex-col border-r border-slate-800 bg-slate-950 p-4">
       <a href="/dashboard" aria-current="page" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-slate-100 text-sm font-medium mb-1">
+        <IconHome class="w-4 h-4" />
         Overview
       </a>
       <p class="px-3 pt-4 pb-2 text-slate-600 text-xs font-medium uppercase tracking-wide">Data</p>
@@ -116,7 +119,7 @@ template
       <div class="flex items-center justify-between mb-5">
         <h2 class="text-slate-100 font-medium">Posts</h2>
         <button onclick="{{ openCreateModal() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
-          <span class="text-base leading-none">+</span> New Post
+          <IconPlus class="w-4 h-4" /> New Post
         </button>
       </div>
 
@@ -127,7 +130,9 @@ template
 {{#if not postsLoading}}
 {{#if posts.length is 0}}
       <div class="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center mb-8">
-        <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center text-xl mx-auto mb-4">📝</div>
+        <div class="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+          <IconDocument class="w-6 h-6 text-emerald-400" />
+        </div>
         <h3 class="text-slate-100 font-medium mb-2">No posts yet</h3>
         <p class="text-slate-500 text-sm max-w-sm mx-auto">
           Click "New Post" above to create your first one.
@@ -152,7 +157,9 @@ template
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
 {{#each f in features}}
         <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="block rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-lg mb-4">🗂️</div>
+          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
+            <IconFolder class="w-5 h-5 text-emerald-400" />
+          </div>
           <h3 class="text-slate-100 font-medium mb-1">{{ f.name }}</h3>
           <p class="text-slate-500 text-sm">Manage {{ f.table }}</p>
         </a>
@@ -162,22 +169,33 @@ template
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <p class="text-slate-500 text-xs mb-1">Signed in as</p>
+          <div class="flex items-center gap-1.5 mb-1">
+            <IconUser class="w-3.5 h-3.5 text-slate-500" />
+            <p class="text-slate-500 text-xs">Signed in as</p>
+          </div>
 {{#if user}}
           <p class="text-slate-100 text-sm font-medium">{{ user.email }}</p>
 {{/if}}
         </div>
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <p class="text-slate-500 text-xs mb-1">Database</p>
+          <div class="flex items-center gap-1.5 mb-1">
+            <IconDatabase class="w-3.5 h-3.5 text-slate-500" />
+            <p class="text-slate-500 text-xs">Database</p>
+          </div>
           <p class="text-emerald-400 text-sm font-medium">Connected</p>
         </div>
         <div class="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <p class="text-slate-500 text-xs mb-1">Posts</p>
+          <div class="flex items-center gap-1.5 mb-1">
+            <IconDocument class="w-3.5 h-3.5 text-slate-500" />
+            <p class="text-slate-500 text-xs">Posts</p>
+          </div>
           <p class="text-slate-100 text-sm font-medium">{{ posts.length }} created</p>
         </div>
       </div>
 
-      <a href="/" class="inline-block text-emerald-400 text-sm hover:underline mt-8">← Back to home</a>
+      <a href="/" class="inline-flex items-center gap-1.5 text-emerald-400 text-sm hover:underline mt-8">
+        <IconArrowLeft class="w-4 h-4" /> Back to home
+      </a>
     </div>
   </div>
 {{/if}}
@@ -187,8 +205,8 @@ template
     <div class="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-6">
       <div class="flex items-center justify-between mb-5">
         <h3 id="create-post-title" class="text-slate-100 font-medium">New Post</h3>
-        <button onclick="{{ closeCreateModal() }}" aria-label="Close" class="text-slate-500 hover:text-slate-200 text-sm">
-          Close
+        <button onclick="{{ closeCreateModal() }}" aria-label="Close" class="text-slate-500 hover:text-slate-200">
+          <IconX class="w-4 h-4" />
         </button>
       </div>
 
@@ -227,8 +245,8 @@ template
         </button>
 {{/if}}
 {{#if not creating}}
-        <button onclick="{{ createPost() }}" class="text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
-          Create Post
+        <button onclick="{{ createPost() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
+          <IconPlus class="w-4 h-4" /> Create Post
         </button>
 {{/if}}
       </div>

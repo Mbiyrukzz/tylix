@@ -244,7 +244,7 @@ function bySpecificity(a, b) {
 // compose/nest, so a page under app/pages/admin/ uses only
 // app/pages/admin/_layout.tyx if present, never both that and the
 // root app/pages/_layout.tyx together.
-async function findLayoutForFile(pagesDir, filePath) {
+async function findLayoutForFile(pagesDir, filePath, extractImports) {
   let dir = path.dirname(filePath)
   while (true) {
     const layoutPath = path.join(dir, '_layout.tyx')
@@ -252,21 +252,25 @@ async function findLayoutForFile(pagesDir, filePath) {
       .access(layoutPath)
       .then(() => true)
       .catch(() => false)
-    if (exists) return fs.readFile(layoutPath, 'utf-8')
+    if (exists) {
+      const raw = await fs.readFile(layoutPath, 'utf-8')
+      return extractImports(raw)
+    }
     if (dir === pagesDir) return null
     dir = path.dirname(dir)
   }
 }
 
-async function loadComponents(pagesDir) {
+async function loadComponents(pagesDir, extractImports) {
   const componentsDir = path.join(pagesDir, 'components')
   const exists = await fs
     .access(componentsDir)
     .then(() => true)
     .catch(() => false)
-  if (!exists) return {}
+  if (!exists) return { components: {}, imports: [] }
 
   const components = {}
+  const imports = []
 
   async function walk(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true })
@@ -276,13 +280,22 @@ async function loadComponents(pagesDir) {
         await walk(fullPath)
       } else if (entry.name.endsWith('.tyx')) {
         const name = entry.name.replace(/\.tyx$/, '')
-        components[name] = await fs.readFile(fullPath, 'utf-8')
+        const raw = await fs.readFile(fullPath, 'utf-8')
+        // Components can import package components (icons, etc.) the
+        // same way a page can -- strip those import lines here,
+        // before the raw text ever reaches compileComponentSource's
+        // Parser, and collect them so their targets get resolved
+        // into the shared components map alongside this component.
+        const { imports: componentImports, source: cleaned } =
+          extractImports(raw)
+        components[name] = cleaned
+        imports.push(...componentImports)
       }
     }
   }
 
   await walk(componentsDir)
-  return components
+  return { components, imports }
 }
 
 async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
@@ -317,7 +330,8 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
         : staticCompiler
 
       const rawSource = await fs.readFile(filePath, 'utf-8')
-      const { imports, source: cleanedSource } = extractImports(rawSource)
+      const { imports: pageImports, source: cleanedSource } =
+        extractImports(rawSource)
       source = cleanedSource
 
       const language = await detectLanguage(baseDir)
@@ -331,17 +345,28 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
         }
       }
 
-      const layout = await findLayoutForFile(pagesDir, filePath)
-      const localComponents = await loadComponents(pagesDir)
+      const layoutResult = await findLayoutForFile(
+        pagesDir,
+        filePath,
+        extractImports,
+      )
+      const layout = layoutResult ? layoutResult.source : null
+      const layoutImports = layoutResult ? layoutResult.imports : []
+
+      const { components: localComponents, imports: componentImports } =
+        await loadComponents(pagesDir, extractImports)
+
+      const allImports = [...pageImports, ...layoutImports, ...componentImports]
       const packageComponents =
-        imports.length > 0
-          ? await resolvePackageComponents(imports, baseDir)
+        allImports.length > 0
+          ? await resolvePackageComponents(allImports, baseDir)
           : {}
+
       // Local components win on a name collision -- a project can
-      // always override a package-provided component (a custom
-      // IconCheck, say) just by adding its own file under
-      // app/pages/components/.
+      // always override a package-provided component just by adding
+      // its own file under app/pages/components/.
       const components = { ...packageComponents, ...localComponents }
+
       const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
       const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
       const html = injectHmrScript(
