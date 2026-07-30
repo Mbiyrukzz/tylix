@@ -1,6 +1,6 @@
 page Dashboard
 
-import { IconHome, IconPlus, IconDocument, IconFolder, IconArrowLeft, IconX, IconUser, IconDatabase } from "tylix-icons"
+import { IconHome, IconDocument, IconFolder, IconArrowLeft, IconUser, IconDatabase } from "tylix-icons"
 
 state
   user: null
@@ -8,11 +8,6 @@ state
   features: []
   posts: []
   postsLoading: true
-  showCreateModal: false
-  newPostTitle: ""
-  newPostBody: ""
-  creating: false
-  createError: ""
 
 onMount
   async {
@@ -40,45 +35,6 @@ action
   async logout() {
     await useApi("/api/auth/logout", { method: "POST" })
     window.location.href = "/"
-  }
-
-  openCreateModal() {
-    this.showCreateModal = true
-    this.createError = ""
-  }
-
-  closeCreateModal() {
-    this.showCreateModal = false
-    this.newPostTitle = ""
-    this.newPostBody = ""
-    this.createError = ""
-  }
-
-  async createPost() {
-    if this.creating {
-      return null
-    }
-
-    if this.newPostTitle.trim() is "" {
-      this.createError = "Give your post a title."
-      return null
-    }
-
-    this.creating = true
-    this.createError = ""
-
-    const result = await postApi("posts", { title: this.newPostTitle, body: this.newPostBody })
-
-    if result.ok {
-      this.posts = [result.data].concat(this.posts)
-      this.creating = false
-      this.closeCreateModal()
-    } else if result.status is 401 {
-      window.location.href = "/login"
-    } else {
-      this.createError = result.error or "Couldn't create that post. Check the form and try again."
-      this.creating = false
-    }
   }
 
 template
@@ -118,9 +74,7 @@ template
 
       <div class="flex items-center justify-between mb-5">
         <h2 class="text-slate-100 font-medium">Posts</h2>
-        <button onclick="{{ openCreateModal() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
-          <IconPlus class="w-4 h-4" /> New Post
-        </button>
+        <CreatePostForm />
       </div>
 
 {{#if postsLoading}}
@@ -196,60 +150,6 @@ template
       <a href="/" class="inline-flex items-center gap-1.5 text-emerald-400 text-sm hover:underline mt-8">
         <IconArrowLeft class="w-4 h-4" /> Back to home
       </a>
-    </div>
-  </div>
-{{/if}}
-
-{{#if showCreateModal}}
-  <div role="dialog" aria-modal="true" aria-labelledby="create-post-title" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
-    <div class="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-6">
-      <div class="flex items-center justify-between mb-5">
-        <h3 id="create-post-title" class="text-slate-100 font-medium">New Post</h3>
-        <button onclick="{{ closeCreateModal() }}" aria-label="Close" class="text-slate-500 hover:text-slate-200">
-          <IconX class="w-4 h-4" />
-        </button>
-      </div>
-
-      <label for="new-post-title" class="block text-slate-400 text-xs mb-1.5">Title</label>
-      <input
-        id="new-post-title"
-        type="text"
-        autofocus
-        value="{{ newPostTitle }}"
-        oninput="{{ newPostTitle = $event.target.value }}"
-        class="w-full mb-4 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-emerald-500"
-        placeholder="e.g. Launch week recap"
-      />
-
-      <label for="new-post-body" class="block text-slate-400 text-xs mb-1.5">Body</label>
-      <textarea
-        id="new-post-body"
-        rows="4"
-        value="{{ newPostBody }}"
-        oninput="{{ newPostBody = $event.target.value }}"
-        class="w-full mb-4 rounded-lg border border-slate-700 bg-slate-950 text-slate-100 text-sm px-3 py-2.5 focus:outline-none focus:border-emerald-500 resize-none"
-        placeholder="Write something…"
-      ></textarea>
-
-{{#if createError}}
-      <p role="alert" class="text-rose-400 text-sm mb-4">{{ createError }}</p>
-{{/if}}
-
-      <div class="flex items-center justify-end gap-3">
-        <button onclick="{{ closeCreateModal() }}" class="text-sm text-slate-400 hover:text-slate-100 px-3 py-2">
-          Cancel
-        </button>
-{{#if creating}}
-        <button disabled class="text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 opacity-50 transition">
-          Creating…
-        </button>
-{{/if}}
-{{#if not creating}}
-        <button onclick="{{ createPost() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-slate-950 font-semibold rounded-lg px-4 py-2 hover:bg-emerald-400 transition">
-          <IconPlus class="w-4 h-4" /> Create Post
-        </button>
-{{/if}}
-      </div>
     </div>
   </div>
 {{/if}}
