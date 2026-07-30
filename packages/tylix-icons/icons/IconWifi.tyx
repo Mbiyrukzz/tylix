@@ -1,0 +1,9 @@
+component IconWifi
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M2 8.5a15 15 0 0120 0M5.5 12a10 10 0 0113 0M9 15.5a5 5 0 016 0" /><circle cx="12" cy="19" r="0.9" fill="currentColor" stroke="none" />
+  </svg>

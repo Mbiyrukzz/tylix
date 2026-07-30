@@ -1,0 +1,9 @@
+component IconTrash
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m-9 0l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12" />
+  </svg>

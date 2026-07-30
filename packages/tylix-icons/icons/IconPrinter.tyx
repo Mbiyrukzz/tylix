@@ -1,0 +1,9 @@
+component IconPrinter
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M7 9V4h10v5M6 9h12a2 2 0 012 2v6h-4v3H8v-3H4v-6a2 2 0 012-2zM8 17h8v3H8v-3z" />
+  </svg>

@@ -1,0 +1,9 @@
+component IconExclamationCircle
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <circle cx="12" cy="12" r="9" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v5" /><circle cx="12" cy="16" r="0.6" fill="currentColor" stroke="none" />
+  </svg>

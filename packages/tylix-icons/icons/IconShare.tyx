@@ -1,0 +1,9 @@
+component IconShare
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <circle cx="6" cy="12" r="2.2" /><circle cx="17.5" cy="6" r="2.2" /><circle cx="17.5" cy="18" r="2.2" /><path stroke-linecap="round" stroke-linejoin="round" d="M8 10.8l7.5-3.4M8 13.2l7.5 3.4" />
+  </svg>

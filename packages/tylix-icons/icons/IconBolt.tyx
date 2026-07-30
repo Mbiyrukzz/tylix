@@ -1,0 +1,9 @@
+component IconBolt
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M13 3L5 14h5l-1 7 8-11h-5l1-7z" />
+  </svg>

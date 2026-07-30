@@ -1,0 +1,9 @@
+component IconAcademicCap
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 5L2 9l10 4 10-4-10-4z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 11v5c0 1.1 2.7 2 6 2s6-.9 6-2v-5" />
+  </svg>

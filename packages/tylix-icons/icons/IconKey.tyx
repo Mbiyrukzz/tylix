@@ -1,0 +1,9 @@
+component IconKey
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <circle cx="8" cy="15" r="3.5" /><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 12.5L20 3m-3 3l2 2m-5.5-1.5l2 2" />
+  </svg>

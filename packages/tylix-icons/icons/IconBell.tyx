@@ -1,0 +1,9 @@
+component IconBell
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M6 10a6 6 0 0112 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14 6 10z" /><path stroke-linecap="round" stroke-linejoin="round" d="M10 18a2 2 0 004 0" />
+  </svg>

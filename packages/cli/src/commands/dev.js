@@ -306,12 +306,19 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
   async function renderFileSafely(filePath, params = {}) {
     let source = null
     try {
-      const { renderPageDocument, typecheckPage, transpileTsToJs } =
-        hotReloadCompiler
-          ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
-          : staticCompiler
+      const {
+        renderPageDocument,
+        typecheckPage,
+        transpileTsToJs,
+        extractImports,
+        resolvePackageComponents,
+      } = hotReloadCompiler
+        ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
+        : staticCompiler
 
-      source = await fs.readFile(filePath, 'utf-8')
+      const rawSource = await fs.readFile(filePath, 'utf-8')
+      const { imports, source: cleanedSource } = extractImports(rawSource)
+      source = cleanedSource
 
       const language = await detectLanguage(baseDir)
       if (language === 'typescript') {
@@ -325,7 +332,16 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
       }
 
       const layout = await findLayoutForFile(pagesDir, filePath)
-      const components = await loadComponents(pagesDir)
+      const localComponents = await loadComponents(pagesDir)
+      const packageComponents =
+        imports.length > 0
+          ? await resolvePackageComponents(imports, baseDir)
+          : {}
+      // Local components win on a name collision -- a project can
+      // always override a package-provided component (a custom
+      // IconCheck, say) just by adding its own file under
+      // app/pages/components/.
+      const components = { ...packageComponents, ...localComponents }
       const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
       const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
       const html = injectHmrScript(

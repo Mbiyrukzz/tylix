@@ -1,0 +1,9 @@
+component IconChartPie
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v9h9a9 9 0 10-9 9" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 3a9 9 0 019 9h-9V3z" />
+  </svg>

@@ -1,0 +1,9 @@
+component IconThumbUp
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M7 11v9H4v-9h3zm0 0l4-7a2 2 0 012 2v3h5a2 2 0 012 2.3l-1.3 6A2 2 0 0117 20H7" />
+  </svg>

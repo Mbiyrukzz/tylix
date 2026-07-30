@@ -1,0 +1,9 @@
+component IconMicrophone
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <rect x="9" y="3" width="6" height="11" rx="3" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 11a6 6 0 0012 0M12 17v4M9 21h6" />
+  </svg>
