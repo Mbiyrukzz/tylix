@@ -1,17 +1,17 @@
 {
   "name": "@tylix/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "./src/index.js",
   "bin": {
     "tylix": "./src/index.js"
   },
- "dependencies": {
-  "@tylix/auth": "^0.1.0",
-  "@tylix/compiler": "^0.1.0",
-  "@tylix/core": "^0.1.0",
-  "@tylix/generator": "^0.1.0",
-  "@tylix/orm": "^0.1.0",
-  "@tylix/shared": "^0.1.0"
-}
+  "dependencies": {
+    "@tylix/auth": "^0.1.0",
+    "@tylix/compiler": "^0.1.0",
+    "@tylix/core": "^0.1.0",
+    "@tylix/generator": "^0.1.0",
+    "@tylix/orm": "^0.1.0",
+    "@tylix/shared": "^0.1.0"
+  }
 }

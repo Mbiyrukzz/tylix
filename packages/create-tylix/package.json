@@ -1,6 +1,6 @@
 {
   "name": "create-tylix",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "./src/index.js",
   "bin": {
@@ -11,6 +11,5 @@
     "@tylix/core": "^0.1.0",
     "@tylix/generator": "^0.1.0",
     "@tylix/shared": "^0.1.0"
-    
   }
 }
