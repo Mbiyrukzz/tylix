@@ -1,0 +1,9 @@
+component IconRss
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM4 4a16 16 0 0116 16m-8-16a8 8 0 018 8" />
+  </svg>

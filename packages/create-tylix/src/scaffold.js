@@ -3,9 +3,16 @@ import {
   printDivider,
   printHeavyDivider,
   printSection,
+  bold,
+  dim,
+  cyan,
+  cyanBright,
+  green,
+  yellow,
+  red,
 } from '@tylix/shared'
 import { createProgressBar } from './utils/progress.js'
-import { select, confirm, text } from './utils/prompt.js'
+import { select, confirm, text, password } from './utils/prompt.js'
 import { createProjectStructure } from './steps/createProjectStructure.js'
 import { installPackages } from './steps/installPackages.js'
 import { writeStylingConfig } from './steps/writeStylingConfig.js'
@@ -53,6 +60,17 @@ async function runWizard(initialProjectName) {
   })
   printDivider(110)
 
+  let databasePassword = ''
+  if (database === 'postgres' || database === 'mysql') {
+    databasePassword = await password({
+      message:
+        database === 'postgres'
+          ? 'Enter the password you set for your local PostgreSQL "postgres" user'
+          : 'Enter the password you set for your local MySQL "root" user',
+    })
+    printDivider(110)
+  }
+
   const authEnabled = await confirm({ message: 'Authentication' })
   printDivider(110)
 
@@ -91,19 +109,21 @@ async function runWizard(initialProjectName) {
   const installNow = await confirm({ message: 'Install dependencies now?' })
   printDivider(110)
 
-  console.log('Configuration')
-  console.log(`Project Name      ${projectName}`)
+  console.log(bold('Configuration'))
+  console.log(`Project Name      ${cyanBright(projectName)}`)
   console.log(
-    `Language          ${language === 'javascript' ? 'JavaScript' : 'TypeScript'}`,
+    `Language          ${cyanBright(language === 'javascript' ? 'JavaScript' : 'TypeScript')}`,
   )
-  console.log(`Database          ${database}`)
-  console.log(`Authentication    ${authEnabled ? 'Enabled' : 'Disabled'}`)
-  console.log(`Styling           ${styling}`)
+  console.log(`Database          ${cyanBright(database)}`)
   console.log(
-    `Starter           ${starter === 'starter' ? 'Starter App' : 'Blank'}`,
+    `Authentication    ${authEnabled ? green('Enabled') : dim('Disabled')}`,
   )
-  console.log(`Package Manager   ${packageManager}`)
-  console.log(`Git               ${gitInit ? 'Yes' : 'No'}`)
+  console.log(`Styling           ${cyanBright(styling)}`)
+  console.log(
+    `Starter           ${cyanBright(starter === 'starter' ? 'Starter App' : 'Blank')}`,
+  )
+  console.log(`Package Manager   ${cyanBright(packageManager)}`)
+  console.log(`Git               ${gitInit ? green('Yes') : dim('No')}`)
   printDivider(54)
 
   await select({
@@ -115,6 +135,7 @@ async function runWizard(initialProjectName) {
     projectName,
     language,
     database,
+    databasePassword,
     authEnabled,
     styling,
     starter,
@@ -125,7 +146,7 @@ async function runWizard(initialProjectName) {
 }
 
 async function runBuildSteps(config) {
-  console.log('\nCreating your Tylix application...\n')
+  console.log(`\n${bold('Creating your Tylix application...')}\n`)
 
   const steps = [
     ['Creating project structure', () => createProjectStructure(config)],
@@ -176,13 +197,14 @@ async function runBuildSteps(config) {
   progress.render('Done', steps.length)
   console.log()
 }
+
 function printSuccessScreen(config) {
   printHeavyDivider()
-  console.log('🎉  Success!')
+  console.log(bold(green('🎉  Success!')))
   console.log('Your application has been created.\n')
 
-  console.log('Project')
-  console.log(`📁 ${config.projectName}\n`)
+  console.log(bold('Project'))
+  console.log(`📁 ${cyanBright(config.projectName)}\n`)
 
   printSection(
     'Pages',
@@ -202,10 +224,10 @@ function printSuccessScreen(config) {
     console.log()
   }
 
-  console.log('Database')
-  console.log(`✓ ${config.database}\n`)
+  console.log(bold('Database'))
+  console.log(`${green('✓')} ${config.database}\n`)
 
-  console.log('API')
+  console.log(bold('API'))
   console.log('POST   /api/register')
   console.log('POST   /api/login')
   console.log('POST   /api/auth/refresh')
@@ -223,22 +245,22 @@ function printSuccessScreen(config) {
   console.log('GET    /dashboard')
   printHeavyDivider()
 
-  console.log('Next Steps')
-  console.log(`cd ${config.projectName}`)
-  console.log(`${config.packageManager} run dev`)
+  console.log(bold('Next Steps'))
+  console.log(cyanBright(`cd ${config.projectName}`))
+  console.log(cyanBright(`${config.packageManager} run dev`))
   printHeavyDivider()
 
-  console.log('Development Server')
-  console.log('http://localhost:3000\n')
-  console.log('Documentation')
-  console.log('https://tylix.dev/docs\n')
-  console.log('Discord')
-  console.log('https://discord.gg/tylix\n')
-  console.log('GitHub')
-  console.log('https://github.com/tylixjs')
+  console.log(bold('Development Server'))
+  console.log(cyanBright('http://localhost:3000\n'))
+  console.log(bold('Documentation'))
+  console.log(cyanBright('https://tylix.dev/docs\n'))
+  console.log(bold('Discord'))
+  console.log(cyanBright('https://discord.gg/tylix\n'))
+  console.log(bold('GitHub'))
+  console.log(cyanBright('https://github.com/tylixjs'))
   printHeavyDivider()
 
-  console.log('Happy building with Tylix ')
+  console.log(bold(green('Happy building with Tylix ')))
 }
 
 export async function scaffold({ projectName: initialProjectName } = {}) {

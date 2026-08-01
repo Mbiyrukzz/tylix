@@ -85,6 +85,10 @@ export class MongoAdapter extends DatabaseAdapter {
     }
   }
 
+  quoteIdentifier(name) {
+    return name
+  }
+
   ensureConnected() {
     if (!this.db) {
       throw new Error('MongoAdapter is not connected. Call connect() first.')

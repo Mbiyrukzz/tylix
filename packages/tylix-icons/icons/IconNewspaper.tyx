@@ -1,0 +1,10 @@
+component IconNewspaper
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h9v10a2 2 0 002 2h5V20a2 2 0 01-2 2z" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 8h4m-4 4h4m-4 4h2" />
+  </svg>

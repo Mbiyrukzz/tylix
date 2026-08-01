@@ -11,5 +11,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["app/**/*.ts", "database/**/*.ts"]
+  "include": ["*.ts", "app/**/*.ts", "database/**/*.ts"]
 }

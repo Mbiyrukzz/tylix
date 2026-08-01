@@ -1,0 +1,9 @@
+component IconLightBulb
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3a6 6 0 00-6 6c0 2.09 1.14 3.917 2.828 4.9.463.27.672.79.672 1.33V16h5v-.77c0-.54.21-1.06.672-1.33A5.998 5.998 0 0018 9a6 6 0 00-6-6z" />
+  </svg>

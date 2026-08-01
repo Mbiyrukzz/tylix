@@ -1,0 +1,10 @@
+component IconMusicNote
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l10-2v13" />
+    <path stroke-linecap="round" stroke-linejoin="round" d="M6 21a3 3 0 100-6 3 3 0 000 6zM16 19a3 3 0 100-6 3 3 0 000 6z" />
+  </svg>

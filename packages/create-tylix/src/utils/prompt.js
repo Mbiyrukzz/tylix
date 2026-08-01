@@ -109,3 +109,41 @@ export function text({ message, initial = '' }) {
     process.stdin.on('keypress', onKeypress)
   })
 }
+
+/** Masked text field — same as text() but renders bullets instead of raw input */
+export function password({ message, initial = '' }) {
+  return withRawMode((resolve) => {
+    let value = initial
+
+    function draw() {
+      console.log(message)
+      console.log(`❯ ${'•'.repeat(value.length)}`)
+    }
+    function clear() {
+      readline.moveCursor(process.stdout, 0, -2)
+      readline.clearScreenDown(process.stdout)
+    }
+
+    draw()
+
+    function onKeypress(str, key) {
+      if (key.ctrl && key.name === 'c') {
+        cleanup(onKeypress)
+        process.exit(0)
+      } else if (key.name === 'return') {
+        cleanup(onKeypress)
+        resolve(value)
+      } else if (key.name === 'backspace') {
+        value = value.slice(0, -1)
+        clear()
+        draw()
+      } else if (str && !key.ctrl && !key.meta) {
+        value += str
+        clear()
+        draw()
+      }
+    }
+
+    process.stdin.on('keypress', onKeypress)
+  })
+}

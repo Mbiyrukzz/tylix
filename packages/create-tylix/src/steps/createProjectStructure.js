@@ -21,6 +21,43 @@ const PUBLISHED_VERSIONS = {
   '@tylix/auth': '^0.1.1',
   'tylix-icons': '^0.1.1',
 }
+function buildDatabaseEnvLines(config) {
+  const projectSlug = config.projectName
+  const driver = config.database
+  const dbPassword = config.databasePassword ?? ''
+
+  switch (driver) {
+    case 'postgres':
+      return [
+        `DATABASE_DRIVER=postgres`,
+        `DATABASE_HOST=127.0.0.1`,
+        `DATABASE_PORT=5432`,
+        `DATABASE_USER=postgres`,
+        `DATABASE_PASSWORD=${dbPassword}`,
+        `DATABASE_NAME=${projectSlug}`,
+      ]
+    case 'mysql':
+      return [
+        `DATABASE_DRIVER=mysql`,
+        `DATABASE_HOST=127.0.0.1`,
+        `DATABASE_PORT=3306`,
+        `DATABASE_USER=root`,
+        `DATABASE_PASSWORD=${dbPassword}`,
+        `DATABASE_NAME=${projectSlug}`,
+      ]
+
+    case 'mongodb':
+      return [
+        `DATABASE_DRIVER=mongodb`,
+        `DATABASE_URL=mongodb://localhost:27017`,
+        `DATABASE_NAME=${projectSlug}`,
+      ]
+    case 'none':
+      return [`DATABASE_DRIVER=none`]
+    default:
+      throw new Error(`Unknown database choice "${driver}"`)
+  }
+}
 
 async function pathExists(p) {
   return fs
@@ -106,13 +143,14 @@ export async function createProjectStructure(config) {
         ? `export const deleteApi = (table: string, id: number | string) =>\n  useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`
         : `export const deleteApi = (table, id) => useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`,
     )
+    const dbEnvLines = buildDatabaseEnvLines(config)
 
     await fs.writeFile(
       path.join(targetDir, '.env'),
       [
         `PORT=3000`,
         `AUTH_SECRET=${crypto.randomBytes(32).toString('hex')}`,
-        `DATABASE_DRIVER=${config.database.driver ?? config.database}`,
+        ...dbEnvLines,
         ``,
         `# Set to true only if you're developing @tylix/compiler itself`,
         `TYLIX_HOT_RELOAD_COMPILER=false`,
@@ -123,7 +161,9 @@ export async function createProjectStructure(config) {
       [
         `PORT=3000`,
         `AUTH_SECRET=`,
-        `DATABASE_DRIVER=sqlite`,
+        ...dbEnvLines.map((line) =>
+          line.startsWith('DATABASE_PASSWORD=') ? 'DATABASE_PASSWORD=' : line,
+        ),
         ``,
         `# Set to true only if you're developing @tylix/compiler itself`,
         `TYLIX_HOT_RELOAD_COMPILER=false`,

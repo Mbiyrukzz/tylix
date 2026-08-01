@@ -1,0 +1,9 @@
+component IconVolumeOff
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M17 14L20 11m0 0l-3-3m3 3H9m0-6H4v12h5m0-12l6-4v20l-6-4" />
+  </svg>

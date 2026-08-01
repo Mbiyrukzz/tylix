@@ -1,0 +1,9 @@
+component IconSortAscending
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M3 4h13M3 9h9M3 14h5M17 20V4m0 0l-4 4m4-4l4 4" />
+  </svg>

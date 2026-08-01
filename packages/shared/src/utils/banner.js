@@ -1,3 +1,5 @@
+import { bold, dim, cyan, cyanBright, magenta, green, gray } from './colors.js'
+
 const LOGO = `████████╗██╗   ██╗██╗     ██╗██╗  ██╗
 ╚══██╔══╝╚██╗ ██╔╝██║     ██║╚██╗██╔╝
    ██║    ╚████╔╝ ██║     ██║ ╚███╔╝
@@ -6,22 +8,22 @@ const LOGO = `████████╗██╗   ██╗██╗     █�
    ╚═╝      ╚═╝   ╚══════╝╚═╝╚═╝  ╚═╝`
 
 export function printLogo() {
-  console.log(LOGO)
-  console.log('        Tylix Framework')
-  console.log('   Build Full-Stack JavaScript Applications')
+  console.log(cyanBright(LOGO))
+  console.log(bold(magenta('        Tylix Framework')))
+  console.log(dim('   Build Full-Stack JavaScript Applications'))
 }
 
 export function printDivider(width = 100) {
-  console.log('─'.repeat(width))
+  console.log(gray('─'.repeat(width)))
 }
 
 export function printHeavyDivider(width = 54) {
-  console.log('━'.repeat(width))
+  console.log(cyan('━'.repeat(width)))
 }
 
 export function printSection(title, items) {
-  console.log(title)
-  for (const item of items) console.log(`✓ ${item}`)
+  console.log(bold(title))
+  for (const item of items) console.log(`${green('✓')} ${item}`)
 }
 
 const BOX_WIDTH = 64
@@ -38,18 +40,18 @@ export function printBox(title) {
   const top = `╭${'─'.repeat(inner)}╮`
   const bottom = `╰${'─'.repeat(inner)}╯`
   const blank = `│${' '.repeat(inner)}│`
-  console.log(top)
-  console.log(blank)
-  console.log(`│${center(title, inner)}│`)
-  console.log(blank)
-  console.log(bottom)
+  console.log(cyan(top))
+  console.log(cyan(blank))
+  console.log(cyan('│') + bold(center(title, inner)) + cyan('│'))
+  console.log(cyan(blank))
+  console.log(cyan(bottom))
 }
 
 export function printChecklist(items) {
-  for (const item of items) console.log(`✓ ${item}`)
+  for (const item of items) console.log(`${green('✓')} ${item}`)
 }
 
 export function printLinkSection(label, url) {
-  console.log(`\n${label}`)
-  console.log(url)
+  console.log(`\n${dim(label)}`)
+  console.log(cyanBright(url))
 }

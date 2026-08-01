@@ -41,6 +41,10 @@ export class MysqlAdapter extends DatabaseAdapter {
     }
   }
 
+  quoteIdentifier(name) {
+    return `\`${name.replace(/`/g, '``')}\``
+  }
+
   ensureConnected() {
     if (!this.connection) {
       throw new Error('MysqlAdapter is not connected. Call connect() first.')

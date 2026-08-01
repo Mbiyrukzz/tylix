@@ -7,7 +7,7 @@ export async function finalize(config) {
   if (config.authEnabled && config.installNow) {
     execSync('npx tylix make:auth', { cwd: targetDir, stdio: 'inherit' })
   }
-  if (config.installNow) {
-    execSync('npx tylix migrate', { cwd: targetDir, stdio: 'inherit' })
-  }
+  // if (config.installNow) {
+  //   execSync('npx tylix migrate', { cwd: targetDir, stdio: 'inherit' })
+  // }
 }

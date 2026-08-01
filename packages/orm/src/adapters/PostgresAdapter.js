@@ -40,12 +40,15 @@ export class PostgresAdapter extends DatabaseAdapter {
     this.pool = new pg.Pool(this.config)
     return this
   }
-
   async close() {
     if (this.pool) {
       await this.pool.end()
       this.pool = null
     }
+  }
+
+  quoteIdentifier(name) {
+    return `"${name.replace(/"/g, '""')}"`
   }
 
   ensureConnected() {

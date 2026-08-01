@@ -32,6 +32,10 @@ export class SqliteAdapter extends DatabaseAdapter {
     }
   }
 
+  quoteIdentifier(name) {
+    return `"${name.replace(/"/g, '""')}"`
+  }
+
   ensureConnected() {
     if (!this.db) {
       throw new Error('SqliteAdapter is not connected. Call connect() first.')

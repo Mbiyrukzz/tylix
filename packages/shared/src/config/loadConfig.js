@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import fs from 'node:fs/promises'
+import { loadEnv } from './loadEnv.js'
 
 const DEFAULT_CONFIG = {
   database: {
@@ -25,6 +26,10 @@ export async function loadConfig(cwd = process.cwd(), language = 'javascript') {
   if (!exists) {
     return DEFAULT_CONFIG
   }
+
+  // .env must be in process.env before tylix.config.* evaluates,
+  // since the generated config now reads process.env.DATABASE_* directly.
+  await loadEnv(cwd)
 
   const module = await import(pathToFileURL(configPath).href)
   const userConfig = module.default ?? {}

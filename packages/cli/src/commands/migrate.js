@@ -47,17 +47,19 @@ function buildSchema(adapter) {
       const columnSql = columns
         .map((c) => {
           const sqlType = adapter.columnType(c.logicalType)
-          return `${c.name} ${sqlType}${c.unique ? ' UNIQUE' : ''}`
+          return `${adapter.quoteIdentifier(c.name)} ${sqlType}${c.unique ? ' UNIQUE' : ''}`
         })
         .join(', ')
 
       await adapter.run(
-        `CREATE TABLE IF NOT EXISTS ${tableName} (${columnSql})`,
+        `CREATE TABLE IF NOT EXISTS ${adapter.quoteIdentifier(tableName)} (${columnSql})`,
       )
     },
 
     dropTable: async (tableName) => {
-      await adapter.run(`DROP TABLE IF EXISTS ${tableName}`)
+      await adapter.run(
+        `DROP TABLE IF EXISTS ${adapter.quoteIdentifier(tableName)}`,
+      )
     },
 
     alterTable: async (tableName, callback) => {
@@ -92,12 +94,14 @@ function buildSchema(adapter) {
       for (const c of addColumns) {
         const sqlType = adapter.columnType(c.logicalType)
         await adapter.run(
-          `ALTER TABLE ${tableName} ADD COLUMN ${c.name} ${sqlType}${c.unique ? ' UNIQUE' : ''}`,
+          `ALTER TABLE ${adapter.quoteIdentifier(tableName)} ADD COLUMN ${adapter.quoteIdentifier(c.name)} ${sqlType}${c.unique ? ' UNIQUE' : ''}`,
         )
       }
 
       for (const name of dropColumns) {
-        await adapter.run(`ALTER TABLE ${tableName} DROP COLUMN ${name}`)
+        await adapter.run(
+          `ALTER TABLE ${adapter.quoteIdentifier(tableName)} DROP COLUMN ${adapter.quoteIdentifier(name)}`,
+        )
       }
     },
   }
