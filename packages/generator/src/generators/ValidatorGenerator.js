@@ -18,11 +18,13 @@ export class ValidatorGenerator {
 
   buildRuleMap(fields) {
     const ruleNames = new Set()
-    const fieldRules = fields.map((field) => {
-      const names = resolveFieldRuleNames(field)
-      names.forEach((n) => ruleNames.add(n))
-      return { name: field.name, rules: names }
-    })
+    const fieldRules = fields
+      .filter((field) => !field.system)
+      .map((field) => {
+        const names = resolveFieldRuleNames(field)
+        names.forEach((n) => ruleNames.add(n))
+        return { name: field.name, rules: names }
+      })
     return { ruleNames, fieldRules }
   }
 

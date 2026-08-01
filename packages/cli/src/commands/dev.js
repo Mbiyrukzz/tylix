@@ -481,7 +481,8 @@ function printBanner({
 export async function dev({ port = 3000 } = {}) {
   const baseDir = process.cwd()
   await loadEnv(baseDir)
-  const config = await loadConfig(baseDir)
+  const language = await detectLanguage(baseDir)
+  const config = await loadConfig(baseDir, language)
 
   const hotReloadCompiler = process.env.TYLIX_HOT_RELOAD_COMPILER === 'true'
 

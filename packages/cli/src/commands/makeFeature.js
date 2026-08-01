@@ -68,7 +68,9 @@ export async function makeFeature(
       continue
     }
 
-    const options = third === 'unique' ? { unique: true } : {}
+    const options = {}
+    if (third === 'unique') options.unique = true
+    if (third === 'system') options.system = true
     blueprint.field(fieldName, fieldType, options)
   }
 

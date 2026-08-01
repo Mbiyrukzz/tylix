@@ -1,19 +1,19 @@
 {
   "name": "@tylix/core",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "type": "module",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
-  "dependencies": {
-    "@tylix/auth": "^0.1.0",
-    "@tylix/compiler": "^0.1.0",
-    "@tylix/orm": "^0.1.0",
-    "@tylix/shared": "^0.1.0",
-    "ws": "^8.18.0"
-  },
+ "dependencies": {
+  "@tylix/auth": "^0.2.0",
+  "@tylix/compiler": "^0.2.0",
+  "@tylix/orm": "^0.2.0",
+  "@tylix/shared": "^0.2.0",
+  "ws": "^8.18.0"
+},
   "devDependencies": {
     "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1"

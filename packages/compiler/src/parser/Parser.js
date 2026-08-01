@@ -658,8 +658,23 @@ export class Parser {
     }
 
     if (this.check(TokenType.IDENTIFIER)) {
-      return Identifier(this.advance().value)
+      const name = this.advance().value
+      // "null"/"true"/"false"/"undefined" are lexed as plain identifier
+      // tokens (there's no separate keyword TokenType for them), but
+      // they're JS keyword literals, not variable/state references.
+      // Emitting them as Literal here -- instead of Identifier -- means
+      // every downstream consumer (generateExpression,
+      // generateTemplateExpression, and anything added later) treats
+      // them correctly by construction, rather than each one needing its
+      // own special-case list of magic strings to avoid prefixing them
+      // with "instance.".
+      if (name === 'null') return Literal(null)
+      if (name === 'undefined') return Literal(undefined)
+      if (name === 'true') return Literal(true)
+      if (name === 'false') return Literal(false)
+      return Identifier(name)
     }
+
     if (this.match(TokenType.LPAREN)) {
       const expr = this.parseExpression()
       this.expect(

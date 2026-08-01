@@ -240,6 +240,23 @@ function compileElement(node, lines, scope, inSvg = false) {
 const LIVE_PROPERTY_ATTRS = new Set(['value', 'checked'])
 const LIVE_PROPERTY_TAGS = new Set(['input', 'textarea', 'select'])
 
+// Attributes where HTML only cares whether they're *present*, not
+// their string value -- setAttribute(name, "false") is still
+// truthy to the browser, same as "true" or "". These need
+// add/removeAttribute based on the JS value's truthiness, not a
+// literal setAttribute call with the stringified value.
+const BOOLEAN_ATTRS = new Set([
+  'disabled',
+  'checked',
+  'readonly',
+  'required',
+  'selected',
+  'multiple',
+  'hidden',
+  'autofocus',
+  'open',
+])
+
 function compileAttribute(elVar, tag, attr, lines, scope) {
   if (EVENT_ATTR_PREFIX.test(attr.name)) {
     const eventName = attr.name.slice(2).toLowerCase()
@@ -271,15 +288,24 @@ function compileAttribute(elVar, tag, attr, lines, scope) {
     )
     return
   }
+
   if (attr.dynamic) {
     const expr = generateTemplateExpression(attr.value, scope)
     const useProperty =
       LIVE_PROPERTY_ATTRS.has(attr.name) && LIVE_PROPERTY_TAGS.has(tag)
+    const useBoolean = BOOLEAN_ATTRS.has(attr.name) && !useProperty
     if (useProperty) {
       // Set the live DOM property, not the attribute, so re-renders
       // after the user has typed (e.g. clearing the form on submit)
       // actually update what's on screen.
       lines.push(`effect(() => { ${elVar}.${attr.name} = ${expr}; });`)
+    } else if (useBoolean) {
+      // Boolean attribute: presence, not string value, is what
+      // matters to the browser. Add it (empty string) when truthy,
+      // remove it entirely when falsy.
+      lines.push(
+        `effect(() => { if (${expr}) { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ""); } else { ${elVar}.removeAttribute(${JSON.stringify(attr.name)}); } });`,
+      )
     } else {
       lines.push(
         `effect(() => { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${expr}); });`,

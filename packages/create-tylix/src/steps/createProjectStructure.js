@@ -12,15 +12,16 @@ const MONOREPO_PACKAGES_DIR = path.join(MONOREPO_ROOT, 'packages')
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^0.1.2',
-  '@tylix/core': '^0.1.3',
-  '@tylix/compiler': '^0.1.2',
-  '@tylix/generator': '^0.1.2',
-  '@tylix/orm': '^0.1.3',
-  '@tylix/shared': '^0.1.3',
-  '@tylix/auth': '^0.1.2',
-  'tylix-icons': '^0.1.2',
+  '@tylix/cli': '^0.2.0',
+  '@tylix/core': '^0.2.0',
+  '@tylix/compiler': '^0.2.0',
+  '@tylix/generator': '^0.2.0',
+  '@tylix/orm': '^0.2.0',
+  '@tylix/shared': '^0.2.0',
+  '@tylix/auth': '^0.2.0',
+  'tylix-icons': '^0.2.0',
 }
+
 function buildDatabaseEnvLines(config) {
   const projectSlug = config.projectName
   const driver = config.database
