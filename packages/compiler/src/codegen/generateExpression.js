@@ -20,9 +20,13 @@ export function generateExpression(node, typed = false) {
       return node.name
 
     case 'MemberExpression':
-      return node.computed
-        ? `${generateExpression(node.object, typed)}[${generateExpression(node.property, typed)}]`
-        : `${generateExpression(node.object, typed)}.${node.property}`
+      if (node.computed) {
+        return `${generateExpression(node.object, typed)}${node.optional ? '?.' : ''}[${generateExpression(node.property, typed)}]`
+      }
+      return `${generateExpression(node.object, typed)}${node.optional ? '?.' : '.'}${node.property}`
+
+    case 'NullishCoalescingExpression':
+      return `(${generateExpression(node.left, typed)} ?? ${generateExpression(node.right, typed)})`
 
     case 'NewExpression': {
       const args = node.args.map((a) => generateExpression(a, typed)).join(', ')

@@ -37,8 +37,21 @@ export function Identifier(name) {
   return { type: 'Identifier', name }
 }
 
-export function MemberExpr(object, property, computed = false) {
-  return { type: 'MemberExpression', object, property, computed }
+export function ObjectPattern(properties, rest = null) {
+  return { type: 'ObjectPattern', properties, rest }
+}
+
+export function ArrayPattern(elements, rest = null) {
+  return { type: 'ArrayPattern', elements, rest }
+}
+
+export function MemberExpr(
+  object,
+  property,
+  computed = false,
+  optional = false,
+) {
+  return { type: 'MemberExpression', object, property, computed, optional }
 }
 
 export function NewExpr(callee, args) {
@@ -110,6 +123,10 @@ export function UnaryExpr(operator, argument) {
   return { type: 'UnaryExpression', operator, argument }
 }
 
+export function NullishCoalescingExpr(left, right) {
+  return { type: 'NullishCoalescingExpression', left, right }
+}
+
 export function TernaryExpr(condition, consequent, alternate) {
   return { type: 'TernaryExpression', condition, consequent, alternate }
 }
@@ -144,4 +161,13 @@ export function TemplateLiteralExpr(parts) {
 
 export function SpreadElement(argument) {
   return { type: 'SpreadElement', argument }
+}
+export function TryStatement(tryBlock, catchParam, catchBlock, finallyBlock) {
+  return {
+    type: 'TryStatement',
+    tryBlock,
+    catchParam,
+    catchBlock,
+    finallyBlock,
+  }
 }

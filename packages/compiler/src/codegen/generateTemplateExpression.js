@@ -25,14 +25,26 @@ export function generateTemplateExpression(node, scope = new Set()) {
     }
     return `instance.${node.name}`
   }
+
   if (node.type === 'MemberExpression') {
-    return node.computed
-      ? `${generateTemplateExpression(node.object, scope)}[${generateTemplateExpression(node.property, scope)}]`
-      : `${generateTemplateExpression(node.object, scope)}.${node.property}`
+    if (node.computed) {
+      return `${generateTemplateExpression(node.object, scope)}${node.optional ? '?.' : ''}[${generateTemplateExpression(node.property, scope)}]`
+    }
+    return `${generateTemplateExpression(node.object, scope)}${node.optional ? '?.' : '.'}${node.property}`
   }
+
   if (node.type === 'BinaryExpression') {
     return `(${generateTemplateExpression(node.left, scope)} ${node.operator} ${generateTemplateExpression(node.right, scope)})`
   }
+
+  if (node.type === 'NullishCoalescingExpression') {
+    return `(${generateTemplateExpression(node.left, scope)} ?? ${generateTemplateExpression(node.right, scope)})`
+  }
+
+  if (node.type === 'TernaryExpression') {
+    return `(${generateTemplateExpression(node.condition, scope)} ? ${generateTemplateExpression(node.consequent, scope)} : ${generateTemplateExpression(node.alternate, scope)})`
+  }
+
   if (node.type === 'UnaryExpression') {
     return `(${node.operator}${generateTemplateExpression(node.argument, scope)})`
   }

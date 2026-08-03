@@ -37,7 +37,12 @@ export async function fieldAdd(name, fieldArgs = []) {
 
   const newFields = fieldArgs.map((arg) => {
     const [fieldName, fieldType = 'string', modifier] = arg.split(':')
-    return { name: fieldName, type: fieldType, unique: modifier === 'unique' }
+    return {
+      name: fieldName,
+      type: fieldType,
+      unique: modifier === 'unique',
+      system: modifier === 'system',
+    }
   })
 
   for (const f of newFields) {
@@ -67,7 +72,7 @@ export async function fieldAdd(name, fieldArgs = []) {
 
   const fullBlueprint = new Blueprint(name)
   for (const f of manifest.fields) {
-    fullBlueprint.field(f.name, f.type, { unique: f.unique })
+    fullBlueprint.field(f.name, f.type, { unique: f.unique, system: f.system })
   }
   fullBlueprint.table(manifest.table)
   if (manifest.auth) fullBlueprint.auth()

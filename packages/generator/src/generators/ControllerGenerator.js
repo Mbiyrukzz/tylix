@@ -57,6 +57,10 @@ export class ControllerGenerator {
       .filter((r) => r.type === 'belongsTo')
       .map((r) => r.foreignKey)
 
+    const creatableFields = blueprint.fields
+      .filter((f) => !f.system)
+      .map((f) => f.name)
+
     const code = this.templateEngine.render(template, {
       Model: blueprint.name,
       modelLower,
@@ -66,6 +70,7 @@ export class ControllerGenerator {
         blueprint.relations,
       ),
       filterableFields: JSON.stringify(filterableFields),
+      creatableFields: JSON.stringify(creatableFields),
     })
 
     const ext = language === 'typescript' ? 'ts' : 'js'

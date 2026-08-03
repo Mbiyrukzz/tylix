@@ -8,6 +8,7 @@ import {
   BinaryExpr,
   UnaryExpr,
   TernaryExpr,
+  NullishCoalescingExpr,
   ArrowFunctionExpr,
   TemplateLiteralExpr,
   SpreadElement,
@@ -22,6 +23,9 @@ import {
   VariableDeclaration,
   ObjectExpr,
   ArrayExpr,
+  ObjectPattern,
+  ArrayPattern,
+  TryStatement,
   IfStatement,
   ForInStatement,
   ForRangeStatement,
@@ -251,7 +255,89 @@ export class Parser {
       line: startLine,
     }
   }
+  // A binding target is anywhere a name is bound to a value: a plain
+  // identifier, or -- for destructuring -- a nested object/array
+  // pattern. Shared by top-level const/let targets, object pattern
+  // property values, and array pattern elements, so `const { a: { b } }
+  // = x` and `const [[a, b]] = x` both fall out for free instead of
+  // needing separate one-level-deep parsing logic in three places.
+  parseBindingTarget() {
+    if (this.check(TokenType.LBRACE)) return this.parseObjectPattern()
+    if (this.check(TokenType.LBRACKET)) return this.parseArrayPattern()
+    return this.expect(TokenType.IDENTIFIER, 'Expected a binding name').value
+  }
 
+  parseObjectPattern() {
+    this.expect(TokenType.LBRACE, "Expected '{' to start destructuring pattern")
+    const properties = []
+    let rest = null
+    while (!this.check(TokenType.RBRACE)) {
+      if (this.match(TokenType.SPREAD)) {
+        rest = this.expect(
+          TokenType.IDENTIFIER,
+          "Expected identifier after '...'",
+        ).value
+        this.match(TokenType.COMMA)
+        continue
+      }
+      const key = this.expect(
+        TokenType.IDENTIFIER,
+        'Expected a property name',
+      ).value
+      let binding = key
+      if (this.match(TokenType.COLON)) {
+        binding = this.parseBindingTarget()
+      }
+      let defaultValue = null
+      if (this.match(TokenType.EQUALS)) {
+        defaultValue = this.parseAssignment()
+      }
+      properties.push({ key, binding, defaultValue })
+      this.match(TokenType.COMMA)
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close destructuring pattern")
+    return ObjectPattern(properties, rest)
+  }
+
+  parseArrayPattern() {
+    this.expect(
+      TokenType.LBRACKET,
+      "Expected '[' to start array destructuring pattern",
+    )
+    const elements = []
+    let rest = null
+    while (!this.check(TokenType.RBRACKET)) {
+      if (this.match(TokenType.SPREAD)) {
+        rest = this.expect(
+          TokenType.IDENTIFIER,
+          "Expected identifier after '...'",
+        ).value
+        this.match(TokenType.COMMA)
+        continue
+      }
+      // A bare comma (or an immediate closing bracket after a comma)
+      // is a skipped slot -- `const [, second] = arr` -- distinct from
+      // a binding target. Checked before parseBindingTarget() so a
+      // hole doesn't fall through to "Expected a binding name".
+      if (this.check(TokenType.COMMA)) {
+        elements.push(null)
+        this.advance()
+        continue
+      }
+      const binding = this.parseBindingTarget()
+      let defaultValue = null
+      if (this.match(TokenType.EQUALS)) {
+        defaultValue = this.parseAssignment()
+      }
+      elements.push({ binding, defaultValue })
+      this.match(TokenType.COMMA)
+    }
+    this.expect(
+      TokenType.RBRACKET,
+      "Expected ']' to close array destructuring pattern",
+    )
+    return ArrayPattern(elements, rest)
+  }
   parseStatement() {
     const startLine = this.peek().line
     const node = this.parseStatementInner()
@@ -280,6 +366,10 @@ export class Parser {
       return this.parseRepeatStatement()
     }
 
+    if (this.match(TokenType.TRY)) {
+      return this.parseTryStatement()
+    }
+
     if (this.match(TokenType.BREAK)) {
       this.match(TokenType.SEMICOLON)
       return BreakStatement()
@@ -292,14 +382,11 @@ export class Parser {
 
     if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
       const kind = this.advance().type === TokenType.CONST ? 'const' : 'let'
-      const name = this.expect(
-        TokenType.IDENTIFIER,
-        'Expected variable name',
-      ).value
+      const target = this.parseBindingTarget()
       this.expect(TokenType.EQUALS, "Expected '=' in variable declaration")
       const init = this.parseExpression()
       this.match(TokenType.SEMICOLON)
-      return VariableDeclaration(kind, name, init)
+      return VariableDeclaration(kind, target, init)
     }
 
     const expression = this.parseExpression()
@@ -383,6 +470,45 @@ export class Parser {
     return RepeatStatement(count, body)
   }
 
+  parseTryStatement() {
+    this.expect(TokenType.LBRACE, "Expected '{' to start try block")
+    const tryBlock = []
+    while (!this.check(TokenType.RBRACE)) {
+      tryBlock.push(this.parseStatement())
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close try block")
+
+    let catchParam = null
+    let catchBlock = null
+    if (this.match(TokenType.CATCH)) {
+      if (this.match(TokenType.LPAREN)) {
+        catchParam = this.expect(
+          TokenType.IDENTIFIER,
+          'Expected catch parameter name',
+        ).value
+        this.expect(TokenType.RPAREN, "Expected ')' after catch parameter")
+      }
+      this.expect(TokenType.LBRACE, "Expected '{' to start catch block")
+      catchBlock = []
+      while (!this.check(TokenType.RBRACE)) {
+        catchBlock.push(this.parseStatement())
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close catch block")
+    }
+
+    let finallyBlock = null
+    if (this.match(TokenType.FINALLY)) {
+      this.expect(TokenType.LBRACE, "Expected '{' to start finally block")
+      finallyBlock = []
+      while (!this.check(TokenType.RBRACE)) {
+        finallyBlock.push(this.parseStatement())
+      }
+      this.expect(TokenType.RBRACE, "Expected '}' to close finally block")
+    }
+
+    return TryStatement(tryBlock, catchParam, catchBlock, finallyBlock)
+  }
+
   parseExpression() {
     return this.parseAssignment()
   }
@@ -398,7 +524,13 @@ export class Parser {
       return AssignmentExpr(left, value)
     }
 
+    if (this.match(TokenType.NULLISH_EQUALS)) {
+      const value = this.parseAssignment()
+      return AssignmentExpr(left, NullishCoalescingExpr(left, value))
+    }
+
     const compoundOp = COMPOUND_ASSIGNMENT_OPS[this.peek().type]
+
     if (compoundOp) {
       this.advance()
       const value = this.parseAssignment()
@@ -483,7 +615,7 @@ export class Parser {
   }
 
   parseTernary() {
-    const condition = this.parseLogicalOr()
+    const condition = this.parseNullishCoalescing()
     if (this.match(TokenType.QUESTION)) {
       const consequent = this.parseAssignment()
       this.expect(TokenType.COLON, "Expected ':' in ternary expression")
@@ -491,6 +623,15 @@ export class Parser {
       return TernaryExpr(condition, consequent, alternate)
     }
     return condition
+  }
+
+  parseNullishCoalescing() {
+    let left = this.parseLogicalOr()
+    while (this.match(TokenType.NULLISH)) {
+      const right = this.parseLogicalOr()
+      left = NullishCoalescingExpr(left, right)
+    }
+    return left
   }
 
   parseLogicalOr() {
@@ -606,6 +747,25 @@ export class Parser {
         expr = CallExpr(expr, this.parseCallArguments())
         continue
       }
+
+      if (this.match(TokenType.QUESTION_DOT)) {
+        if (this.match(TokenType.LBRACKET)) {
+          const property = this.parseExpression()
+          this.expect(
+            TokenType.RBRACKET,
+            "Expected ']' to close optional computed member access",
+          )
+          expr = MemberExpr(expr, property, true, true)
+          continue
+        }
+        const property = this.expect(
+          TokenType.IDENTIFIER,
+          "Expected a property name after '?.'",
+        ).value
+        expr = MemberExpr(expr, property, false, true)
+        continue
+      }
+
       break
     }
     return expr
@@ -786,9 +946,18 @@ export class Parser {
   parseObjectLiteral() {
     const properties = []
     while (!this.check(TokenType.RBRACE)) {
-      const key = this.check(TokenType.STRING)
+      const isString = this.check(TokenType.STRING)
+      const key = isString
         ? this.advance().value
         : this.expect(TokenType.IDENTIFIER, 'Expected an object key').value
+
+      if (!isString && !this.check(TokenType.COLON)) {
+        // Shorthand: { name } means { name: name }
+        properties.push({ key, value: Identifier(key) })
+        this.match(TokenType.COMMA)
+        continue
+      }
+
       this.expect(TokenType.COLON, "Expected ':' after object key")
       const value = this.parseExpression()
       properties.push({ key, value })

@@ -132,6 +132,31 @@ export class Lexer {
         continue
       }
 
+      if (
+        char === '?' &&
+        this.source[this.pos + 1] === '?' &&
+        this.source[this.pos + 2] === '='
+      ) {
+        this.pushToken(TokenType.NULLISH_EQUALS, '??=')
+        this.pos += 3
+        continue
+      }
+
+      if (char === '?' && this.source[this.pos + 1] === '?') {
+        this.pushToken(TokenType.NULLISH, '??')
+        this.pos += 2
+        continue
+      }
+      if (
+        char === '?' &&
+        this.source[this.pos + 1] === '.' &&
+        !/[0-9]/.test(this.source[this.pos + 2] ?? '')
+      ) {
+        this.pushToken(TokenType.QUESTION_DOT, '?.')
+        this.pos += 2
+        continue
+      }
+
       if (char === '?') {
         this.pushToken(TokenType.QUESTION, '?')
         this.pos++

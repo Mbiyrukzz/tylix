@@ -21,6 +21,15 @@ export function typedTemplateExpr(node, scope) {
   if (node.type === 'UnaryExpression') {
     return `(${node.operator}${typedTemplateExpr(node.argument, scope)})`
   }
+
+  if (node.type === 'TernaryExpression') {
+    return `(${typedTemplateExpr(node.condition, scope)} ? ${typedTemplateExpr(node.consequent, scope)} : ${typedTemplateExpr(node.alternate, scope)})`
+  }
+
+  if (node.type === 'NullishCoalescingExpression') {
+    return `(${typedTemplateExpr(node.left, scope)} ?? ${typedTemplateExpr(node.right, scope)})`
+  }
+
   if (node.type === 'AssignmentExpression') {
     return `${typedTemplateExpr(node.target, scope)} = ${typedTemplateExpr(node.value, scope)}`
   }

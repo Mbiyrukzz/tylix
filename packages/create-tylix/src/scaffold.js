@@ -60,13 +60,32 @@ async function runWizard(initialProjectName) {
   })
   printDivider(110)
 
+  let databaseUser = ''
   let databasePassword = ''
   if (database === 'postgres' || database === 'mysql') {
+    const defaultUser = database === 'postgres' ? 'postgres' : 'root'
+
+    const userChoice = await select({
+      message: 'Database User',
+      choices: [
+        { label: defaultUser, value: defaultUser, hint: 'Default admin user' },
+        { label: 'Custom…', value: '__custom__' },
+      ],
+    })
+    printDivider(110)
+
+    if (userChoice === '__custom__') {
+      databaseUser = await text({
+        message: 'Enter database username',
+        initial: defaultUser,
+      })
+      printDivider(110)
+    } else {
+      databaseUser = userChoice
+    }
+
     databasePassword = await password({
-      message:
-        database === 'postgres'
-          ? 'Enter the password you set for your local PostgreSQL "postgres" user'
-          : 'Enter the password you set for your local MySQL "root" user',
+      message: `Enter the password for the "${databaseUser}" user`,
     })
     printDivider(110)
   }
@@ -115,6 +134,9 @@ async function runWizard(initialProjectName) {
     `Language          ${cyanBright(language === 'javascript' ? 'JavaScript' : 'TypeScript')}`,
   )
   console.log(`Database          ${cyanBright(database)}`)
+  if (databaseUser) {
+    console.log(`Database User     ${cyanBright(databaseUser)}`)
+  }
   console.log(
     `Authentication    ${authEnabled ? green('Enabled') : dim('Disabled')}`,
   )
@@ -135,6 +157,7 @@ async function runWizard(initialProjectName) {
     projectName,
     language,
     database,
+    databaseUser,
     databasePassword,
     authEnabled,
     styling,
@@ -149,53 +172,94 @@ async function runBuildSteps(config) {
   console.log(`\n${bold('Creating your Tylix application...')}\n`)
 
   const steps = [
-    ['Creating project structure', () => createProjectStructure(config)],
+    {
+      label: 'Creating project structure',
+      fn: () => createProjectStructure(config),
+    },
   ]
   if (config.installNow) {
-    steps.push(['Installing packages', () => installPackages(config)])
+    steps.push({
+      label: 'Installing packages',
+      fn: () => installPackages(config),
+    })
   }
   steps.push(
-    ['Configuring compiler', () => writeCompilerConfig(config)],
-    ['Configuring ORM', () => writeOrmConfig(config)],
-    ['Configuring database', () => writeDatabaseConfig(config)],
-    ['Configuring styling', () => writeStylingConfig(config)],
+    { label: 'Configuring compiler', fn: () => writeCompilerConfig(config) },
+    { label: 'Configuring ORM', fn: () => writeOrmConfig(config) },
+    { label: 'Configuring database', fn: () => writeDatabaseConfig(config) },
+    { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
   )
   if (config.authEnabled) {
-    steps.push(['Generating authentication', () => generateAuth(config)])
+    steps.push({
+      label: 'Generating authentication',
+      fn: () => generateAuth(config),
+    })
   }
   steps.push(
-    ['Creating dashboard', () => writePage(config, 'Dashboard')],
-    ['Creating Home page', () => writePage(config, 'Home')],
+    { label: 'Creating dashboard', fn: () => writePage(config, 'Dashboard') },
+    { label: 'Creating Home page', fn: () => writePage(config, 'Home') },
   )
   if (config.authEnabled) {
     steps.push(
-      ['Creating Login page', () => writePage(config, 'Login')],
-      ['Creating Register page', () => writePage(config, 'Register')],
+      { label: 'Creating Login page', fn: () => writePage(config, 'Login') },
+      {
+        label: 'Creating Register page',
+        fn: () => writePage(config, 'Register'),
+      },
     )
   }
   steps.push(
-    ['Creating middleware', () => writeMiddleware(config)],
-    ['Creating layouts', () => writeLayout(config)],
-    ['Creating components', () => writeComponents(config)],
-    ['Creating API routes', () => writeApiRoutes(config)],
+    { label: 'Creating middleware', fn: () => writeMiddleware(config) },
+    { label: 'Creating layouts', fn: () => writeLayout(config) },
+    { label: 'Creating components', fn: () => writeComponents(config) },
+    { label: 'Creating API routes', fn: () => writeApiRoutes(config) },
   )
   if (config.starter === 'starter' && config.authEnabled) {
-    steps.push(['Creating Post feature', () => generatePostBoilerplate(config)])
+    steps.push({
+      label: 'Creating Post feature',
+      fn: () => generatePostBoilerplate(config),
+    })
   }
-  steps.push(['Creating migrations', () => runMigrations(config)])
+  // Marked optional: a bad password or an unreachable database server
+  // shouldn't abort the whole scaffold. The project is still fully
+  // usable without migrations having run -- the dev can fix their
+  // .env and run `tylix migrate` by hand afterwards.
+  steps.push({
+    label: 'Creating migrations',
+    fn: () => runMigrations(config),
+    optional: true,
+    warningMessage:
+      "Couldn't connect to the database to run migrations — that's okay, you can always configure it later in your .env file and run `tylix migrate` yourself.",
+  })
   if (config.gitInit) {
-    steps.push(['Initializing Git repository', () => initGit(config)])
+    steps.push({
+      label: 'Initializing Git repository',
+      fn: () => initGit(config),
+    })
   }
-  steps.push(['Finalizing project', () => finalize(config)])
+  steps.push({ label: 'Finalizing project', fn: () => finalize(config) })
 
+  const warnings = []
   const progress = createProgressBar(steps.length)
   for (let i = 0; i < steps.length; i++) {
-    const [label, fn] = steps[i]
-    progress.render(label, i)
-    await fn()
+    const step = steps[i]
+    progress.render(step.label, i)
+    try {
+      await step.fn()
+    } catch (err) {
+      if (!step.optional) throw err
+      warnings.push(
+        step.warningMessage ?? `Skipped "${step.label}": ${err.message}`,
+      )
+    }
   }
   progress.render('Done', steps.length)
   console.log()
+
+  for (const message of warnings) {
+    console.log(yellow(`⚠ ${message}`))
+  }
+  if (warnings.length) console.log()
 }
 
 function printSuccessScreen(config) {

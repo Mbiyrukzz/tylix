@@ -33,7 +33,7 @@ function buildDatabaseEnvLines(config) {
         `DATABASE_DRIVER=postgres`,
         `DATABASE_HOST=127.0.0.1`,
         `DATABASE_PORT=5432`,
-        `DATABASE_USER=postgres`,
+        `DATABASE_USER=${config.databaseUser || 'postgres'}`,
         `DATABASE_PASSWORD=${dbPassword}`,
         `DATABASE_NAME=${projectSlug}`,
       ]
@@ -42,7 +42,7 @@ function buildDatabaseEnvLines(config) {
         `DATABASE_DRIVER=mysql`,
         `DATABASE_HOST=127.0.0.1`,
         `DATABASE_PORT=3306`,
-        `DATABASE_USER=root`,
+        `DATABASE_USER=${config.databaseUser || 'root'}`,
         `DATABASE_PASSWORD=${dbPassword}`,
         `DATABASE_NAME=${projectSlug}`,
       ]

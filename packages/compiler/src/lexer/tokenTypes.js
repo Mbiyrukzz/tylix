@@ -10,6 +10,9 @@ export const TokenType = {
   PROPS: 'PROPS',
   ONMOUNT: 'ONMOUNT',
   NEW: 'NEW',
+  TRY: 'TRY',
+  CATCH: 'CATCH',
+  FINALLY: 'FINALLY',
 
   // Literals
   IDENTIFIER: 'IDENTIFIER',
@@ -31,6 +34,9 @@ export const TokenType = {
   SPREAD: 'SPREAD', // ...
   ARROW: 'ARROW', // =>
   QUESTION: 'QUESTION', // ?
+  QUESTION_DOT: 'QUESTION_DOT', // ?.
+  NULLISH: 'NULLISH', // ??
+  NULLISH_EQUALS: 'NULLISH_EQUALS', // ??=
   RETURN: 'RETURN',
   ASYNC: 'ASYNC',
   AWAIT: 'AWAIT',
@@ -113,4 +119,7 @@ export const KEYWORDS = {
   repeat: TokenType.REPEAT,
   break: TokenType.BREAK,
   continue: TokenType.CONTINUE,
+  try: TokenType.TRY,
+  catch: TokenType.CATCH,
+  finally: TokenType.FINALLY,
 }

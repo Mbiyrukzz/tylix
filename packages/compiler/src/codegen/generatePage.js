@@ -14,7 +14,7 @@ import { generateExpression } from './generateExpression.js'
  * The generated class expects `reactive` to be in scope where the
  * module is evaluated (imported from @tylix/compiler's runtime).
  */
-export function generatePage(pageNode, className = 'Page') {
+export function generatePage(pageNode, className = 'Page', target = 'client') {
   const propAssignments = pageNode.props
     .map((p) => `    this.${p.name} = props.${p.name};`)
     .join('\n')
@@ -47,17 +47,23 @@ export function generatePage(pageNode, className = 'Page') {
     .map((a) => generateMethod(a))
     .join('\n\n')
 
-  const onMountCall = pageNode.onMount ? `    this.__onMount();\n` : ''
+  // onMount is only ever emitted into the class at all when
+  // generating for the client bundle. Server-side (SSR) output never
+  // contains the onMount call OR its method body -- there's no
+  // runtime guard to rely on, because the code simply isn't there.
+  const onMountCall =
+    pageNode.onMount && target === 'client' ? `    this.__onMount();\n` : ''
 
-  const onMountMethod = pageNode.onMount
-    ? (() => {
-        const body = pageNode.onMount.body
-          .map((stmt) => `    ${statementSource(stmt)}`)
-          .join('\n')
-        const asyncPrefix = pageNode.onMount.isAsync ? 'async ' : ''
-        return `  ${asyncPrefix}__onMount() {\n${body}\n  }`
-      })()
-    : ''
+  const onMountMethod =
+    pageNode.onMount && target === 'client'
+      ? (() => {
+          const body = pageNode.onMount.body
+            .map((stmt) => `    ${statementSource(stmt)}`)
+            .join('\n')
+          const asyncPrefix = pageNode.onMount.isAsync ? 'async ' : ''
+          return `  ${asyncPrefix}__onMount() {\n${body}\n  }`
+        })()
+      : ''
 
   return `class ${className} {
   constructor(props = {}) {
