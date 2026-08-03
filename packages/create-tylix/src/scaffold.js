@@ -11,6 +11,8 @@ import {
   yellow,
   red,
 } from '@tylix/shared'
+
+import { detectDatabaseUsers } from './utils/detectDatabaseUsers.js'
 import { createProgressBar } from './utils/progress.js'
 import { select, confirm, text, password } from './utils/prompt.js'
 import { createProjectStructure } from './steps/createProjectStructure.js'
@@ -64,13 +66,29 @@ async function runWizard(initialProjectName) {
   let databasePassword = ''
   if (database === 'postgres' || database === 'mysql') {
     const defaultUser = database === 'postgres' ? 'postgres' : 'root'
+    const detectedUsers = detectDatabaseUsers(database)
+
+    const choices = detectedUsers
+      ? detectedUsers.map((name) => ({
+          label: name,
+          value: name,
+          hint: name === defaultUser ? 'Default admin user' : undefined,
+        }))
+      : [
+          {
+            label: defaultUser,
+            value: defaultUser,
+            hint: 'Common default — not verified',
+          },
+        ]
+
+    choices.push({ label: 'Custom…', value: '__custom__' })
 
     const userChoice = await select({
-      message: 'Database User',
-      choices: [
-        { label: defaultUser, value: defaultUser, hint: 'Default admin user' },
-        { label: 'Custom…', value: '__custom__' },
-      ],
+      message: detectedUsers
+        ? 'Database User (detected from your local server)'
+        : 'Database User',
+      choices,
     })
     printDivider(110)
 
