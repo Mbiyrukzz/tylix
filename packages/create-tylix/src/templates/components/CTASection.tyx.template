@@ -6,7 +6,7 @@ props
   loggedIn: boolean
 
 template
-  <section class="px-6 py-28 text-center bg-white dark:bg-slate-950 transition-colors">
+  <section class="px-6 py-28 text-center bg-slate-100 dark:bg-slate-950 transition-colors">
 {{#if not loggedIn}}
     <h2 class="text-4xl font-semibold text-slate-900 dark:text-slate-100 mb-4 tracking-tight">Ready to build something real?</h2>
     <p class="text-slate-500 mb-10 max-w-md mx-auto">
