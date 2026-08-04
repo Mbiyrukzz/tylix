@@ -1,0 +1,9 @@
+component IconWarehouse
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 21V10.5L12 4.5l9 6V21M3 21h18M7.5 21v-6h9v6" />
+</svg>

@@ -1,0 +1,10 @@
+component IconTree
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-6.75" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 3 6 10.5h3L6 15h4.5l-2.25 3.75h7.5L13.5 15H18l-3-4.5h3L12 3Z" />
+</svg>

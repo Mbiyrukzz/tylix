@@ -1,0 +1,10 @@
+component IconInvoice
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5a1.5 1.5 0 0 1 1.5 1.5v15l-3-2.25-3 2.25-3-2.25-3 2.25v-15a1.5 1.5 0 0 1 1.5-1.5Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25h6M9 11.25h6" />
+</svg>

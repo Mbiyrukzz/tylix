@@ -15,6 +15,8 @@ import {
   loadCustomRoutes,
 } from '@tylix/core'
 
+import { MailLog } from '@tylix/mail'
+
 import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
 import {
   watchDirectoryTree,
@@ -504,6 +506,25 @@ export async function dev({ port = 3000 } = {}) {
           table: f.manifest.table,
         })),
     })
+  })
+
+  router.get('/api/_tylix/mail-logs', async (req, res) => {
+    const logs = await MailLog.recent(50)
+    res.json({ data: logs })
+  })
+
+  router.post('/api/_tylix/test-mail', async (req, res) => {
+    const { Mail } = await import('@tylix/mail')
+    const result = await Mail.send(
+      {
+        to: 'test@example.com',
+        subject: 'Test Email',
+        view: 'test',
+        data: { name: 'World' },
+      },
+      config.mail,
+    )
+    res.json({ result })
   })
 
   const authEnabled = await registerAuthRoutes(router, baseDir, config.auth)

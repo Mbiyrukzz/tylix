@@ -1,0 +1,9 @@
+component IconCrop
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 2.25V15a2.25 2.25 0 0 0 2.25 2.25H21M2.25 6H15a2.25 2.25 0 0 1 2.25 2.25V21" />
+</svg>

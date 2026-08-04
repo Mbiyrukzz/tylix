@@ -1,0 +1,10 @@
+component IconIdCard
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5A1.5 1.5 0 0 1 21.75 8.25v9a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5v-9a1.5 1.5 0 0 1 1.5-1.5Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 0c-1.5 0-2.625.75-2.625 2.25M12.75 10.5h6M12.75 13.5h6" />
+</svg>

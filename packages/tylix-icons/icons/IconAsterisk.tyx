@@ -1,0 +1,9 @@
+component IconAsterisk
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M20.5 7.5 3.5 16.5M3.5 7.5l17 9" />
+</svg>

@@ -1,0 +1,11 @@
+{
+  "name": "@tylix/mail",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@tylix/shared": "^0.2.0",
+    "@tylix/orm": "^0.2.0",
+    "@tylix/generator": "^0.2.0"
+  }
+}

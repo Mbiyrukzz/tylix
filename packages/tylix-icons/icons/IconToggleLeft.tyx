@@ -1,0 +1,10 @@
+component IconToggleLeft
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12a4.5 4.5 0 0 1 4.5-4.5h7.5a4.5 4.5 0 0 1 0 9h-7.5a4.5 4.5 0 0 1-4.5-4.5Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 14.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5Z" />
+</svg>

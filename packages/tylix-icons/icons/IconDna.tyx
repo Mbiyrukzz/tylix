@@ -1,0 +1,9 @@
+component IconDna
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 3.75c3 3 9 3 12 0M6 20.25c3-3 9-3 12 0M8.25 7.5h7.5M7.5 11.25h9M7.5 12.75h9M8.25 16.5h7.5" />
+</svg>

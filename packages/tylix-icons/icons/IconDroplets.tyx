@@ -1,0 +1,10 @@
+component IconDroplets
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 3s-3.75 4.5-3.75 7.125a3.75 3.75 0 0 0 7.5 0C12.75 7.5 9 3 9 3Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5s-2.25 2.7-2.25 4.275a2.25 2.25 0 0 0 4.5 0c0-1.575-2.25-4.275-2.25-4.275Z" />
+</svg>

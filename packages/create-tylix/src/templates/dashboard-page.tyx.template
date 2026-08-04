@@ -9,6 +9,7 @@ state
   posts: []
   postsLoading: true
   theme: "dark"
+  mailCount: 0
 
 action
   addPost(post) {
@@ -52,6 +53,11 @@ onMount
       this.posts = postsResult.data
     }
     this.postsLoading = false
+
+    const mailResult = await useApi("/api/_tylix/mail-logs")
+    if mailResult.ok {
+      this.mailCount = mailResult.data.data.length
+    }
   }
 
 template
@@ -148,7 +154,7 @@ template
       </div>
 {{/if}}
 
-      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 grid grid-cols-1 md:grid-cols-3">
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 grid grid-cols-1 md:grid-cols-4">
         <div class="p-5">
           <div class="flex items-center gap-1.5 mb-1">
             <IconUser class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
@@ -172,6 +178,13 @@ template
           </div>
           <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ posts.length }} created</p>
         </div>
+        <a href="/dashboard/mail" class="p-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+          <div class="flex items-center gap-1.5 mb-1">
+            <IconDocument class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+            <p class="text-slate-400 dark:text-slate-500 text-xs">Mail</p>
+          </div>
+          <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ mailCount }} sent</p>
+        </a>
       </div>
 
       <a href="/" class="inline-flex items-center gap-1.5 text-emerald-500 text-sm hover:underline mt-8">

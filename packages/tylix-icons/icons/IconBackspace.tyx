@@ -1,0 +1,10 @@
+component IconBackspace
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12.75 15.75 15 13.5m0 0 2.25-2.25M15 13.5l-2.25-2.25M15 13.5l2.25 2.25" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12 9 5.25h9.75a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H9L3.75 12Z" />
+</svg>

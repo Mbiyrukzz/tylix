@@ -1,0 +1,11 @@
+component IconBatteryLow
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 8.25h13.5a1.5 1.5 0 0 1 1.5 1.5v4.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5v-4.5a1.5 1.5 0 0 1 1.5-1.5Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5h1.125A.375.375 0 0 1 21 10.875v2.25a.375.375 0 0 1-.375.375H19.5" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 10.5h1.5v3H6z" />
+</svg>

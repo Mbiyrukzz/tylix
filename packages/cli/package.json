@@ -11,6 +11,7 @@
     "@tylix/compiler": "^0.2.0",
     "@tylix/core": "^0.2.0",
     "@tylix/generator": "^0.2.0",
+    "@tylix/mail": "^0.2.0",
     "@tylix/orm": "^0.2.0",
     "@tylix/shared": "^0.2.0"
   }

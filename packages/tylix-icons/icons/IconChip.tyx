@@ -1,0 +1,11 @@
+component IconChip
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M15.75 3v1.5M8.25 19.5V21M15.75 19.5V21M3 8.25h1.5M3 15.75h1.5M19.5 8.25H21M19.5 15.75H21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M5.25 6h13.5v12H5.25V6Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 9.75h6v4.5H9z" />
+</svg>

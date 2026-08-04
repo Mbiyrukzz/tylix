@@ -1,0 +1,10 @@
+component IconWand
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L3 16.5l4.5 4.5 6.091-6.091a2.25 2.25 0 0 1 1.591-.659h5.714" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18 3l.75 1.5L20.25 5.25 18.75 6 18 7.5l-.75-1.5L15.75 5.25 17.25 4.5 18 3Z" />
+</svg>

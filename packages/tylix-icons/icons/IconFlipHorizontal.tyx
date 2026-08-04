@@ -1,0 +1,9 @@
+component IconFlipHorizontal
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M17.25 6.75 20.25 12l-3 5.25M6.75 6.75 3.75 12l3 5.25" />
+</svg>

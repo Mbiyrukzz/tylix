@@ -1,0 +1,9 @@
+component IconUnderline
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 4.5v7.5a5.25 5.25 0 0 0 10.5 0V4.5M5.25 19.5h13.5" />
+</svg>

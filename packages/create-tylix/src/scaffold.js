@@ -27,6 +27,7 @@ import { writePage, writeLayout } from './steps/writePage.js'
 import { writeMiddleware } from './steps/writeMiddleware.js'
 import { writeComponents } from './steps/writeComponents.js'
 import { writeApiRoutes } from './steps/writeApiRoutes.js'
+import { writeMailConfig } from './steps/writeMailConfig.js'
 import { runMigrations } from './steps/runMigrations.js'
 import { initGit } from './steps/initGit.js'
 import { finalize } from './steps/finalize.js'
@@ -205,6 +206,7 @@ async function runBuildSteps(config) {
     { label: 'Configuring compiler', fn: () => writeCompilerConfig(config) },
     { label: 'Configuring ORM', fn: () => writeOrmConfig(config) },
     { label: 'Configuring database', fn: () => writeDatabaseConfig(config) },
+    { label: 'Configuring mail', fn: () => writeMailConfig(config) },
     { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
   )
   if (config.authEnabled) {

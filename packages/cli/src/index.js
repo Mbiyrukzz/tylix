@@ -5,10 +5,12 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { makeModel } from './commands/makeModel.js'
+import { listFeatures } from './commands/listFeatures.js'
 import { makeMigration } from './commands/makeMigration.js'
 import { makeController } from './commands/makeController.js'
 import { makeValidator } from './commands/makeValidator.js'
 import { makeFeature } from './commands/makeFeature.js'
+import { removeFeature } from './commands/removeFeature.js'
 import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
 import { makeComponent } from './commands/makeComponent.js'
@@ -23,6 +25,8 @@ import { doctor } from './commands/doctor.js'
 import { dbSeed } from './commands/dbSeed.js'
 import { migrate } from './commands/migrate.js'
 import { makeIcon } from './commands/makeIcon.js'
+import { makeService } from './commands/makeService.js'
+import { makeMail } from './commands/makeMail.js'
 import { dev } from './commands/dev.js'
 import { build } from './commands/build.js'
 
@@ -53,6 +57,11 @@ async function main() {
 
   if (command === 'build') {
     await build()
+    return
+  }
+
+  if (command === 'list:features') {
+    await listFeatures()
     return
   }
 
@@ -109,6 +118,26 @@ async function main() {
     return
   }
 
+  if (command === 'make:service') {
+    const [name] = rest
+    if (!name) {
+      console.error('Usage: tylix make:service <Name>')
+      process.exit(1)
+    }
+    await makeService(name)
+    return
+  }
+
+  if (command === 'make:mail') {
+    const [name] = rest
+    if (!name) {
+      console.error('Usage: tylix make:mail <Name>')
+      process.exit(1)
+    }
+    await makeMail(name)
+    return
+  }
+
   if (command === 'make:channel') {
     const [name] = rest
     if (!name) {
@@ -153,6 +182,17 @@ async function main() {
     await makeComponent(name)
     return
   }
+
+  if (command === 'remove:feature') {
+    const yes = rest.includes('--yes') || rest.includes('-y')
+    const [name] = rest.filter((a) => a !== '--yes' && a !== '-y')
+    if (!name) {
+      console.error('Usage: tylix remove:feature <Name> [--yes]')
+      process.exit(1)
+    }
+    await removeFeature(name, { yes })
+    return
+  }
   // --dashboard is a flag, not a field:type argument -- pull it out
   // before splitting subject/fields so it doesn't get misparsed as a
   // field definition by makeFeature's field-arg loop.
@@ -171,7 +211,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, migrate, make:auth, make:page, make:component, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, migrate, db:seed, make:auth, make:page, make:component, make:validator, make:service, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

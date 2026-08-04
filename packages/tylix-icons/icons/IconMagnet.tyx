@@ -1,0 +1,9 @@
+component IconMagnet
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 15V9a6 6 0 0 1 12 0v6M6 15a3 3 0 0 0 6 0v-3M12 15a3 3 0 0 0 6 0M4.5 9h3M16.5 9h3" />
+</svg>

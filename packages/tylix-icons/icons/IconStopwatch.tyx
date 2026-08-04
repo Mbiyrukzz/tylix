@@ -1,0 +1,11 @@
+component IconStopwatch
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75l2.25 1.5" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18 13.5a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.75h4.5M12 3.75V6" />
+</svg>

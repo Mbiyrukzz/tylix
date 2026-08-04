@@ -1,0 +1,9 @@
+component IconHourglass
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5v3.75L12 12l5.25 4.5v3.75H6.75v-3.75L12 12 6.75 7.5V3.75Z" />
+</svg>

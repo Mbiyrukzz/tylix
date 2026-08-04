@@ -1,4 +1,4 @@
-import { TokenType } from '../lexer/tokenTypes.js'
+import { TokenType, KEYWORDS } from '../lexer/tokenTypes.js'
 import {
   PageNode,
   PropNode,
@@ -52,6 +52,8 @@ const MULTIPLICATIVE_SYMBOLS = {
   [TokenType.SLASH]: '/',
   [TokenType.PERCENT]: '%',
 }
+
+const KEYWORD_TOKEN_TYPES = new Set(Object.values(KEYWORDS))
 
 // Compound assignment desugars at parse time into a plain
 // AssignmentExpression whose value is a BinaryExpression -- e.g.
@@ -338,6 +340,21 @@ export class Parser {
     )
     return ArrayPattern(elements, rest)
   }
+
+  parsePropertyName(context) {
+    const token = this.peek()
+    if (
+      token.type === TokenType.IDENTIFIER ||
+      KEYWORD_TOKEN_TYPES.has(token.type)
+    ) {
+      this.advance()
+      return token.value
+    }
+    throw new Error(
+      `Expected a property name ${context} at line ${token.line}, got ${token.type}`,
+    )
+  }
+
   parseStatement() {
     const startLine = this.peek().line
     const node = this.parseStatementInner()
@@ -727,10 +744,7 @@ export class Parser {
     let expr = this.parsePrimary()
     while (true) {
       if (this.match(TokenType.DOT)) {
-        const property = this.expect(
-          TokenType.IDENTIFIER,
-          "Expected a property name after '.'",
-        ).value
+        const property = this.parsePropertyName("after '.'")
         expr = MemberExpr(expr, property)
         continue
       }
@@ -758,10 +772,7 @@ export class Parser {
           expr = MemberExpr(expr, property, true, true)
           continue
         }
-        const property = this.expect(
-          TokenType.IDENTIFIER,
-          "Expected a property name after '?.'",
-        ).value
+        const property = this.parsePropertyName("after '?.'")
         expr = MemberExpr(expr, property, false, true)
         continue
       }
