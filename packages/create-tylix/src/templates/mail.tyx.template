@@ -71,7 +71,7 @@ template
         <button onclick="{{ selectLog(log) }}" class="w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between gap-4">
           <div class="min-w-0">
             <p class="text-slate-900 dark:text-slate-100 text-sm font-medium truncate">{{ log.subject }}</p>
-            <p class="text-slate-500 text-xs truncate">To: {{ log.to }}</p>
+            <p class="text-slate-500 text-xs truncate">To: {{ log.recipient }}</p>
           </div>
           <div class="flex items-center gap-2 shrink-0">
 {{#if log.status is "sent"}}
@@ -94,7 +94,7 @@ template
       <div class="fixed inset-0 bg-black/40 flex items-center justify-center p-6 z-50" onclick="{{ closeDetail() }}">
         <div class="bg-white dark:bg-slate-900 rounded-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6">
           <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1">{{ selectedLog.subject }}</h3>
-          <p class="text-slate-500 text-xs mb-4">To: {{ selectedLog.to }} · {{ selectedLog.driver }} · {{ selectedLog.status }}</p>
+          <p class="text-slate-500 text-xs mb-4">To: {{ selectedLog.recipient }} · {{ selectedLog.driver }} · {{ selectedLog.status }}</p>
 {{#if selectedLog.error}}
           <p class="text-red-500 text-sm mb-4">{{ selectedLog.error }}</p>
 {{/if}}

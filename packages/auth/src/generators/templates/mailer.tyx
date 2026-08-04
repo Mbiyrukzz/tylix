@@ -5,19 +5,21 @@
  * Version: 0.1.0
  * Feature: Auth
  *
- * This file is meant to be edited — wire up a real email provider
- * (Resend, Postmark, SES, etc.) using environment variables. Until then
- * this just logs the links so you can click them during development.
+ * Sends real emails through @tylix/mail. Switch drivers (log → smtp)
+ * in your .env / tylix.config.js — no code changes needed here.
  */
+
+import { VerifyEmailMail } from "./VerifyEmailMail.js";
+import { ResetPasswordMail } from "./ResetPasswordMail.js";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 
-export async function sendVerificationEmail(user, token) {
+export async function sendVerificationEmail(user, token, mailConfig) {
     const verifyUrl = `${APP_URL}/api/auth/verify-email?token=${token}`;
-    console.log(`[mailer] Verification email for ${user.email}: ${verifyUrl}`);
+    await new VerifyEmailMail(verifyUrl).send(user.email, mailConfig);
 }
 
-export async function sendPasswordResetEmail(user, token) {
+export async function sendPasswordResetEmail(user, token, mailConfig) {
     const resetUrl = `${APP_URL}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
-    console.log(`[mailer] Password reset email for ${user.email}: ${resetUrl}`);
+    await new ResetPasswordMail(resetUrl).send(user.email, mailConfig);
 }

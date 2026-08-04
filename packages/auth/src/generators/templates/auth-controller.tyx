@@ -33,9 +33,10 @@ import {
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes, used if config doesn't specify one
 
 export class AuthController {
-    constructor({ secret, tokenExpiresInSeconds } = {}) {
+    constructor({ secret, tokenExpiresInSeconds, mailConfig } = {}) {
         this.secret = secret;
         this.accessTokenTtlSeconds = tokenExpiresInSeconds ?? DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
+        this.mailConfig = mailConfig;
     }
 
     async register(req, res) {
@@ -52,11 +53,11 @@ export class AuthController {
         const user = await User.create(req.body);
 
         const verificationToken = signToken(
-            { userId: user.id, purpose: "email-verify" },
-            this.secret,
-            { expiresInSeconds: 60 * 60 * 24 },
-        );
-        await sendVerificationEmail(user, verificationToken);
+    { userId: user.id, purpose: "email-verify" },
+    this.secret,
+    { expiresInSeconds: 60 * 60 * 24 },
+);
+await sendVerificationEmail(user, verificationToken, this.mailConfig);
 
         return res.status(201).json({
             user: User.toSafeObject(user),
@@ -185,10 +186,10 @@ export class AuthController {
 
         // Always respond the same way whether or not the email exists,
         // so this endpoint can't be used to enumerate registered users.
-        if (user) {
-            const { rawToken } = await PasswordReset.issue(user.email);
-            await sendPasswordResetEmail(user, rawToken);
-        }
+       if (user) {
+    const { rawToken } = await PasswordReset.issue(user.email);
+    await sendPasswordResetEmail(user, rawToken, this.mailConfig);
+}
 
         return res.json({
             ok: true,

@@ -59,6 +59,38 @@ export class AuthGenerator {
       { overwrite: true },
     )
 
+    results.verifyEmailMail = await writeFile(
+      path.join(baseDir, 'app', 'mail', `VerifyEmailMail.${ext}`),
+      await read('verify-email-mail'),
+      { overwrite: true },
+    )
+
+    results.resetPasswordMail = await writeFile(
+      path.join(baseDir, 'app', 'mail', `ResetPasswordMail.${ext}`),
+      await read('reset-password-mail'),
+      { overwrite: true },
+    )
+
+    await fs.mkdir(path.join(baseDir, 'resources', 'mail'), { recursive: true })
+
+    results.verifyEmailView = await writeFile(
+      path.join(baseDir, 'resources', 'mail', 'verify-email.html'),
+      await fs.readFile(
+        path.join(TEMPLATES_DIR, 'verify-email-view.html'),
+        'utf-8',
+      ),
+      { overwrite: true },
+    )
+
+    results.resetPasswordView = await writeFile(
+      path.join(baseDir, 'resources', 'mail', 'reset-password.html'),
+      await fs.readFile(
+        path.join(TEMPLATES_DIR, 'reset-password-view.html'),
+        'utf-8',
+      ),
+      { overwrite: true },
+    )
+
     results.userMigration = await writeFile(
       path.join(
         baseDir,

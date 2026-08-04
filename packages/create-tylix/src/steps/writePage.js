@@ -10,6 +10,7 @@ const TEMPLATE_BY_PAGE = {
   Login: 'login-page.tyx.template',
   Register: 'register-page.tyx.template',
   Dashboard: 'dashboard-page.tyx.template',
+  'dashboard/Mail': 'mail-page.tyx.template',
 }
 
 export async function writePage(config, pageName) {
@@ -22,10 +23,9 @@ export async function writePage(config, pageName) {
     path.join(PACKAGE_ROOT, 'src', 'templates', templateName),
     'utf-8',
   )
-  await fs.writeFile(
-    path.join(targetDir, 'app', 'pages', `${pageName}.tyx`),
-    content,
-  )
+  const outputPath = path.join(targetDir, 'app', 'pages', `${pageName}.tyx`)
+  await fs.mkdir(path.dirname(outputPath), { recursive: true })
+  await fs.writeFile(outputPath, content)
 }
 
 export async function writeLayout(config) {

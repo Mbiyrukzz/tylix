@@ -62,36 +62,45 @@ onMount
 
 template
 {{#if checkedAuth}}
-  <div class="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[240px_1fr] bg-slate-50 dark:bg-slate-950 transition-colors">
+  <div class="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[260px_1fr] bg-slate-50 dark:bg-slate-950 transition-colors">
 
-    <aside class="hidden lg:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-4">
-      <a href="/dashboard" aria-current="page" class="flex items-center gap-2 px-3 py-2 rounded-lg border-l-2 border-emerald-500 bg-emerald-500/5 text-slate-900 dark:text-slate-100 text-sm font-medium mb-1">
-        <IconHome class="w-4 h-4 text-emerald-500" />
+    <aside class="hidden lg:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-5">
+      <div class="flex items-center gap-2.5 mb-8 px-1">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-500/30">
+          <IconHome class="w-4 h-4 text-white" />
+        </div>
+        <span class="text-slate-900 dark:text-slate-100 font-semibold text-sm">Dashboard</span>
+      </div>
+
+      <a href="/dashboard" aria-current="page" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-transparent text-emerald-600 dark:text-emerald-400 text-sm font-medium mb-1">
+        <IconHome class="w-4 h-4" />
         Overview
       </a>
-      <p class="px-3 pt-4 pb-2 text-slate-400 dark:text-slate-600 text-xs font-medium uppercase tracking-wide">Data</p>
+
+      <p class="px-3 pt-6 pb-2 text-slate-400 dark:text-slate-600 text-[11px] font-semibold uppercase tracking-wider">Data</p>
 {{#if features.length is 0}}
       <p class="px-3 py-2 text-slate-400 dark:text-slate-600 text-sm italic">
         No features yet
       </p>
 {{/if}}
 {{#each f in features}}
-      <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 text-sm hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
+      <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-500 dark:text-slate-400 text-sm hover:bg-slate-100 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
+        <div class="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700"></div>
         {{ f.name }}
       </a>
 {{/each}}
     </aside>
 
-    <div class="px-6 lg:px-10 py-10">
+    <div class="px-6 lg:px-12 py-10">
       <div class="flex items-center justify-between mb-10">
         <div>
-          <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Dashboard</h1>
 {{#if user}}
-          <p class="text-slate-500 text-sm mt-1">Welcome back, {{ user.name }}.</p>
+          <p class="text-emerald-500 text-xs font-semibold uppercase tracking-wider mb-1">Welcome back</p>
+          <h1 class="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ user.name }}</h1>
 {{/if}}
         </div>
-        <div class="flex items-center gap-2">
-          <button onclick="{{ toggleTheme() }}" aria-label="Toggle color theme" class="w-9 h-9 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
+        <div class="flex items-center gap-3">
+          <button onclick="{{ toggleTheme() }}" aria-label="Toggle color theme" class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors shadow-sm">
 {{#if theme is "dark"}}
             <IconSun class="w-4 h-4" />
 {{/if}}
@@ -99,26 +108,74 @@ template
             <IconMoon class="w-4 h-4" />
 {{/if}}
           </button>
-          <button onclick="{{ logout() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
+{{#if user}}
+          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-sm font-semibold shadow-sm shadow-emerald-500/30">
+            {{ user.email[0].toUpperCase() }}
+          </div>
+{{/if}}
+          <button onclick="{{ logout() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-full px-4 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
             Log out
           </button>
         </div>
       </div>
 
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        <div class="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
+            <IconUser class="w-4 h-4 text-emerald-500" />
+          </div>
+          <p class="text-slate-400 dark:text-slate-500 text-xs mb-1">Signed in as</p>
+{{#if user}}
+          <p class="text-slate-900 dark:text-slate-100 text-sm font-semibold truncate">{{ user.email }}</p>
+{{/if}}
+        </div>
+
+        <div class="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
+            <IconDatabase class="w-4 h-4 text-emerald-500" />
+          </div>
+          <p class="text-slate-400 dark:text-slate-500 text-xs mb-1">Database</p>
+          <p class="text-emerald-500 text-sm font-semibold">Connected</p>
+        </div>
+
+        <div class="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
+            <IconDocument class="w-4 h-4 text-emerald-500" />
+          </div>
+          <p class="text-slate-400 dark:text-slate-500 text-xs mb-1">Posts</p>
+          <p class="text-slate-900 dark:text-slate-100 text-2xl font-bold">{{ posts.length }}</p>
+        </div>
+
+        <a href="/dashboard/mail" class="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 hover:border-emerald-500/40 hover:-translate-y-0.5 transition-all">
+          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
+            <IconFolder class="w-4 h-4 text-emerald-500" />
+          </div>
+          <p class="text-slate-400 dark:text-slate-500 text-xs mb-1">Mail</p>
+          <p class="text-slate-900 dark:text-slate-100 text-2xl font-bold">{{ mailCount }}</p>
+        </a>
+      </div>
+
       <div class="flex items-center justify-between mb-5">
-        <h2 class="text-slate-900 dark:text-slate-100 font-medium">Posts</h2>
+        <div>
+          <h2 class="text-slate-900 dark:text-slate-100 font-semibold text-lg">Posts</h2>
+          <p class="text-slate-400 dark:text-slate-500 text-sm">Everything you've published</p>
+        </div>
         <CreatePostForm onCreated="{{ addPost }}" />
       </div>
 
 {{#if postsLoading}}
-      <p class="text-slate-500 text-sm mb-8">Loading posts…</p>
+      <p class="text-slate-500 text-sm mb-10">Loading posts…</p>
 {{/if}}
 
 {{#if not postsLoading}}
 {{#if posts.length is 0}}
-      <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center mb-8">
-        <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
-          <IconDocument class="w-5 h-5 text-emerald-500" />
+      <div class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 p-10 text-center mb-10">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 flex items-center justify-center mx-auto mb-4">
+          <IconDocument class="w-6 h-6 text-emerald-500" />
         </div>
         <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1.5">No posts yet</h3>
         <p class="text-slate-500 text-sm max-w-sm mx-auto">
@@ -128,10 +185,14 @@ template
 {{/if}}
 
 {{#if posts.length is not 0}}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
 {{#each p in posts}}
-        <a href="{{ '/post/post-detail?id=' + p.id }}" class="block rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-sm transition-all">
-          <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1.5">{{ p.title }}</h3>
+        <a href="{{ '/post/post-detail?id=' + p.id }}" class="group block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/5 transition-all">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+            <span class="text-emerald-500 text-[11px] font-semibold uppercase tracking-wider">Post</span>
+          </div>
+          <h3 class="text-slate-900 dark:text-slate-100 font-semibold mb-1.5 group-hover:text-emerald-500 transition-colors">{{ p.title }}</h3>
           <p class="text-slate-500 text-sm line-clamp-2">{{ p.body }}</p>
         </a>
 {{/each}}
@@ -140,54 +201,24 @@ template
 {{/if}}
 
 {{#if features.length is not 0}}
-      <p class="pb-3 text-slate-400 dark:text-slate-600 text-xs font-medium uppercase tracking-wide">Scaffolded Features</p>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div class="mb-5">
+        <h2 class="text-slate-900 dark:text-slate-100 font-semibold text-lg">Scaffolded Features</h2>
+        <p class="text-slate-400 dark:text-slate-500 text-sm">Generated with tylix make:feature</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
 {{#each f in features}}
-        <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="block rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-sm transition-all">
-          <div class="w-9 h-9 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
+        <a href="{{ '/' + f.name.toLowerCase() + 'dashboard' }}" class="group block rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-emerald-500/5 transition-all">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 flex items-center justify-center mb-4">
             <IconFolder class="w-4 h-4 text-emerald-500" />
           </div>
-          <h3 class="text-slate-900 dark:text-slate-100 font-medium mb-1">{{ f.name }}</h3>
+          <h3 class="text-slate-900 dark:text-slate-100 font-semibold mb-1 group-hover:text-emerald-500 transition-colors">{{ f.name }}</h3>
           <p class="text-slate-500 text-sm">Manage {{ f.table }}</p>
         </a>
 {{/each}}
       </div>
 {{/if}}
 
-      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y md:divide-y-0 md:divide-x divide-slate-200 dark:divide-slate-800 grid grid-cols-1 md:grid-cols-4">
-        <div class="p-5">
-          <div class="flex items-center gap-1.5 mb-1">
-            <IconUser class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            <p class="text-slate-400 dark:text-slate-500 text-xs">Signed in as</p>
-          </div>
-{{#if user}}
-          <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ user.email }}</p>
-{{/if}}
-        </div>
-        <div class="p-5">
-          <div class="flex items-center gap-1.5 mb-1">
-            <IconDatabase class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            <p class="text-slate-400 dark:text-slate-500 text-xs">Database</p>
-          </div>
-          <p class="text-emerald-500 text-sm font-medium">Connected</p>
-        </div>
-        <div class="p-5">
-          <div class="flex items-center gap-1.5 mb-1">
-            <IconDocument class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            <p class="text-slate-400 dark:text-slate-500 text-xs">Posts</p>
-          </div>
-          <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ posts.length }} created</p>
-        </div>
-        <a href="/dashboard/mail" class="p-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-          <div class="flex items-center gap-1.5 mb-1">
-            <IconDocument class="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            <p class="text-slate-400 dark:text-slate-500 text-xs">Mail</p>
-          </div>
-          <p class="text-slate-900 dark:text-slate-100 text-sm font-medium">{{ mailCount }} sent</p>
-        </a>
-      </div>
-
-      <a href="/" class="inline-flex items-center gap-1.5 text-emerald-500 text-sm hover:underline mt-8">
+      <a href="/" class="inline-flex items-center gap-1.5 text-emerald-500 text-sm hover:underline font-medium">
         <IconArrowLeft class="w-4 h-4" /> Back to home
       </a>
     </div>

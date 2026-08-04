@@ -136,7 +136,7 @@ import { bootstrapDatabase } from '../bootstrap.js'
 // them behind a valid access token would make them unreachable exactly
 // when they're needed. Only `me` needs an active session.
 
-async function registerAuthRoutes(router, baseDir, authConfig) {
+async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
   const language = await detectLanguage(baseDir)
   const ext = language === 'typescript' ? 'ts' : 'js'
 
@@ -157,6 +157,7 @@ async function registerAuthRoutes(router, baseDir, authConfig) {
   const controller = new AuthController({
     secret: authConfig.secret,
     tokenExpiresInSeconds: authConfig.tokenExpiresInSeconds,
+    mailConfig,
   })
 
   router.post('/api/register', (req, res) => controller.register(req, res))
@@ -179,7 +180,6 @@ async function registerAuthRoutes(router, baseDir, authConfig) {
 
   return true
 }
-
 function injectHmrScript(html) {
   return html.replace('</body>', `${HMR_CLIENT_SCRIPT}</body>`)
 }
@@ -527,7 +527,12 @@ export async function dev({ port = 3000 } = {}) {
     res.json({ result })
   })
 
-  const authEnabled = await registerAuthRoutes(router, baseDir, config.auth)
+  const authEnabled = await registerAuthRoutes(
+    router,
+    baseDir,
+    config.auth,
+    config.mail,
+  )
   const pageRoutes = await registerPageRoutes(router, baseDir, {
     hotReloadCompiler,
   })

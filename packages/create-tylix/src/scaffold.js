@@ -217,6 +217,10 @@ async function runBuildSteps(config) {
   }
   steps.push(
     { label: 'Creating dashboard', fn: () => writePage(config, 'Dashboard') },
+    {
+      label: 'Creating Mail page',
+      fn: () => writePage(config, 'dashboard/Mail'),
+    },
     { label: 'Creating Home page', fn: () => writePage(config, 'Home') },
   )
   if (config.authEnabled) {

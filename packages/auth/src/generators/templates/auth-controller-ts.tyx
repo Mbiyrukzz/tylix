@@ -36,15 +36,18 @@ const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 interface AuthControllerOptions {
     secret: string;
     tokenExpiresInSeconds?: number;
+    mailConfig: unknown;
 }
 
 export class AuthController {
     secret: string;
     accessTokenTtlSeconds: number;
+    mailConfig: unknown;
 
-    constructor({ secret, tokenExpiresInSeconds }: AuthControllerOptions) {
+    constructor({ secret, tokenExpiresInSeconds, mailConfig }: AuthControllerOptions) {
         this.secret = secret;
         this.accessTokenTtlSeconds = tokenExpiresInSeconds ?? DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
+        this.mailConfig = mailConfig;
     }
 
     async register(req: TylixRequest, res: TylixResponse) {
@@ -63,12 +66,12 @@ export class AuthController {
             return res.status(500).json({ error: "Failed to create user." });
         }
 
-        const verificationToken = signToken(
-            { userId: user.id, purpose: "email-verify" },
-            this.secret,
-            { expiresInSeconds: 60 * 60 * 24 },
-        );
-        await sendVerificationEmail(user, verificationToken);
+      const verificationToken = signToken(
+    { userId: user.id, purpose: "email-verify" },
+    this.secret,
+    { expiresInSeconds: 60 * 60 * 24 },
+);
+await sendVerificationEmail(user, verificationToken, this.mailConfig);
 
         return res.status(201).json({
             user: User.toSafeObject(user),
@@ -195,10 +198,10 @@ export class AuthController {
         const users = await User.all();
         const user = users.find((u) => u.email === req.body.email);
 
-        if (user) {
-            const { rawToken } = await PasswordReset.issue(user.email);
-            await sendPasswordResetEmail(user, rawToken);
-        }
+      if (user) {
+    const { rawToken } = await PasswordReset.issue(user.email);
+    await sendPasswordResetEmail(user, rawToken, this.mailConfig);
+}
 
         return res.json({
             ok: true,

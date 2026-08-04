@@ -1,0 +1,16 @@
+import { Mailable } from '@tylix/mail';
+
+export class VerifyEmailMail extends Mailable {
+    constructor(verifyUrl) {
+        super();
+        this.verifyUrl = verifyUrl;
+    }
+
+    build() {
+        return {
+            subject: 'Verify your email',
+            view: 'verify-email',
+            data: { verifyUrl: this.verifyUrl },
+        };
+    }
+}
