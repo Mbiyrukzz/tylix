@@ -1,4 +1,3 @@
-// ApiHelperGenerator.js
 import path from 'node:path'
 import { writeFile, pluralize } from '@tylix/shared'
 
@@ -59,6 +58,21 @@ export const create${childName}For${parentName} = (${parentParam}, data) =>
 `
   }
 
+  generateResourceFile(name, isTs) {
+    return `import { createResource } from '../createResource.js'
+import { list${name}, create${name}, update${name}, delete${name} } from './${name}.js'
+
+export function create${name}Resource() {
+  return createResource({
+    list: list${name},
+    create: create${name},
+    update: update${name},
+    remove: delete${name},
+  })
+}
+`
+  }
+
   async generate(blueprint, outputDir, language) {
     const isTs = language === 'typescript'
     const ext = isTs ? 'ts' : 'js'
@@ -90,6 +104,12 @@ export const create${childName}For${parentName} = (${parentParam}, data) =>
 
     const outputPath = path.join(outputDir, `${name}.${ext}`)
     await writeFile(outputPath, source, { overwrite: true })
-    return outputPath
+
+    const resourcePath = path.join(outputDir, `${name}Resource.${ext}`)
+    await writeFile(resourcePath, this.generateResourceFile(name, isTs), {
+      overwrite: true,
+    })
+
+    return { flat: outputPath, resource: resourcePath }
   }
 }

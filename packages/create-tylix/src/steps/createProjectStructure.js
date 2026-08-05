@@ -8,6 +8,95 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 const MONOREPO_ROOT = path.resolve(PACKAGE_ROOT, '../..')
 const MONOREPO_PACKAGES_DIR = path.join(MONOREPO_ROOT, 'packages')
 
+const CREATE_RESOURCE_JS_SOURCE = `export function createResource({ list, create, update, remove }) {
+  return reactive({
+    data: [],
+    loading: false,
+    error: null,
+    async load(...args) {
+      this.loading = true
+      this.error = null
+      const result = await list(...args)
+      if (result.ok) {
+        this.data = result.data
+      } else {
+        this.error = result.error ?? 'Failed to load'
+      }
+      this.loading = false
+      return result
+    },
+    async create(payload) {
+      const result = await create(payload)
+      if (result.ok) this.data = [result.data, ...this.data]
+      return result
+    },
+    async update(id, payload) {
+      const result = await update(id, payload)
+      if (result.ok) {
+        this.data = this.data.map((item) => (item.id === id ? result.data : item))
+      }
+      return result
+    },
+    async remove(id) {
+      const result = await remove(id)
+      if (result.ok) this.data = this.data.filter((item) => item.id !== id)
+      return result
+    },
+  })
+}
+`
+
+const CREATE_RESOURCE_TS_SOURCE = `interface ApiResult<T> {
+  ok: boolean
+  data?: T
+  error?: string
+}
+
+interface ResourceConfig<T> {
+  list: (...args: unknown[]) => Promise<unknown>
+  create: (payload: unknown) => Promise<unknown>
+  update: (id: number | string, payload: unknown) => Promise<unknown>
+  remove: (id: number | string) => Promise<unknown>
+}
+
+export function createResource<T extends { id: number | string }>({ list, create, update, remove }: ResourceConfig<T>) {
+  return reactive({
+    data: [] as T[],
+    loading: false,
+    error: null as string | null,
+    async load(...args: unknown[]) {
+      this.loading = true
+      this.error = null
+      const result = (await list(...args)) as ApiResult<T[]>
+      if (result.ok && result.data) {
+        this.data = result.data
+      } else {
+        this.error = result.error ?? 'Failed to load'
+      }
+      this.loading = false
+      return result
+    },
+    async create(payload: unknown) {
+      const result = (await create(payload)) as ApiResult<T>
+      if (result.ok && result.data) this.data = [result.data, ...this.data]
+      return result
+    },
+    async update(id: number | string, payload: unknown) {
+      const result = (await update(id, payload)) as ApiResult<T>
+      if (result.ok && result.data) {
+        this.data = this.data.map((item) => (item.id === id ? result.data! : item))
+      }
+      return result
+    },
+    async remove(id: number | string) {
+      const result = (await remove(id)) as ApiResult<null>
+      if (result.ok) this.data = this.data.filter((item) => item.id !== id)
+      return result
+    },
+  })
+}
+`
+
 // Published version pins, used whenever we're NOT running from inside
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
@@ -144,6 +233,11 @@ export async function createProjectStructure(config) {
       isTs
         ? `export const deleteApi = (table: string, id: number | string) =>\n  useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`
         : `export const deleteApi = (table, id) => useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`,
+    )
+
+    await fs.writeFile(
+      path.join(targetDir, 'app', 'useApi', `createResource.${ext}`),
+      isTs ? CREATE_RESOURCE_TS_SOURCE : CREATE_RESOURCE_JS_SOURCE,
     )
     const dbEnvLines = buildDatabaseEnvLines(config)
 

@@ -5,7 +5,7 @@ import { IconBolt, IconDatabase, IconAdjustments, IconLockClosed, IconFire, Icon
 template
   <section class="px-6 py-24 max-w-5xl mx-auto">
     <div class="text-center mb-14">
-      <h2 class="text-3xl font-semibold text-slate-100 mb-3 tracking-tight">Everything wired up on day one</h2>
+      <h2 class="text-3xl font-semibold text-slate-200 mb-3 tracking-tight">Everything wired up on day one</h2>
       <p class="text-slate-500">Auth, database, styling — pick your stack in the wizard, get a working app.</p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -13,7 +13,7 @@ template
         <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
           <IconBolt class="w-5 h-5 text-emerald-400" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">No virtual DOM</h3>
+        <h3 class="text-slate-200 font-medium mb-2">No virtual DOM</h3>
         <p class="text-slate-400 text-sm leading-relaxed">
           Templates compile to targeted effects — state changes update
           only the text, attribute, or list that depends on them.
@@ -23,7 +23,7 @@ template
         <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
           <IconDatabase class="w-5 h-5 text-emerald-400" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">One ORM, four drivers</h3>
+        <h3 class="text-slate-200 font-medium mb-2">One ORM, four drivers</h3>
         <p class="text-slate-400 text-sm leading-relaxed">
           SQLite, PostgreSQL, MySQL, or MongoDB — swap the driver
           in <code class="text-emerald-400">tylix.config.js</code>.
@@ -33,7 +33,7 @@ template
         <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
           <IconAdjustments class="w-5 h-5 text-emerald-400" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">Generator-first CLI</h3>
+        <h3 class="text-slate-200 font-medium mb-2">Generator-first CLI</h3>
         <p class="text-slate-400 text-sm leading-relaxed">
           <code class="text-emerald-400">tylix make:feature</code> scaffolds a model,
           migration, and full CRUD API in one command.
@@ -43,7 +43,7 @@ template
         <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
           <IconLockClosed class="w-5 h-5 text-emerald-400" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">Auth out of the box</h3>
+        <h3 class="text-slate-200 font-medium mb-2">Auth out of the box</h3>
         <p class="text-slate-400 text-sm leading-relaxed">
           Register, login, and session middleware, scaffolded
           automatically when you opt in during setup.
@@ -53,7 +53,7 @@ template
         <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
           <IconFire class="w-5 h-5 text-emerald-400" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">Instant hot reload</h3>
+        <h3 class="text-slate-200 font-medium mb-2">Instant hot reload</h3>
         <p class="text-slate-400 text-sm leading-relaxed">
           Edit a page or component and see it update in the browser
           without losing state.
@@ -63,7 +63,7 @@ template
         <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
           <IconDocument class="w-5 h-5 text-emerald-400" />
         </div>
-        <h3 class="text-slate-100 font-medium mb-2">Readable syntax</h3>
+        <h3 class="text-slate-200 font-medium mb-2">Readable syntax</h3>
         <p class="text-slate-400 text-sm leading-relaxed">
           Word operators like <code class="text-emerald-400">and</code>, <code class="text-emerald-400">or</code>,
           and <code class="text-emerald-400">not</code> instead of symbols.

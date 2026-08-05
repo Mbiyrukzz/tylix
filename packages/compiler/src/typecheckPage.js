@@ -19,7 +19,7 @@ import { typecheckSource } from './typecheck/typecheckVirtualFile.js'
 // at all and floods the diagnostics list with dozens of
 // cascading-recovery errors, none of which point at anything wrong
 // in the actual .tyx source.
-export function typecheckPage(source) {
+export function typecheckPage(source, apiHelpersSource = '') {
   const { pageName, script, template, scriptStartLine } = parsePageFile(source)
 
   const pageNode =
@@ -35,7 +35,7 @@ export function typecheckPage(source) {
     pageName,
     templateNodes,
   )
-  const diagnostics = typecheckSource(virtualSource)
+  const diagnostics = typecheckSource(virtualSource, apiHelpersSource)
 
   return diagnostics.map((d) => {
     const scriptLine = mapVirtualLineToSource(lineMap, d.virtualLine)

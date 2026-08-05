@@ -2,11 +2,16 @@ import ts from 'typescript'
 import { fileURLToPath } from 'node:url'
 
 const VIRTUAL_FILE_NAME = '__tylix_virtual_page.ts'
+const API_HELPERS_VIRTUAL_FILE_NAME = '__tylix_virtual_api_helpers.ts'
 const GLOBALS_FILE = fileURLToPath(
   new URL('./tylix-globals.d.ts', import.meta.url),
 )
 
-export function typecheckSource(virtualSource, compilerOptions = {}) {
+export function typecheckSource(
+  virtualSource,
+  apiHelpersSource = '',
+  compilerOptions = {},
+) {
   const options = {
     strict: true,
     target: ts.ScriptTarget.ES2022,
@@ -22,18 +27,31 @@ export function typecheckSource(virtualSource, compilerOptions = {}) {
     if (fileName === VIRTUAL_FILE_NAME) {
       return ts.createSourceFile(fileName, virtualSource, languageVersion, true)
     }
+    if (fileName === API_HELPERS_VIRTUAL_FILE_NAME) {
+      return ts.createSourceFile(
+        fileName,
+        apiHelpersSource,
+        languageVersion,
+        true,
+      )
+    }
     return originalGetSourceFile(fileName, languageVersion, ...rest)
   }
   host.fileExists = (fileName) =>
-    fileName === VIRTUAL_FILE_NAME || ts.sys.fileExists(fileName)
-  host.readFile = (fileName) =>
-    fileName === VIRTUAL_FILE_NAME ? virtualSource : ts.sys.readFile(fileName)
+    fileName === VIRTUAL_FILE_NAME ||
+    fileName === API_HELPERS_VIRTUAL_FILE_NAME ||
+    ts.sys.fileExists(fileName)
+  host.readFile = (fileName) => {
+    if (fileName === VIRTUAL_FILE_NAME) return virtualSource
+    if (fileName === API_HELPERS_VIRTUAL_FILE_NAME) return apiHelpersSource
+    return ts.sys.readFile(fileName)
+  }
 
-  const program = ts.createProgram(
-    [VIRTUAL_FILE_NAME, GLOBALS_FILE],
-    options,
-    host,
-  )
+  const rootFiles = apiHelpersSource
+    ? [VIRTUAL_FILE_NAME, API_HELPERS_VIRTUAL_FILE_NAME, GLOBALS_FILE]
+    : [VIRTUAL_FILE_NAME, GLOBALS_FILE]
+
+  const program = ts.createProgram(rootFiles, options, host)
   const diagnostics = ts.getPreEmitDiagnostics(program)
 
   return diagnostics

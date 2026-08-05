@@ -49,11 +49,14 @@ export class FeatureGenerator {
       language,
     )
 
-    results.apiHelper = await this.apiHelperGenerator.generate(
+    const apiHelperResults = await this.apiHelperGenerator.generate(
       blueprint,
-      path.join(baseDir, 'app', 'useApi'),
+      path.join(baseDir, 'app', 'useApi', blueprint.name.toLowerCase()),
       language,
     )
+
+    results.apiHelper = apiHelperResults.flat
+    results.apiHelperResource = apiHelperResults.resource
 
     results.manifest = await this.writeManifest(blueprint, baseDir, language)
 

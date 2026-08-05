@@ -6,6 +6,16 @@
  * that depend on a property when that property is written -- nothing
  * else re-renders.
  *
+ * reactive() wraps nested objects/arrays lazily, on read: when a get
+ * trap returns a value that is itself an object, that value is wrapped
+ * in reactive() too (and memoized, so repeated reads of the same
+ * nested object return the same Proxy identity rather than a fresh
+ * wrapper each time). Without this, only the top-level keys passed to
+ * reactive() are ever tracked -- writes to a property of an object
+ * *assigned into* a state field (e.g. a resource object's .data) are
+ * invisible to the dependency graph, because get() would otherwise
+ * hand back the raw, unwrapped object.
+ *
  * Every effect also tracks (a) which dep Sets it's currently a member
  * of, and (b) which child effects were created while it was running
  * (e.g. an #if/#each block's effect re-creating its children's own
@@ -22,11 +32,36 @@
 let activeEffect = null
 const targetMap = new WeakMap()
 
+// Memoizes target -> proxy so re-reading the same nested object
+// (e.g. a resource object stored in state, read on every render)
+// returns the same Proxy instance instead of a new wrapper each time.
+// Without this, dependencies tracked against one wrapper would never
+// match the wrapper an effect reads on a later pass, and triggers
+// would silently miss their subscribers.
+const reactiveMap = new WeakMap()
+
+function isObject(val) {
+  return val !== null && typeof val === 'object'
+}
+
 export function reactive(target) {
-  return new Proxy(target, {
+  if (!isObject(target)) return target
+
+  // Already-reactive objects (including ones we've handed out before)
+  // shouldn't get double-wrapped -- wrapping a Proxy in another Proxy
+  // would track/trigger through two independent dep graphs for the
+  // same logical object.
+  if (reactiveMap.has(target)) return reactiveMap.get(target)
+
+  const proxy = new Proxy(target, {
     get(obj, key, receiver) {
       track(obj, key)
-      return Reflect.get(obj, key, receiver)
+      const result = Reflect.get(obj, key, receiver)
+      // Lazily wrap nested objects/arrays so writes to THEIR
+      // properties are tracked too -- e.g. state.postsResource.data =
+      // [...] needs postsResource itself to have been returned as a
+      // reactive proxy for this assignment to hit the set trap below.
+      return isObject(result) ? reactive(result) : result
     },
     set(obj, key, value, receiver) {
       const changed = obj[key] !== value
@@ -35,6 +70,9 @@ export function reactive(target) {
       return result
     },
   })
+
+  reactiveMap.set(target, proxy)
+  return proxy
 }
 
 function track(obj, key) {
@@ -51,9 +89,9 @@ function trigger(obj, key) {
   const depsMap = targetMap.get(obj)
   if (!depsMap) return
   const dep = depsMap.get(key)
-  if (!dep) return
-  // Copy before iterating: an effect may re-track (add/remove itself)
-  // while running, which would corrupt the Set mid-iteration.
+  if (!dep)
+    return // Copy before iterating: an effect may re-track (add/remove itself)
+    // while running, which would corrupt the Set mid-iteration.
   ;[...dep].forEach((fn) => fn())
 }
 

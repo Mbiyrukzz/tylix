@@ -58,10 +58,34 @@ async function loadApiHelpers(baseDir, transpileTsToJs) {
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith(ext)) {
       const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
-      const stripped = raw.replace(/export\s+/g, '')
+      const stripped = raw
+        .replace(/^import\s+.*$/gm, '')
+        .replace(/export\s+/g, '')
       sources.push(
         language === 'typescript' ? transpileTsToJs(stripped) : stripped,
       )
+    }
+  }
+  return sources.join('\n\n')
+}
+
+async function loadApiHelpersForTypecheck(baseDir) {
+  const apiDir = path.join(baseDir, 'app', 'useApi')
+  const exists = await fs
+    .access(apiDir)
+    .then(() => true)
+    .catch(() => false)
+  if (!exists) return ''
+
+  const entries = await fs.readdir(apiDir, { withFileTypes: true })
+  const sources = []
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.endsWith('.ts')) {
+      const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
+      const stripped = raw
+        .replace(/^import\s+.*$/gm, '')
+        .replace(/export\s+/g, '')
+      sources.push(stripped)
     }
   }
   return sources.join('\n\n')
@@ -338,7 +362,8 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
 
       const language = await detectLanguage(baseDir)
       if (language === 'typescript') {
-        const diagnostics = typecheckPage(source)
+        const apiHelpersSource = await loadApiHelpersForTypecheck(baseDir)
+        const diagnostics = typecheckPage(source, apiHelpersSource)
         if (diagnostics.length > 0) {
           const message = diagnostics
             .map((d) => `Line ${d.line}: ${d.message}`)

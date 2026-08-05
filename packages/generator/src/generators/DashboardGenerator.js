@@ -183,8 +183,9 @@ style
     const outputPath = path.join(
       baseDir,
       'app',
-      'pages',
-      `${blueprint.name}Dashboard.tyx`,
+      'Features',
+      blueprint.name,
+      'Dashboard.tyx',
     )
     return writeFile(outputPath, source, { overwrite: true })
   }

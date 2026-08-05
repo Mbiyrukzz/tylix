@@ -91,6 +91,9 @@ export async function makeFeature(
   console.log(`  Controller: ${path.relative(baseDir, results.controller)}`)
   console.log(`  Manifest:   ${path.relative(baseDir, results.manifest)}`)
   console.log(`  API helper: ${path.relative(baseDir, results.apiHelper)}`)
+  console.log(
+    `  Resource:   ${path.relative(baseDir, results.apiHelperResource)}`,
+  )
 
   if (blueprint.options.dashboard) {
     const dashGen = new DashboardGenerator()
