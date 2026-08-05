@@ -1,11 +1,12 @@
 {
   "name": "@tylix/mail",
-  "version": "0.2.1",
+  "version": "0.3.5",
   "type": "module",
+  "keywords": ["tylix", "mail", "email", "smtp", "sendgrid"],
   "main": "index.js",
   "dependencies": {
-    "@tylix/shared": "^0.2.0",
-    "@tylix/orm": "^0.2.0",
-    "@tylix/generator": "^0.2.0"
+    "@tylix/shared": "^0.3.5",
+    "@tylix/orm": "^0.3.5",
+    "@tylix/generator": "^0.3.5"
   }
 }

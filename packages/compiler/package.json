@@ -1,7 +1,12 @@
 {
   "name": "@tylix/compiler",
-  "version": "0.2.1",
+  "version": "0.3.5",
   "type": "module",
+   "keywords": [
+    "tylix",
+    "compiler",
+    "ui"
+  ],
   "main": "./src/index.js",
   "scripts": {
     "test": "node --test src/*.test.js src/**/*.test.js"

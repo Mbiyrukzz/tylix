@@ -1,16 +1,18 @@
 {
   "name": "@tylix/auth",
-  "version": "0.2.1",
+  "version": "0.3.5",
   "type": "module",
+  "keywords": ["tylix",
+"auth"],
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/core": "^0.2.0",
-    "@tylix/generator": "^0.2.0",
-    "@tylix/orm": "^0.2.0",
-    "@tylix/shared": "^0.2.0"
+    "@tylix/core": "^0.3.5",
+    "@tylix/generator": "^0.3.5",
+    "@tylix/orm": "^0.3.5",
+    "@tylix/shared": "^0.3.5"
   }
 }

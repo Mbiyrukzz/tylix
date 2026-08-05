@@ -1,6 +1,6 @@
 {
   "name": "tylix-icons",
-  "version": "0.2.1",
+  "version": "0.3.5",
   "description": "Official icon library for the Tylix framework.",
   "license": "MIT",
   "private": false,
@@ -20,7 +20,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Mbiyrukzz/tylix.git"
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git"
   },
   "homepage": "https://tylix.dev",
   "bugs": {

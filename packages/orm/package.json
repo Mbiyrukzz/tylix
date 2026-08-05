@@ -1,14 +1,22 @@
 {
   "name": "@tylix/orm",
-  "version": "0.2.1",
+  "version": "0.3.5",
   "type": "module",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
+  "keywords": [
+    "tylix",
+    "orm",
+    "database",
+    "mongodb",
+    "mysql",
+    "postgresql"
+  ],
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/shared": "^0.2.0",
+    "@tylix/shared": "^0.3.5",
     "mongodb": "^6.5.0",
     "mysql2": "^3.9.0",
     "pg": "^8.11.0"

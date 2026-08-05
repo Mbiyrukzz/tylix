@@ -104,15 +104,15 @@ export function createResource<T extends { id: number | string }>({ list, create
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^0.2.2',
-  '@tylix/core': '^0.2.1',
-  '@tylix/compiler': '^0.2.1',
-  '@tylix/generator': '^0.3.0',
-  '@tylix/orm': '^0.2.1',
-  '@tylix/shared': '^0.2.1',
-  '@tylix/auth': '^0.2.1',
-  '@tylix/mail': '^0.2.1',
-  'tylix-icons': '^0.2.1',
+  '@tylix/cli': '^0.3.5',
+  '@tylix/core': '^0.3.5',
+  '@tylix/compiler': '^0.3.5',
+  '@tylix/generator': '^0.3.5',
+  '@tylix/orm': '^0.3.5',
+  '@tylix/shared': '^0.3.5',
+  '@tylix/auth': '^0.3.5',
+  '@tylix/mail': '^0.3.5',
+  'tylix-icons': '^0.3.5',
 }
 
 function buildDatabaseEnvLines(config) {
