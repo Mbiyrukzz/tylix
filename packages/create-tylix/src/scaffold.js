@@ -29,6 +29,7 @@ import { writeComponents } from './steps/writeComponents.js'
 import { writeApiRoutes } from './steps/writeApiRoutes.js'
 import { writeMailConfig } from './steps/writeMailConfig.js'
 import { runMigrations } from './steps/runMigrations.js'
+import { writeCapabilities } from './steps/writeCapabilities.js'
 import { initGit } from './steps/initGit.js'
 import { finalize } from './steps/finalize.js'
 
@@ -38,7 +39,7 @@ async function runWizard(initialProjectName) {
 
   const projectName = await text({
     message: 'Project Name',
-    initial: initialProjectName || 'my-awesome-app',
+    initial: initialProjectName || 'tylix-app',
   })
   printDivider(110)
 
@@ -209,20 +210,23 @@ async function runBuildSteps(config) {
     { label: 'Configuring mail', fn: () => writeMailConfig(config) },
     { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
   )
+
   if (config.authEnabled) {
     steps.push({
       label: 'Generating authentication',
       fn: () => generateAuth(config),
     })
   }
-  steps.push(
-    { label: 'Creating dashboard', fn: () => writePage(config, 'Dashboard') },
-    {
-      label: 'Creating Mail page',
-      fn: () => writePage(config, 'dashboard/Mail'),
-    },
-    { label: 'Creating Home page', fn: () => writePage(config, 'Home') },
-  )
+  steps.push({
+    label: 'Creating capabilities',
+    fn: () => writeCapabilities(config),
+  })
+
+  steps.push({
+    label: 'Creating Home page',
+    fn: () => writePage(config, 'Home'),
+  })
+
   if (config.authEnabled) {
     steps.push(
       { label: 'Creating Login page', fn: () => writePage(config, 'Login') },
@@ -230,8 +234,14 @@ async function runBuildSteps(config) {
         label: 'Creating Register page',
         fn: () => writePage(config, 'Register'),
       },
+      { label: 'Creating dashboard', fn: () => writePage(config, 'Dashboard') },
+      {
+        label: 'Creating Mail page',
+        fn: () => writePage(config, 'dashboard/Mail'),
+      },
     )
   }
+
   steps.push(
     { label: 'Creating middleware', fn: () => writeMiddleware(config) },
     { label: 'Creating layouts', fn: () => writeLayout(config) },
@@ -296,7 +306,7 @@ function printSuccessScreen(config) {
 
   printSection(
     'Pages',
-    config.starter === 'starter'
+    config.starter === 'starter' && config.authEnabled
       ? ['Home', 'Login', 'Register', 'Dashboard']
       : ['Home'],
   )
@@ -329,8 +339,8 @@ function printSuccessScreen(config) {
     console.log('POST   /api/posts')
     console.log('GET    /api/posts/:id')
     console.log('DELETE /api/posts/:id')
+    console.log('GET    /dashboard')
   }
-  console.log('GET    /dashboard')
   printHeavyDivider()
 
   console.log(bold('Next Steps'))

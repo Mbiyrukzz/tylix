@@ -32,6 +32,8 @@ import {
   RepeatStatement,
   BreakStatement,
   ContinueStatement,
+  CapabilityRefNode,
+  MetaEntryNode,
 } from '../ast/nodes.js'
 import { parseExpressionString } from './parseExpressionString.js'
 
@@ -101,6 +103,7 @@ export class Parser {
       state: [],
       computed: [],
       actions: [],
+      uses: [],
       onMount: null,
     }
 
@@ -111,12 +114,38 @@ export class Parser {
         page.state = this.parseSectionBlock(this.parseStateEntry.bind(this))
       } else if (this.match(TokenType.COMPUTED)) {
         page.computed = this.parseSectionBlock(this.parseMethod.bind(this))
+      } else if (this.match(TokenType.USES)) {
+        page.uses = this.parseSectionBlock(this.parseUsesEntry.bind(this))
       } else if (this.match(TokenType.ACTION)) {
         page.actions = this.parseSectionBlock(this.parseMethod.bind(this))
       } else if (this.check(TokenType.ONMOUNT)) {
         const startLine = this.peek().line
         this.advance()
         page.onMount = { ...this.parseOnMountBody(), line: startLine }
+      } else if (this.match(TokenType.TITLE)) {
+        page.title = this.expect(
+          TokenType.STRING,
+          "Expected a string after 'title'",
+        ).value
+      } else if (this.match(TokenType.LAYOUT)) {
+        page.layout = this.expect(
+          TokenType.IDENTIFIER,
+          'Expected a layout component name',
+        ).value
+      } else if (this.match(TokenType.NEEDS)) {
+        page.needs = this.parseSectionBlock(this.parseUsesEntry.bind(this))
+      } else if (this.match(TokenType.PREFETCH)) {
+        page.prefetch = this.parseSectionBlock(
+          this.parseCapabilityRefEntry.bind(this),
+        )
+      } else if (this.match(TokenType.BACKGROUND)) {
+        page.background = this.parseSectionBlock(this.parseUsesEntry.bind(this))
+      } else if (this.match(TokenType.PERMISSIONS)) {
+        page.permissions = this.parseSectionBlock(
+          this.parsePermissionEntry.bind(this),
+        )
+      } else if (this.match(TokenType.META)) {
+        page.meta = this.parseSectionBlock(this.parseMetaEntry.bind(this))
       } else {
         throw new Error(
           `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
@@ -139,7 +168,7 @@ export class Parser {
       return { body, isAsync }
     }
     const body = []
-    while (!this.isSectionKeyword(this.peek().type)) {
+    while (!this.isAtSectionBoundary()) {
       body.push(this.parseStatement())
     }
     return { body, isAsync }
@@ -166,21 +195,71 @@ export class Parser {
   isSectionKeyword(type) {
     return (
       type === TokenType.PROPS ||
+      type === TokenType.USES ||
       type === TokenType.STATE ||
       type === TokenType.COMPUTED ||
       type === TokenType.ACTION ||
       type === TokenType.ONMOUNT ||
+      type === TokenType.INIT ||
       type === TokenType.EOF
     )
   }
 
+  // These five double as ordinary field names in practice (title
+  // especially), so unlike the keywords above they can't be trusted as
+  // section boundaries on token type alone -- isAtSectionBoundary below
+  // checks the following token to disambiguate.
+  isAmbiguousSectionKeyword(type) {
+    return (
+      type === TokenType.TITLE ||
+      type === TokenType.LAYOUT ||
+      type === TokenType.NEEDS ||
+      type === TokenType.PREFETCH ||
+      type === TokenType.BACKGROUND ||
+      type === TokenType.PERMISSIONS ||
+      type === TokenType.META
+    )
+  }
+
+  isAtSectionBoundary() {
+    const type = this.peek().type
+    if (this.isSectionKeyword(type)) return true
+    if (this.isAmbiguousSectionKeyword(type)) {
+      const next = this.tokens[this.pos + 1]
+      // Followed by ':' or '(' means it's a field/prop/method name in
+      // the CURRENT block (e.g. `title: ""`, `title(Type): ""`), not
+      // the start of a new section.
+      return !(
+        next &&
+        (next.type === TokenType.COLON || next.type === TokenType.LPAREN)
+      )
+    }
+    return false
+  }
+
   parseBareBlock(parseEntry) {
     const entries = []
-    while (!this.isSectionKeyword(this.peek().type)) {
+    while (!this.isAtSectionBoundary()) {
       entries.push(parseEntry())
       this.match(TokenType.COMMA)
     }
     return entries
+  }
+
+  // Shared by parseStateEntry/parsePropEntry/parseMethod: a keyword
+  // token (title, layout, needs, etc.) is a perfectly valid field/prop/
+  // method name once we're past the section-boundary check above --
+  // same allowance parsePropertyName already makes for `.title` access.
+  parseNameToken(message) {
+    const token = this.peek()
+    if (
+      token.type === TokenType.IDENTIFIER ||
+      KEYWORD_TOKEN_TYPES.has(token.type)
+    ) {
+      this.advance()
+      return token.value
+    }
+    throw new Error(`${message} at line ${token.line}, got ${token.type}`)
   }
 
   parsePropEntry() {
@@ -191,9 +270,72 @@ export class Parser {
     const propType = this.parseTypeExpression()
     return { ...PropNode(name, propType, optional), line: startLine }
   }
+
+  parseUsesEntry() {
+    const startLine = this.peek().line
+    const token = this.expect(TokenType.IDENTIFIER, 'Expected capability name')
+    const name = token.value
+    if (!/^[A-Z]/.test(name)) {
+      throw new Error(
+        `Capability name "${name}" must start with an uppercase letter (line ${startLine})`,
+      )
+    }
+    return { name, line: startLine }
+  }
+
+  parseCapabilityRefEntry() {
+    const startLine = this.peek().line
+    const capability = this.expect(
+      TokenType.IDENTIFIER,
+      'Expected a capability name',
+    ).value
+    this.expect(
+      TokenType.DOT,
+      "Expected '.' after capability name in prefetch entry",
+    )
+    const member = this.parsePropertyName("after '.'")
+    let args = null
+    if (this.check(TokenType.LPAREN)) {
+      args = this.parseCallArguments()
+    }
+    return { ...CapabilityRefNode(capability, member, args), line: startLine }
+  }
+
+  parsePermissionEntry() {
+    const startLine = this.peek().line
+    let name = this.expect(
+      TokenType.IDENTIFIER,
+      'Expected a permission name',
+    ).value
+    while (this.match(TokenType.DOT)) {
+      name += '.' + this.parsePropertyName("after '.'")
+    }
+    return { name, line: startLine }
+  }
+
+  parseMetaEntry() {
+    const startLine = this.peek().line
+    const key = this.expect(TokenType.IDENTIFIER, 'Expected a meta key').value
+    let value
+    if (
+      this.check(TokenType.STRING) ||
+      this.check(TokenType.NUMBER) ||
+      this.check(TokenType.DURATION)
+    ) {
+      value = this.advance().value
+    } else if (this.check(TokenType.IDENTIFIER)) {
+      // true / false, lexed as identifiers per parsePrimary's convention
+      const raw = this.advance().value
+      value = raw === 'true' ? true : raw === 'false' ? false : raw
+    } else {
+      throw new Error(`Expected a meta value at line ${this.peek().line}`)
+    }
+    return { ...MetaEntryNode(key, value), line: startLine }
+  }
+
   parseStateEntry() {
     const startLine = this.peek().line
-    const name = this.expect(TokenType.IDENTIFIER, 'Expected state name').value
+    const name = this.parseNameToken('Expected state name')
 
     let typeAnnotation = null
     if (this.match(TokenType.LPAREN)) {
@@ -218,10 +360,11 @@ export class Parser {
     const value = this.parsePrimary()
     return { ...StateNode(name, value, typeAnnotation), line: startLine }
   }
+
   parseMethod() {
     const startLine = this.peek().line
     const isAsync = this.match(TokenType.ASYNC)
-    const name = this.expect(TokenType.IDENTIFIER, 'Expected method name').value
+    const name = this.parseNameToken('Expected method name')
     this.expect(TokenType.LPAREN, "Expected '(' after method name")
 
     const params = []
@@ -360,6 +503,42 @@ export class Parser {
     const node = this.parseStatementInner()
     node.line = node.line ?? startLine
     return node
+  }
+
+  // Parses a capability.tyx file: `capability Name` header, then
+  // state/action/init sections. Structurally similar to parse(), but
+  // deliberately separate rather than unified -- a capability has no
+  // props, no template, and `init` (not `onMount`) is its only
+  // lifecycle hook, so sharing parse()'s isSectionKeyword/loop would
+  // mean threading capability-only exceptions through page-only logic.
+  parseCapability() {
+    this.expect(TokenType.CAPABILITY, "Expected 'capability'")
+    const name = this.expect(
+      TokenType.IDENTIFIER,
+      'Expected capability name',
+    ).value
+
+    const capability = { name, state: [], actions: [], init: null }
+
+    while (!this.check(TokenType.EOF)) {
+      if (this.match(TokenType.STATE)) {
+        capability.state = this.parseSectionBlock(
+          this.parseStateEntry.bind(this),
+        )
+      } else if (this.match(TokenType.ACTION)) {
+        capability.actions = this.parseSectionBlock(this.parseMethod.bind(this))
+      } else if (this.check(TokenType.INIT)) {
+        const startLine = this.peek().line
+        this.advance()
+        capability.init = { ...this.parseOnMountBody(), line: startLine }
+      } else {
+        throw new Error(
+          `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
+        )
+      }
+    }
+
+    return capability
   }
 
   parseStatementInner() {
@@ -568,7 +747,10 @@ export class Parser {
   // position.
   tryParseArrowFunction() {
     // single-param form: x => expr  or  x: Type => expr
-    if (this.check(TokenType.IDENTIFIER)) {
+    if (
+      this.check(TokenType.IDENTIFIER) ||
+      KEYWORD_TOKEN_TYPES.has(this.peek().type)
+    ) {
       const next = this.tokens[this.pos + 1]
       if (next && next.type === TokenType.ARROW) {
         const param = this.advance().value
@@ -603,7 +785,10 @@ export class Parser {
 
       if (!this.check(TokenType.RPAREN)) {
         while (true) {
-          if (!this.check(TokenType.IDENTIFIER)) {
+          if (
+            !this.check(TokenType.IDENTIFIER) &&
+            !KEYWORD_TOKEN_TYPES.has(this.peek().type)
+          ) {
             isValidParamList = false
             break
           }
@@ -828,7 +1013,10 @@ export class Parser {
       return TemplateLiteralExpr(parts)
     }
 
-    if (this.check(TokenType.IDENTIFIER)) {
+    if (
+      this.check(TokenType.IDENTIFIER) ||
+      KEYWORD_TOKEN_TYPES.has(this.peek().type)
+    ) {
       const name = this.advance().value
       // "null"/"true"/"false"/"undefined" are lexed as plain identifier
       // tokens (there's no separate keyword TokenType for them), but
@@ -958,9 +1146,13 @@ export class Parser {
     const properties = []
     while (!this.check(TokenType.RBRACE)) {
       const isString = this.check(TokenType.STRING)
+      const isKeywordKey =
+        !isString && KEYWORD_TOKEN_TYPES.has(this.peek().type)
       const key = isString
         ? this.advance().value
-        : this.expect(TokenType.IDENTIFIER, 'Expected an object key').value
+        : isKeywordKey
+          ? this.advance().value
+          : this.expect(TokenType.IDENTIFIER, 'Expected an object key').value
 
       if (!isString && !this.check(TokenType.COLON)) {
         // Shorthand: { name } means { name: name }

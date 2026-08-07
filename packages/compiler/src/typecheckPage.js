@@ -7,6 +7,7 @@ import {
   mapVirtualLineToSource,
 } from './typecheck/buildVirtualTs.js'
 import { typecheckSource } from './typecheck/typecheckVirtualFile.js'
+import { substituteCapabilityRefs } from './ast/substituteCapabilityRefs.js'
 
 // Derives the virtual class/interface name from the page's own
 // `page <Name>` declaration (via parsePageFile) -- the same source
@@ -22,10 +23,11 @@ import { typecheckSource } from './typecheck/typecheckVirtualFile.js'
 export function typecheckPage(source, apiHelpersSource = '') {
   const { pageName, script, template, scriptStartLine } = parsePageFile(source)
 
-  const pageNode =
+  const pageNode = substituteCapabilityRefs(
     script.trim().length > 0
       ? new Parser(new Lexer(script).tokenize()).parse()
-      : { props: [], state: [], computed: [], actions: [], onMount: null }
+      : { props: [], state: [], computed: [], actions: [], onMount: null },
+  )
 
   const templateNodes =
     template.trim().length > 0 ? parseTemplate(template) : null

@@ -2,66 +2,57 @@ page Dashboard
 
 import { IconHome, IconDocument, IconFolder, IconArrowLeft, IconUser, IconDatabase, IconSun, IconMoon } from "tylix-icons"
 
+title "Dashboard"
+
+needs
+  Auth
+
+uses
+  Theme
+  Posts
+  Mail
+  Analytics
+
+prefetch
+  Posts.latest
+
+background
+  Analytics
+  Mail
+
+permissions
+  posts.view
+
+meta
+  transition "fade"
+  keepAlive true
+  cache 5m
 
 state
-  user: null
   checkedAuth: false
   features: []
-  postsResource: null
-  theme: "dark"
-  mailCount: 0
 
 action
- addPost(post) {
-  console.log("addPost called with:", post)
-  this.postsResource.data = [post, ...this.postsResource.data]
-  console.log("new length:", this.postsResource.data.length)
-}
-
-  async logout() {
-    await useApi("/api/auth/logout", { method: "POST" })
-    window.location.href = "/"
+  addPost(post) {
+    Posts.add(post)
   }
 
-  toggleTheme() {
-    this.theme = this.theme is "dark" ? "light" : "dark"
-    document.documentElement.classList.toggle("dark", this.theme is "dark")
-    localStorage.setItem("theme", this.theme)
+  async logout() {
+    await Auth.logout()
+    window.location.href = "/"
   }
 
 onMount
   async {
-
-    console.log("onMount started")
-
-    const savedTheme = localStorage.getItem("theme")
-    if savedTheme {
-      this.theme = savedTheme
-    }
-    document.documentElement.classList.toggle("dark", this.theme is "dark")
-
-    const me = await useApi("/api/me")
-
-    if not me.ok {
+    if not Auth.user {
       window.location.href = "/login"
       return null
     }
 
-    this.user = me.data
-    this.checkedAuth = true
-
     const featuresResult = await useApi("/api/_tylix/features")
     this.features = featuresResult.data.data.filter(f => f.table is not "posts")
 
-    this.postsResource = createPostResource()
-    await this.postsResource.load()
-
-    console.log("posts loaded:", this.postsResource.data.length)
-
-    const mailResult = await useApi("/api/_tylix/mail-logs")
-    if mailResult.ok {
-      this.mailCount = mailResult.data.data.length
-    }
+    this.checkedAuth = true
   }
 
 template
@@ -98,28 +89,24 @@ template
     <div class="px-6 lg:px-12 py-10">
       <div class="flex items-center justify-between mb-10">
         <div>
-{{#if user}}
           <p class="text-emerald-700 dark:text-emerald-500 text-xs font-semibold uppercase tracking-wider mb-1">Welcome back</p>
-          <h1 class="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-200">{{ user.name }}</h1>
-{{/if}}
+          <h1 class="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-200">{{ Auth.user.name }}</h1>
         </div>
         <div class="flex items-center gap-3">
-          <button onclick="{{ toggleTheme() }}" aria-label="Toggle color theme" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors shadow-sm">
-{{#if theme is "dark"}}
+          <button onclick="{{ Theme.toggle() }}" aria-label="Toggle color theme" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors shadow-sm">
+{{#if Theme.mode is "dark"}}
             <IconSun class="w-4 h-4" />
 {{/if}}
-{{#if theme is not "dark"}}
+{{#if Theme.mode is not "dark"}}
             <IconMoon class="w-4 h-4" />
 {{/if}}
           </button>
-{{#if user}}
           <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-sm font-semibold shadow-sm dark:shadow-emerald-500/30">
-            {{ user.email[0].toUpperCase() }}
+            {{ Auth.user.email[0].toUpperCase() }}
           </div>
-{{/if}}
-          <button onclick="{{ logout() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-full px-4 py-2.5 hover:bg-slate-200 dark:hover:bg-slate-900 transition-colors">
-            Log out
-          </button>
+         <button onclick="{{ Auth.logout() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-full px-4 py-2.5 hover:bg-slate-200 dark:hover:bg-slate-900 transition-colors">
+  Log out
+</button>
         </div>
       </div>
 
@@ -130,9 +117,7 @@ template
             <IconUser class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
           </div>
           <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Signed in as</p>
-{{#if user}}
-          <p class="text-slate-800 dark:text-slate-200 text-sm font-semibold truncate">{{ user.email }}</p>
-{{/if}}
+          <p class="text-slate-800 dark:text-slate-200 text-sm font-semibold truncate">{{ Auth.user.email }}</p>
         </div>
 
         <div class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none">
@@ -140,8 +125,8 @@ template
           <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
             <IconDatabase class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
           </div>
-          <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Database</p>
-          <p class="text-emerald-700 dark:text-emerald-500 text-sm font-semibold">Connected</p>
+          <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Visitors today</p>
+          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ Analytics.visitorsToday }}</p>
         </div>
 
         <div class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none">
@@ -150,9 +135,7 @@ template
             <IconDocument class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
           </div>
           <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Posts</p>
-{{#if postsResource}}
-          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ postsResource.data.length }}</p>
-{{/if}}
+          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ Posts.data.length }}</p>
         </div>
 
         <a href="/dashboard/mail" class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none hover:border-emerald-500/40 hover:-translate-y-0.5 transition-all">
@@ -161,7 +144,7 @@ template
             <IconFolder class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
           </div>
           <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Mail</p>
-          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ mailCount }}</p>
+          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ Mail.unread }}</p>
         </a>
       </div>
 
@@ -173,13 +156,12 @@ template
         <CreatePostForm onCreated="{{ addPost }}" />
       </div>
 
-{{#if postsResource}}
-{{#if postsResource.loading}}
+{{#if Posts.loading}}
       <p class="text-slate-500 text-sm mb-10">Loading posts…</p>
 {{/if}}
 
-{{#if not postsResource.loading}}
-{{#if postsResource.data.length is 0}}
+{{#if not Posts.loading}}
+{{#if Posts.data.length is 0}}
       <div class="rounded-2xl border border-dashed border-slate-400 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-10 text-center mb-10">
         <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 flex items-center justify-center mx-auto mb-4">
           <IconDocument class="w-6 h-6 text-emerald-700 dark:text-emerald-500" />
@@ -191,9 +173,9 @@ template
       </div>
 {{/if}}
 
-{{#if postsResource.data.length is not 0}}
+{{#if Posts.data.length is not 0}}
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-{{#each p in postsResource.data}}
+{{#each p in Posts.data}}
         <a href="{{ '/post/post-detail?id=' + p.id }}" class="group block rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-6 shadow-sm dark:shadow-none hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-lg dark:hover:shadow-emerald-500/5 transition-all">
           <div class="flex items-center gap-2 mb-3">
             <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
@@ -204,7 +186,6 @@ template
         </a>
 {{/each}}
       </div>
-{{/if}}
 {{/if}}
 {{/if}}
 

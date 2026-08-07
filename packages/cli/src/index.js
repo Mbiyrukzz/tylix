@@ -5,6 +5,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { makeModel } from './commands/makeModel.js'
+import { makeCapability } from './commands/makeCapability.js'
 import { listFeatures } from './commands/listFeatures.js'
 import { makeMigration } from './commands/makeMigration.js'
 import { makeController } from './commands/makeController.js'
@@ -78,6 +79,16 @@ async function main() {
       process.exit(1)
     }
     await makeIcon(name, pathData)
+    return
+  }
+
+  if (command === 'make:capability') {
+    const [name] = rest
+    if (!name) {
+      console.error('Usage: tylix make:capability <Name>')
+      process.exit(1)
+    }
+    await makeCapability(name)
     return
   }
 
@@ -211,7 +222,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, build, migrate, db:seed, make:auth, make:page, make:component, make:validator, make:service, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

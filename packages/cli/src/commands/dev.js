@@ -356,6 +356,7 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
         : staticCompiler
 
       const rawSource = await fs.readFile(filePath, 'utf-8')
+
       const { imports: pageImports, source: cleanedSource } =
         extractImports(rawSource)
       source = cleanedSource
@@ -397,7 +398,7 @@ async function registerPageRoutes(router, baseDir, { hotReloadCompiler }) {
       const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
       const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
       const html = injectHmrScript(
-        renderPageDocument(source, components, {
+        await renderPageDocument(source, components, {
           layout,
           props: params,
           apiHelpers,

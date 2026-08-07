@@ -1,5 +1,8 @@
 page Login
 
+uses
+  Auth
+
 state
   email: ""
   password: ""
@@ -21,10 +24,7 @@ action
       this.submitting = true
       this.error = ""
 
-      const result = await useApi("/api/login", {
-        method: "POST",
-        body: { email: this.email, password: this.password, remember: this.remember }
-      })
+      const result = await Auth.login(this.email, this.password)
 
       if result.ok {
         window.location.href = "/dashboard"

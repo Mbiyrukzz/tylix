@@ -186,7 +186,7 @@ export async function doctor() {
     await check('parser', async () => {
       const { renderPageDocument } = await import('@tylix/compiler')
       const sample = `page Doctor\nstate\n  ok: true\ntemplate\n  <div>{{ ok }}</div>\n`
-      renderPageDocument(sample, {})
+      await renderPageDocument(sample, {})
     }),
   )
 

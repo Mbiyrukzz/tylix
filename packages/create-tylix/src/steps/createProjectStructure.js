@@ -329,6 +329,10 @@ export async function createProjectStructure(config) {
 
     await fs.mkdir(path.join(targetDir, 'app', 'mail'), { recursive: true })
 
+    await fs.mkdir(path.join(targetDir, 'app', 'capabilities'), {
+      recursive: true,
+    })
+
     await fs.mkdir(path.join(targetDir, 'app', 'seeders'), { recursive: true })
 
     await fs.writeFile(

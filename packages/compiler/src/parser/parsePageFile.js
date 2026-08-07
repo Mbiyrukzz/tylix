@@ -79,7 +79,7 @@ export function parsePageFile(source) {
 export function findSectionBoundaries(source) {
   const boundaries = []
   const lineStartPattern =
-    /(^|\n)[ \t]*(state|computed|action|template|style)\b/g
+    /(^|\n)[ \t]*(uses|state|computed|action|template|style)\b/g
   let match
   while ((match = lineStartPattern.exec(source)) !== null) {
     const keyword = match[2]

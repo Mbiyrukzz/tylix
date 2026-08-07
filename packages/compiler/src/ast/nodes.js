@@ -4,13 +4,46 @@
  * later, the Analyzer) can switch on it without instanceof checks.
  */
 export function PageNode({
+  title = null,
+  layout = null,
+  needs = [],
   props = [],
   state = [],
+  uses = [],
+  prefetch = [],
+  background = [],
+  permissions = [],
+  meta = [],
   computed = [],
   actions = [],
   onMount = null,
 }) {
-  return { type: 'Page', props, state, computed, actions, onMount }
+  return {
+    type: 'Page',
+    title,
+    layout,
+    needs,
+    props,
+    state,
+    uses,
+    prefetch,
+    background,
+    permissions,
+    meta,
+    computed,
+    actions,
+    onMount,
+  }
+}
+
+export function CapabilityRefNode(capability, member, args = null) {
+  // args === null means it's a bare reference (needs/uses entries: `Auth`)
+  // args !== null (possibly []) means it's a call (prefetch/background: `Posts.latest`, `Posts.search("x")`)
+  return { type: 'CapabilityRef', capability, member, args }
+}
+
+export function MetaEntryNode(key, value) {
+  return { type: 'MetaEntry', key, value }
 }
 
 export function PropNode(name, propType, optional = false) {

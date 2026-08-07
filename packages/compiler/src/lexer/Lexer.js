@@ -356,6 +356,18 @@ export class Lexer {
       this.pos++
     }
     const text = this.source.slice(start, this.pos)
+
+    const unitMatch = /^(ms|s|m|h|d)/.exec(this.source.slice(this.pos))
+    if (
+      unitMatch &&
+      !/[A-Za-z0-9_$]/.test(this.source[this.pos + unitMatch[0].length] ?? '')
+    ) {
+      const unit = unitMatch[0]
+      this.pos += unit.length
+      this.pushToken(TokenType.DURATION, `${text}${unit}`)
+      return
+    }
+
     this.pushToken(TokenType.NUMBER, Number(text))
   }
 

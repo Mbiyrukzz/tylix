@@ -9,10 +9,16 @@ import { Lexer } from './lexer/Lexer.js'
 import { Parser } from './parser/Parser.js'
 import { generatePage } from './codegen/generatePage.js'
 import { generateTemplate } from './codegen/generateTemplate.js'
+import { generateCapability } from './codegen/generateCapability.js'
+import { substituteCapabilityRefs } from './ast/substituteCapabilityRefs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RUNTIME_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'reactive.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
+const CAPABILITY_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'capability.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
 const LOADING_INDICATOR_SOURCE = fs
@@ -27,15 +33,67 @@ const USE_CHANNEL_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
+const capabilityCache = new Map() // capabilitiesDir -> { signature, code }
+
+async function loadCapabilityDefinitions(capabilitiesDir) {
+  const exists = await fs.promises
+    .access(capabilitiesDir)
+    .then(() => true)
+    .catch(() => false)
+  if (!exists) return ''
+
+  const files = (await fs.promises.readdir(capabilitiesDir)).filter((f) =>
+    f.endsWith('.tyx'),
+  )
+  if (files.length === 0) return ''
+
+  const stats = await Promise.all(
+    files.map((f) => fs.promises.stat(path.join(capabilitiesDir, f))),
+  )
+  const signature = files
+    .map((f, i) => `${f}:${stats[i].mtimeMs}`)
+    .sort()
+    .join('|')
+
+  const cached = capabilityCache.get(capabilitiesDir)
+  if (cached && cached.signature === signature) {
+    return cached.code
+  }
+
+  const definitions = (
+    await Promise.all(
+      files.map(async (file) => {
+        const source = await fs.promises.readFile(
+          path.join(capabilitiesDir, file),
+          'utf-8',
+        )
+        try {
+          const capabilityNode = new Parser(
+            new Lexer(source).tokenize(),
+          ).parseCapability()
+          return generateCapability(capabilityNode)
+        } catch (err) {
+          err.message = `In app/capabilities/${file}: ${err.message}`
+          throw err
+        }
+      }),
+    )
+  ).join('\n\n')
+
+  capabilityCache.set(capabilitiesDir, { signature, code: definitions })
+  return definitions
+}
+
 function compileComponentSource(source, fallbackClassName) {
   const isNativeComponent = /^\s*component\s+\w+/.test(source)
 
   if (isNativeComponent) {
     const { componentName, script, template } = parseComponentFile(source)
-    const pageNode =
+    const pageNode = substituteCapabilityRefs(
       script.trim().length > 0
         ? new Parser(new Lexer(script).tokenize()).parse()
-        : { props: [], state: [], computed: [], actions: [] }
+        : { props: [], state: [], computed: [], actions: [], uses: [] },
+    )
 
     const classSource = generatePage(pageNode, componentName)
     const templateNodes = parseTemplate(template)
@@ -46,10 +104,11 @@ function compileComponentSource(source, fallbackClassName) {
 
   const { script, template } = parseComponent(source)
 
-  const pageNode =
+  const pageNode = substituteCapabilityRefs(
     script.trim().length > 0
       ? new Parser(new Lexer(script).tokenize()).parse()
-      : { props: [], state: [], computed: [], actions: [] }
+      : { props: [], state: [], computed: [], actions: [], uses: [] },
+  )
 
   const classSource = generatePage(pageNode, fallbackClassName)
   const templateNodes = parseTemplate(template)
@@ -88,10 +147,16 @@ function parseTemplateWithLineOffset(template, offset) {
   }
 }
 
-export function renderPageDocument(
+export async function renderPageDocument(
   source,
   childComponents = {},
-  { layout = null, props = {}, apiHelpers = '', channelsPort = null } = {},
+  {
+    layout = null,
+    props = {},
+    apiHelpers = '',
+    channelsPort = null,
+    capabilitiesDir = path.join(process.cwd(), 'app', 'capabilities'),
+  } = {},
 ) {
   const {
     pageName,
@@ -102,15 +167,18 @@ export function renderPageDocument(
     templateStartLine,
   } = parsePageFile(source)
 
-  const pageNode =
+  const pageNode = substituteCapabilityRefs(
     script.trim().length > 0
       ? parseScriptWithLineOffset(script, scriptStartLine)
-      : { props: [], state: [], computed: [], actions: [] }
+      : { props: [], state: [], computed: [], actions: [], uses: [] },
+  )
 
   const classSource = generatePage(pageNode, pageName)
 
   const templateNodes = parseTemplateWithLineOffset(template, templateStartLine)
   const { code, rootVar } = generateTemplate(templateNodes)
+
+  const capabilityDefinitions = await loadCapabilityDefinitions(capabilitiesDir)
 
   const childNames = Object.keys(childComponents)
   const childClassSources = childNames
@@ -163,6 +231,10 @@ ${layoutCompiled.code}
   const inlineScript = `
 ${RUNTIME_SOURCE}
 
+${CAPABILITY_SOURCE}
+
+${capabilityDefinitions}
+
 ${LOADING_INDICATOR_SOURCE}
 
 ${USE_API_SOURCE}
@@ -181,7 +253,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const instance = new ${pageName}(${JSON.stringify(props)});
   const components = {};
 ${childRegistrations}
-  (function (document, instance, components) {
+  (async function (document, instance, components) {
+    if (typeof instance.__ready === "function") {
+      await instance.__ready();
+    }
+    if (typeof instance.__onMount === "function") {
+      await instance.__onMount();
+    }
 ${code}
 ${layoutMountCode}
   })(document, instance, components);
@@ -192,6 +270,8 @@ ${layoutMountCode}
 
   const scriptSegments = [
     { name: 'runtime (reactive.js)', code: RUNTIME_SOURCE },
+    { name: 'runtime (capability.js)', code: CAPABILITY_SOURCE },
+    { name: 'capability definitions', code: capabilityDefinitions },
     { name: 'loading indicator', code: LOADING_INDICATOR_SOURCE },
     { name: 'useApi', code: USE_API_SOURCE },
     { name: 'useChannel', code: USE_CHANNEL_SOURCE },
@@ -238,7 +318,7 @@ ${layoutMountCode}
       }
     })();
   </script>
-  <title>${pageName}</title>
+  <title>${pageNode.title ?? pageName}</title>
   <link rel="stylesheet" href="/tailwind.css">
 ${styleTag}
 </head>
