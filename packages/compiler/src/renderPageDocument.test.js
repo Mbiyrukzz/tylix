@@ -35,7 +35,7 @@ template
   </div>
 `
 
-  const html = renderPageDocument(source)
+  const html = await renderPageDocument(source)
   assert.match(html, /<title>CounterPage<\/title>/)
 
   const dom = await loadDocument(html)
@@ -62,7 +62,7 @@ template
   </div>
 `
 
-  const html = renderPageDocument(source, {}, { props: { id: '42' } })
+  const html = await renderPageDocument(source, {}, { props: { id: '42' } })
   const dom = await loadDocument(html)
   const span = dom.window.document.querySelector('#app span')
 
@@ -79,19 +79,19 @@ template
 style
   p { color: red; }
 `
-  const html = renderPageDocument(source)
+  const html = await renderPageDocument(source)
   assert.match(html, /<style>\s*p \{ color: red; \}\s*<\/style>/)
 })
 
 test('omits the style tag entirely when no style section is present', async () => {
   const source = `page Home\n\ntemplate\n  <p>Hello</p>`
-  const html = renderPageDocument(source)
+  const html = await renderPageDocument(source)
   assert.doesNotMatch(html, /<style>/)
 })
 
 test('supports a page with no script section at all', async () => {
   const source = `page Static\n\ntemplate\n  <p>Just static markup</p>`
-  const html = renderPageDocument(source)
+  const html = await renderPageDocument(source)
   const dom = await loadDocument(html)
   assert.equal(
     dom.window.document.querySelector('#app p').textContent,
@@ -116,7 +116,7 @@ template
   </div>
 `
 
-  const html = renderPageDocument(pageSource, { Badge: badgeSource })
+  const html = await renderPageDocument(pageSource, { Badge: badgeSource })
   const dom = await loadDocument(html)
   const { document } = dom.window
 

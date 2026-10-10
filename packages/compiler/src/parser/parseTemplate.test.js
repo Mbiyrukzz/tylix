@@ -2,11 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseTemplate } from "./parseTemplate.js";
 
+// Element and Attribute nodes carry a `line` for error reporting.
+// Tests that compare whole nodes drop it first, so they assert on
+// structure and don't break whenever position tracking changes.
+function withoutLines(node) {
+  return JSON.parse(
+    JSON.stringify(node, (key, value) => (key === "line" ? undefined : value)),
+  );
+}
+
 test("parses a single element with text content", () => {
   const nodes = parseTemplate(`<h1>Hello</h1>`);
-  assert.deepEqual(nodes, [
+  assert.deepEqual(withoutLines(nodes), [
     { type: "Element", tag: "h1", attributes: [], children: [{ type: "Text", value: "Hello" }] },
   ]);
+});
+
+test("records the source line on elements", () => {
+  const nodes = parseTemplate(`<h1>Hello</h1>`);
+  assert.equal(nodes[0].line, 1);
 });
 
 test("parses an interpolation node", () => {
@@ -34,7 +48,7 @@ test("parses nested elements", () => {
 
 test("parses a static attribute", () => {
   const nodes = parseTemplate(`<div class="wrapper"></div>`);
-  assert.deepEqual(nodes[0].attributes, [
+  assert.deepEqual(withoutLines(nodes[0].attributes), [
     { type: "Attribute", name: "class", value: "wrapper", dynamic: false },
   ]);
 });
@@ -49,7 +63,9 @@ test("parses a dynamic event-binding attribute using the expression parser", () 
 
 test("parses a self-closing element", () => {
   const nodes = parseTemplate(`<input />`);
-  assert.deepEqual(nodes, [{ type: "Element", tag: "input", attributes: [], children: [] }]);
+  assert.deepEqual(withoutLines(nodes), [
+    { type: "Element", tag: "input", attributes: [], children: [] },
+  ]);
 });
 
 test("parses the realistic counter template from the design doc", () => {

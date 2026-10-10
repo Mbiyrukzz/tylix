@@ -262,9 +262,9 @@ export class Parser {
     throw new Error(`${message} at line ${token.line}, got ${token.type}`)
   }
 
-  parsePropEntry() {
+   parsePropEntry() {
     const startLine = this.peek().line
-    const name = this.expect(TokenType.IDENTIFIER, 'Expected prop name').value
+    const name = this.parseNameToken('Expected prop name')
     const optional = this.match(TokenType.QUESTION)
     this.expect(TokenType.COLON, "Expected ':' after prop name")
     const propType = this.parseTypeExpression()
@@ -361,7 +361,7 @@ export class Parser {
     return { ...StateNode(name, value, typeAnnotation), line: startLine }
   }
 
-  parseMethod() {
+    parseMethod() {
     const startLine = this.peek().line
     const isAsync = this.match(TokenType.ASYNC)
     const name = this.parseNameToken('Expected method name')
@@ -369,10 +369,7 @@ export class Parser {
 
     const params = []
     while (!this.check(TokenType.RPAREN)) {
-      const paramName = this.expect(
-        TokenType.IDENTIFIER,
-        'Expected parameter name',
-      ).value
+      const paramName = this.parseNameToken('Expected parameter name')
       let paramType = null
       if (this.match(TokenType.COLON)) {
         paramType = this.parseTypeExpression()
@@ -406,13 +403,13 @@ export class Parser {
   // property values, and array pattern elements, so `const { a: { b } }
   // = x` and `const [[a, b]] = x` both fall out for free instead of
   // needing separate one-level-deep parsing logic in three places.
-  parseBindingTarget() {
+   parseBindingTarget() {
     if (this.check(TokenType.LBRACE)) return this.parseObjectPattern()
     if (this.check(TokenType.LBRACKET)) return this.parseArrayPattern()
-    return this.expect(TokenType.IDENTIFIER, 'Expected a binding name').value
+    return this.parseNameToken('Expected a binding name')
   }
 
-  parseObjectPattern() {
+   parseObjectPattern() {
     this.expect(TokenType.LBRACE, "Expected '{' to start destructuring pattern")
     const properties = []
     let rest = null
@@ -425,10 +422,7 @@ export class Parser {
         this.match(TokenType.COMMA)
         continue
       }
-      const key = this.expect(
-        TokenType.IDENTIFIER,
-        'Expected a property name',
-      ).value
+      const key = this.parseNameToken('Expected a property name')
       let binding = key
       if (this.match(TokenType.COLON)) {
         binding = this.parseBindingTarget()
@@ -443,7 +437,6 @@ export class Parser {
     this.expect(TokenType.RBRACE, "Expected '}' to close destructuring pattern")
     return ObjectPattern(properties, rest)
   }
-
   parseArrayPattern() {
     this.expect(
       TokenType.LBRACKET,
@@ -1107,14 +1100,11 @@ export class Parser {
     return name
   }
 
-  parseObjectTypeLiteral() {
+    parseObjectTypeLiteral() {
     this.expect(TokenType.LBRACE, "Expected '{' to start object type")
     const members = []
     while (!this.check(TokenType.RBRACE)) {
-      const key = this.expect(
-        TokenType.IDENTIFIER,
-        'Expected a property name',
-      ).value
+      const key = this.parseNameToken('Expected a property name')
       const optional = this.match(TokenType.QUESTION)
       this.expect(
         TokenType.COLON,

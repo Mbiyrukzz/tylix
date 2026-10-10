@@ -8,6 +8,39 @@ function parse(source) {
   return new Parser(tokens).parse()
 }
 
+// AST nodes carry extra bookkeeping fields (line, typeAnnotation,
+// computed, optional) that most of these tests don't care about.
+// pickShape keeps only the keys named in `shape`, so a test asserts
+// on what it means to check and doesn't break when a node gains a
+// field.
+function pickShape(actual, shape) {
+  if (Array.isArray(shape)) {
+    return Array.isArray(actual)
+      ? actual.map((item, i) => pickShape(item, shape[i]))
+      : actual
+  }
+  if (shape && typeof shape === 'object') {
+    const out = {}
+    for (const key of Object.keys(shape)) {
+      out[key] = pickShape(actual?.[key], shape[key])
+    }
+    return out
+  }
+  return actual
+}
+
+function assertMatches(actual, shape) {
+  assert.deepEqual(pickShape(actual, shape), shape)
+}
+
+// The same content written braced or bare lands on different lines,
+// so line numbers are dropped before comparing the two ASTs.
+function withoutLines(node) {
+  return JSON.parse(
+    JSON.stringify(node, (key, value) => (key === 'line' ? undefined : value)),
+  )
+}
+
 test('respects operator precedence: multiplication before addition', () => {
   const source = `action\n  compute() {\n    return 1 + 2 * 3\n  }`
   const ast = new Parser(new Lexer(source).tokenize()).parse()
@@ -57,14 +90,34 @@ test('parses a template literal with a single interpolation', () => {
 
 test('parses a props block', () => {
   const ast = parse(`props { title: String }`)
-  assert.deepEqual(ast.props, [
+  assertMatches(ast.props, [
     { type: 'Prop', name: 'title', propType: 'String' },
   ])
 })
 
+test('parses a bare props block with a prop named title', () => {
+  const ast = parse(`props\ntitle: String`)
+  assertMatches(ast.props, [
+    { type: 'Prop', name: 'title', propType: 'String' },
+  ])
+})
+
+test('accepts other keyword tokens as prop names', () => {
+  const ast = parse(`props { title: String, layout: String }`)
+  assert.equal(ast.props.length, 2)
+  assert.equal(ast.props[0].name, 'title')
+  assert.equal(ast.props[1].name, 'layout')
+})
+
+test('a page-level title section still parses after a bare props block', () => {
+  const ast = parse(`props\nname: String\ntitle "Home"`)
+  assert.equal(ast.props.length, 1)
+  assert.equal(ast.title, 'Home')
+})
+
 test('parses a state block with number and string values', () => {
   const ast = parse(`state { count: 0, label: "hi" }`)
-  assert.deepEqual(ast.state, [
+  assertMatches(ast.state, [
     { type: 'State', name: 'count', value: { type: 'Literal', value: 0 } },
     { type: 'State', name: 'label', value: { type: 'Literal', value: 'hi' } },
   ])
@@ -82,7 +135,7 @@ test('parses a computed block with return + member/binary expressions', () => {
   assert.equal(method.name, 'doubled')
   assert.deepEqual(method.params, [])
   assert.equal(method.body[0].type, 'ReturnStatement')
-  assert.deepEqual(method.body[0].argument, {
+  assertMatches(method.body[0].argument, {
     type: 'BinaryExpression',
     operator: '*',
     left: {
@@ -124,7 +177,40 @@ test('parses a method with parameters', () => {
       }
     }
   `)
-  assert.deepEqual(ast.actions[0].params, ['newValue'])
+  // Params carry an optional type annotation, so they are objects.
+  assert.deepEqual(ast.actions[0].params, [
+    { name: 'newValue', typeAnnotation: null },
+  ])
+})
+
+test('accepts a keyword token as a method parameter name', () => {
+  const ast = parse(`
+    action {
+      setTitle(title) {
+        this.title = title
+      }
+    }
+  `)
+  assert.deepEqual(ast.actions[0].params, [
+    { name: 'title', typeAnnotation: null },
+  ])
+})
+
+test('accepts a keyword token as a destructured property and binding name', () => {
+  assert.doesNotThrow(() =>
+    parse(`
+      action {
+        load() {
+          const { title } = this.data
+          const layout = title
+        }
+      }
+    `),
+  )
+})
+
+test('accepts a keyword token as a key in an object type annotation', () => {
+  assert.doesNotThrow(() => parse(`state { post({ title: string }): null }`))
 })
 
 test('parses a full realistic page script', () => {
@@ -195,7 +281,9 @@ test('braced and bare syntax produce identical ASTs for the same content', () =>
   const bracedPage = new Parser(new Lexer(braced).tokenize()).parse()
   const barePage = new Parser(new Lexer(bare).tokenize()).parse()
 
-  assert.deepEqual(bracedPage.state, barePage.state)
+  // Same content, different line numbers (1 vs 2), so compare
+  // everything except `line`.
+  assert.deepEqual(withoutLines(bracedPage.state), withoutLines(barePage.state))
 })
 
 test('parses a method call with no arguments inside an action body', () => {

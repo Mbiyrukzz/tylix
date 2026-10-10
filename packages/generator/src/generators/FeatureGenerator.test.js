@@ -35,7 +35,7 @@ test("generates model, migration, validator, controller, and manifest for Post",
   assert.equal(manifest.name, "Post");
   assert.equal(manifest.table, "posts");
   assert.equal(manifest.controller, "PostController");
-  assert.equal(manifest.validator, "validatePost");
+  assert.equal(manifest.validator, "PostValidator");
   assert.deepEqual(manifest.permissions, [
     "post.view",
     "post.create",

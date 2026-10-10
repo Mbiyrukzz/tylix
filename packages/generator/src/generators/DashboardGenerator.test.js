@@ -59,7 +59,7 @@ test('mounts the generated dashboard and completes an inline edit/update flow', 
   const blueprint = makePostBlueprint()
   const gen = new DashboardGenerator()
   const source = gen.generateSource(blueprint)
-  const html = renderPageDocument(source)
+  const html = await renderPageDocument(source)
 
   const fetchCalls = []
   const fakePosts = [{ id: 1, title: 'Original title', body: 'Original body' }]

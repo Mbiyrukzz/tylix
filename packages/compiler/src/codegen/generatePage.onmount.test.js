@@ -5,13 +5,26 @@ import { reactive } from "../runtime/reactive.js";
 import { Parser } from "../parser/Parser.js";
 import { Lexer } from "../lexer/Lexer.js";
 
-test("onMount runs automatically on construction", () => {
-  const source = `state\ncount: 0\nonMount\nthis.count = 99`;
+function buildPageClass(source) {
   const page = new Parser(new Lexer(source).tokenize()).parse();
   const classSource = generatePage(page, "Page");
-  const Page = new Function("reactive", `return ${classSource}`)(reactive);
+  return new Function("reactive", `return ${classSource}`)(reactive);
+}
+
+// onMount is not invoked from the constructor: the host awaits
+// __ready() (so capabilities are loaded) and then calls __onMount().
+test("onMount does not run on construction", () => {
+  const Page = buildPageClass(`state\ncount: 0\nonMount\nthis.count = 99`);
 
   const instance = new Page();
+  assert.equal(instance.count, 0);
+});
+
+test("onMount runs when the host calls __onMount()", () => {
+  const Page = buildPageClass(`state\ncount: 0\nonMount\nthis.count = 99`);
+
+  const instance = new Page();
+  instance.__onMount();
   assert.equal(instance.count, 99);
 });
 

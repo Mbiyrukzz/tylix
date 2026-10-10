@@ -24,7 +24,9 @@ test("generates a zero-parameter method with a single return statement", () => {
 });
 
 test("generates a method with parameters", () => {
-  const node = MethodNode("setCount", ["value"], [
+  // Params are { name, typeAnnotation } objects, the same shape the
+  // parser produces.
+  const node = MethodNode("setCount", [{ name: "value", typeAnnotation: null }], [
     ExpressionStatement(AssignmentExpr(MemberExpr(Identifier("this"), "count"), Identifier("value"))),
   ]);
 
