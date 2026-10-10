@@ -30,6 +30,7 @@ import { makeService } from './commands/makeService.js'
 import { makeMail } from './commands/makeMail.js'
 import { dev } from './commands/dev.js'
 import { build } from './commands/build.js'
+import { start } from './commands/start.js'
 
 const projectRoot = process.cwd()
 if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
@@ -56,8 +57,15 @@ async function main() {
     return
   }
 
-  if (command === 'build') {
+   if (command === 'build') {
     await build()
+    return
+  }
+
+  if (command === 'start') {
+    const portArg = rest.find((a) => a.startsWith('--port='))
+    const port = portArg ? Number(portArg.split('=')[1]) : undefined
+    await start({ port })
     return
   }
 
@@ -222,7 +230,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, build, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }
