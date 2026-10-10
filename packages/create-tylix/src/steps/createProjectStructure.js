@@ -104,7 +104,7 @@ export function createResource<T extends { id: number | string }>({ list, create
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^0.3.6',
+  '@tylix/cli': '^0.3.7',
   '@tylix/core': '^0.3.5',
   '@tylix/compiler': '^0.3.6',
   '@tylix/generator': '^0.3.5',
@@ -396,8 +396,14 @@ export async function createProjectStructure(config) {
       })
     }
 
+       // `build` and `start` are always present. `build` is the
+    // pre-flight gate (config check, typecheck, minified CSS) and
+    // `start` is the production server. Neither needs to be run by
+    // hand for `dev`.
     const scripts = {
       dev: 'tylix dev',
+      build: 'tylix build',
+      start: 'tylix start',
       migrate: 'tylix migrate',
     }
     if (config.styling === 'tailwind') {
