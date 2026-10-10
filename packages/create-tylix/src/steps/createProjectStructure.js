@@ -121,6 +121,8 @@ function buildDatabaseEnvLines(config) {
   const dbPassword = config.databasePassword ?? ''
 
   switch (driver) {
+    case 'sqlite':
+      return [`DATABASE_DRIVER=sqlite`, `DATABASE_FILENAME=database.sqlite`]
     case 'postgres':
       return [
         `DATABASE_DRIVER=postgres`,
