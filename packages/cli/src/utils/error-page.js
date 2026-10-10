@@ -70,7 +70,7 @@ function renderCodeFrame(source, line, contextLines = 2) {
     const content = escapeHtml(lines[i - 1] ?? '')
     rows += `
       <div class="frame-line${isTarget ? ' frame-line--error' : ''}" id="${isTarget ? 'error-line' : ''}">
-        <span class="frame-marker">${isTarget ? '>' : ''}</span>
+        <span class="frame-marker">${isTarget ? '›' : ''}</span>
         <span class="frame-gutter">${i}</span>
         <span class="frame-code">${content}</span>
       </div>`
@@ -96,49 +96,138 @@ export function renderErrorPage(error, opts = {}) {
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Compile Error -- ${escapeHtml(fileName)}</title>
+<title>Compile Error — ${escapeHtml(fileName)}</title>
+<script>
+  (function () {
+    var stored = localStorage.getItem("theme");
+    var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (stored === "dark" || (!stored && prefersDark)) {
+      document.documentElement.classList.add("dark");
+    }
+  })();
+</script>
 <style>
-  :root { color-scheme: dark; }
   * { box-sizing: border-box; }
+
+  :root {
+    --bg-page: #e2e8f0;        /* slate-200 */
+    --bg-card: #f8fafc;        /* slate-50 */
+    --bg-inset: #cbd5e1;       /* slate-300, used sparingly for insets */
+    --border: #cbd5e1;         /* slate-300 */
+    --border-strong: #94a3b8;  /* slate-400 */
+    --text-primary: #1e293b;   /* slate-800 */
+    --text-secondary: #64748b; /* slate-500 */
+    --text-muted: #94a3b8;     /* slate-400 */
+    --accent: #047857;         /* emerald-700 */
+    --accent-soft: rgba(16, 185, 129, 0.1);
+    --accent-ring: rgba(16, 185, 129, 0.25);
+    --danger: #be123c;         /* rose-700 */
+    --danger-border: #fda4af;  /* rose-300 */
+    --danger-bg: #ffe4e6;      /* rose-100 */
+    --code-bg: #f1f5f9;        /* slate-100 */
+  }
+
+  html.dark {
+    --bg-page: #020617;        /* slate-950 */
+    --bg-card: #0f172a;        /* slate-900 */
+    --bg-inset: #1e293b;       /* slate-800 */
+    --border: #1e293b;         /* slate-800 */
+    --border-strong: #334155;  /* slate-700 */
+    --text-primary: #e2e8f0;   /* slate-200 */
+    --text-secondary: #94a3b8; /* slate-400 */
+    --text-muted: #64748b;     /* slate-500 */
+    --accent: #10b981;         /* emerald-500 */
+    --accent-soft: rgba(16, 185, 129, 0.12);
+    --accent-ring: rgba(16, 185, 129, 0.3);
+    --danger: #fb7185;         /* rose-400 */
+    --danger-border: rgba(159, 18, 57, 0.5);
+    --danger-bg: rgba(76, 5, 25, 0.3);
+    --code-bg: #0b1220;
+  }
+
   body {
     margin: 0;
-    background: #020617;
-    color: #e2e8f0;
+    background: var(--bg-page);
+    color: var(--text-primary);
     font-family: ui-monospace, "SF Mono", Consolas, monospace;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 48px 24px;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 860px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  html.dark .card {
+    box-shadow: none;
   }
 
   header {
-    padding: 28px 40px 22px;
-    border-bottom: 1px solid #334155;
+    padding: 28px 32px 24px;
+    border-bottom: 1px solid var(--border);
   }
 
   .eyebrow {
-    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #f87171;
-    font-weight: 600;
-    margin: 0 0 10px;
+    color: var(--danger);
+    font-weight: 700;
+    margin: 0 0 14px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
   }
 
-  .file-line { color: #38bdf8; font-size: 14px; margin: 0 0 4px; }
-  .line-num { color: #64748b; font-size: 13px; margin: 0 0 16px; }
+  .file-line {
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    word-break: break-all;
+  }
+
+  .line-num {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin: 0 0 18px;
+  }
 
   .offending-code {
-    background: #0b1220;
-    border-left: 3px solid #f87171;
-    color: #fecaca;
-    padding: 10px 14px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--danger);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 12px 14px;
     font-size: 13px;
-    margin: 0 0 12px;
+    margin: 0 0 14px;
     white-space: pre;
     overflow-x: auto;
   }
 
   .message {
-    color: #e2e8f0;
+    color: var(--text-primary);
     font-size: 14px;
+    line-height: 1.6;
     margin: 0;
   }
 
@@ -146,68 +235,83 @@ export function renderErrorPage(error, opts = {}) {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    color: #cbd5e1;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-strong);
+    color: var(--text-primary);
     font-size: 12.5px;
     font-family: inherit;
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
     cursor: pointer;
-    margin-top: 16px;
+    margin-top: 18px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
   }
-  .copy-btn:hover { background: #334155; }
-  .copy-btn.copied { background: rgba(52, 211, 153, 0.15); border-color: rgba(52, 211, 153, 0.4); color: #6ee7b7; }
+  .copy-btn:hover { background: var(--border-strong); }
+  .copy-btn.copied {
+    background: var(--accent-soft);
+    border-color: var(--accent-ring);
+    color: var(--accent);
+  }
 
-  main { padding: 24px 40px 50px; max-width: 900px; margin: 0 auto; }
+  main { padding: 24px 32px 32px; }
 
   .hint {
     display: flex;
     gap: 10px;
+    align-items: flex-start;
     margin: 0 0 24px;
-    padding: 12px 16px;
-    border-left: 3px solid #38bdf8;
-    background: #0b1220;
-    color: #bae6fd;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--accent-ring);
+    background: var(--accent-soft);
+    color: var(--text-primary);
     font-size: 13px;
-    line-height: 1.6;
+    line-height: 1.65;
   }
+  .hint-icon { color: var(--accent); flex-shrink: 0; margin-top: 1px; }
   .hint code {
-    background: rgba(148, 163, 184, 0.15);
-    padding: 1px 5px;
-    border-radius: 3px;
+    background: var(--bg-inset);
+    padding: 1px 6px;
+    border-radius: 4px;
     font-size: 12px;
-    color: #e2e8f0;
+    color: var(--text-primary);
   }
 
   .frame {
-    border-top: 1px solid #334155;
-    border-bottom: 1px solid #334155;
-    padding: 8px 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 0;
     margin: 0 0 28px;
+    overflow: hidden;
+    background: var(--code-bg);
   }
   .frame-line {
     display: flex;
     font-size: 13px;
-    line-height: 1.8;
+    line-height: 1.85;
+    padding: 0 4px;
   }
-  .frame-marker { flex: 0 0 20px; color: #f87171; font-weight: 700; text-align: center; }
-  .frame-gutter { flex: 0 0 40px; color: #475569; text-align: right; padding-right: 16px; }
-  .frame-line--error .frame-gutter { color: #f87171; }
-  .frame-code { white-space: pre; color: #cbd5e1; }
-  .frame-line--error .frame-code { color: #fecaca; }
+  .frame-marker { flex: 0 0 20px; color: var(--danger); font-weight: 700; text-align: center; }
+  .frame-gutter { flex: 0 0 40px; color: var(--text-muted); text-align: right; padding-right: 16px; user-select: none; }
+  .frame-line--error {
+    background: var(--danger-bg);
+  }
+  .frame-line--error .frame-gutter { color: var(--danger); font-weight: 600; }
+  .frame-code { white-space: pre; color: var(--text-secondary); }
+  .frame-line--error .frame-code { color: var(--text-primary); }
 
   details.stack-details {
-    border-top: 1px solid #334155;
-    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
   }
   details.stack-details summary {
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11.5px;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #64748b;
+    color: var(--text-muted);
     list-style: none;
+    font-weight: 600;
   }
   details.stack-details summary::-webkit-details-marker { display: none; }
   details.stack-details summary::before { content: "▸ "; }
@@ -215,7 +319,7 @@ export function renderErrorPage(error, opts = {}) {
 
   pre.stack {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--text-secondary);
     padding: 12px 0 0;
     margin: 0;
     overflow-x: auto;
@@ -224,29 +328,33 @@ export function renderErrorPage(error, opts = {}) {
 </style>
 </head>
 <body>
-  <header>
-    <p class="eyebrow">Template Compile Error</p>
-    <p class="file-line">${escapeHtml(fileName)}</p>
-    ${line ? `<p class="line-num">Line ${line}</p>` : ''}
-    ${offendingLine ? `<p class="offending-code">${escapeHtml(offendingLine)}</p>` : ''}
-    <p class="message">${escapeHtml(error.message)}</p>
-    <button class="copy-btn" onclick="copyErrorDetails(this)">📋 Copy details</button>
-  </header>
-  <main>
-    ${hint ? `<div class="hint">💡 <span>${hint}</span></div>` : ''}
+  <div class="shell">
+    <div class="card">
+      <header>
+        <span class="eyebrow">⚠ Template Compile Error</span>
+        <p class="file-line">${escapeHtml(fileName)}</p>
+        ${line ? `<p class="line-num">Line ${line}</p>` : ''}
+        ${offendingLine ? `<p class="offending-code">${escapeHtml(offendingLine)}</p>` : ''}
+        <p class="message">${escapeHtml(error.message)}</p>
+        <button class="copy-btn" onclick="copyErrorDetails(this)">📋 Copy details</button>
+      </header>
+      <main>
+        ${hint ? `<div class="hint"><span class="hint-icon">💡</span><span>${hint}</span></div>` : ''}
 
-    ${source && line ? `<div class="frame">${renderCodeFrame(source, line)}</div>` : ''}
+        ${source && line ? `<div class="frame">${renderCodeFrame(source, line)}</div>` : ''}
 
-    ${
-      stack
-        ? `
-    <details class="stack-details">
-      <summary>Stack Trace</summary>
-      <pre class="stack">${escapeHtml(stack)}</pre>
-    </details>`
-        : ''
-    }
-  </main>
+        ${
+          stack
+            ? `
+        <details class="stack-details">
+          <summary>Stack Trace</summary>
+          <pre class="stack">${escapeHtml(stack)}</pre>
+        </details>`
+            : ''
+        }
+      </main>
+    </div>
+  </div>
 
   <script>
     function copyErrorDetails(btn) {
