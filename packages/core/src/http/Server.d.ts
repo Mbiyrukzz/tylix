@@ -4,6 +4,11 @@ export type NotFoundHandler = (req: any, res: any) => boolean | void | Promise<b
 
 export interface ServerOptions {
   notFoundHandler?: NotFoundHandler | null
+  /**
+   * Believe X-Forwarded-For and X-Forwarded-Proto. Enable only behind a
+   * proxy you control (nginx). Defaults to the TRUST_PROXY=true env var.
+   */
+  trustProxy?: boolean
 }
 
 export declare class Server {

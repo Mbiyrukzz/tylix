@@ -28,6 +28,7 @@ import { migrate } from './commands/migrate.js'
 import { makeIcon } from './commands/makeIcon.js'
 import { makeService } from './commands/makeService.js'
 import { makeMail } from './commands/makeMail.js'
+import { makeApi } from './commands/makeApi.js'
 import { dev } from './commands/dev.js'
 import { build } from './commands/build.js'
 import { start } from './commands/start.js'
@@ -44,6 +45,32 @@ if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
 
 const [, , command, ...rest] = process.argv
 
+// Reads "--name=value" or "--name value". Returns undefined if absent.
+function flagValue(args, name) {
+  const inline = args.find((a) => a.startsWith(`--${name}=`))
+  if (inline) return inline.slice(name.length + 3)
+
+  const i = args.indexOf(`--${name}`)
+  if (i !== -1 && args[i + 1] !== undefined && !args[i + 1].startsWith('--')) {
+    return args[i + 1]
+  }
+  return undefined
+}
+
+// Arguments that are not flags (and not the value of a "--flag value" pair).
+function positionalArgs(args, valueFlags) {
+  const out = []
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    if (arg.startsWith('--')) {
+      if (valueFlags.includes(arg.slice(2)) && !arg.includes('=')) i++
+      continue
+    }
+    out.push(arg)
+  }
+  return out
+}
+
 async function main() {
   if (command === 'migrate') {
     await migrate()
@@ -57,7 +84,7 @@ async function main() {
     return
   }
 
-   if (command === 'build') {
+  if (command === 'build') {
     await build()
     return
   }
@@ -157,6 +184,22 @@ async function main() {
     return
   }
 
+  if (command === 'make:api') {
+    const [name] = positionalArgs(rest, ['method', 'path'])
+    if (!name) {
+      console.error(
+        'Usage: tylix make:api <name> [--method=get|post|put|delete] [--path=/api/...] [--public]',
+      )
+      process.exit(1)
+    }
+    await makeApi(name, {
+      method: flagValue(rest, 'method'),
+      path: flagValue(rest, 'path'),
+      public: rest.includes('--public'),
+    })
+    return
+  }
+
   if (command === 'make:channel') {
     const [name] = rest
     if (!name) {
@@ -230,7 +273,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, build, start, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:mail, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

@@ -1,12 +1,33 @@
 {
   "name": "@tylix/mail",
-  "version": "0.3.5",
+  "version": "0.3.6",
+  "description": "Mail system for Tylix: Mailables, SMTP and log drivers, and mail logging",
   "type": "module",
-  "keywords": ["tylix", "mail", "email", "smtp", "sendgrid"],
+  "keywords": ["tylix", "mail", "email", "smtp"],
   "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "Mailer.js",
+    "Mailable.js",
+    "models",
+    "drivers"
+  ],
   "dependencies": {
-    "@tylix/shared": "^0.3.5",
-    "@tylix/orm": "^0.3.5",
-    "@tylix/generator": "^0.3.5"
+    "@tylix/shared": "^0.3.6"
+  },
+  "peerDependencies": {
+    "@tylix/orm": "^0.3.6"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

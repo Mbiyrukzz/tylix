@@ -1,5 +1,7 @@
 import { pascalCase, pluralize } from "@tylix/shared";
 
+const ACTIONS = ["index", "show", "store", "update", "destroy"];
+
 export class Blueprint {
   constructor(name) {
     if (!name || typeof name !== "string") {
@@ -16,7 +18,9 @@ export class Blueprint {
       api: false,
       crud: false,
       dashboard: false,
-      auth: false,
+      // Fail closed: features require login unless made public explicitly.
+      auth: true,
+      publicActions: [],
     };
   }
 
@@ -67,6 +71,25 @@ export class Blueprint {
 
   auth() {
     this.options.auth = true;
+    return this;
+  }
+
+  // public()                 -> no login needed for any action
+  // public(["store"])        -> login required except for those actions
+  public(actions) {
+    if (actions === undefined) {
+      this.options.auth = false;
+      return this;
+    }
+
+    for (const action of actions) {
+      if (!ACTIONS.includes(action)) {
+        throw new Error(
+          `Unknown action "${action}". Use: ${ACTIONS.join(", ")}`,
+        );
+      }
+    }
+    this.options.publicActions = [...new Set(actions)];
     return this;
   }
 

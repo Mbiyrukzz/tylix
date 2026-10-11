@@ -64,7 +64,7 @@ export class FeatureGenerator {
   }
 
   async writeManifest(blueprint, baseDir, language) {
-    const ext = language === 'typescript' ? 'ts' : 'js'
+    const publicActions = blueprint.options.publicActions ?? []
 
     const manifest = {
       name: blueprint.name,
@@ -76,7 +76,9 @@ export class FeatureGenerator {
       language,
       fields: blueprint.fields,
       relations: blueprint.relations,
-      auth: Boolean(blueprint.options.auth),
+      // Login is required unless the blueprint explicitly turned it off.
+      auth: blueprint.options.auth !== false,
+      ...(publicActions.length > 0 ? { public: publicActions } : {}),
       permissions: [
         `${blueprint.name.toLowerCase()}.view`,
         `${blueprint.name.toLowerCase()}.create`,

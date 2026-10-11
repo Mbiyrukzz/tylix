@@ -28,24 +28,22 @@ async function ensurePackageJson(baseDir) {
   }
 }
 
-// async function ensureTylixPackagesLinked(baseDir) {
-//   const nodeModulesTylix = path.join(baseDir, 'node_modules', '@tylix')
-//   await fs.mkdir(nodeModulesTylix, { recursive: true })
+// --public           -> every action is open (no login)
+// --public=store,index -> login required except for those actions
+function extractPublicFlag(fieldArgs) {
+  const flag = fieldArgs.find((a) => a === '--public' || a.startsWith('--public='))
+  const rest = fieldArgs.filter((a) => a !== flag)
 
-//   const neededPackages = ['shared', 'orm', 'auth', 'compiler']
+  if (!flag) return { rest, publicAll: false, publicActions: [] }
+  if (flag === '--public') return { rest, publicAll: true, publicActions: [] }
 
-//   for (const pkg of neededPackages) {
-//     const linkPath = path.join(nodeModulesTylix, pkg)
-//     const alreadyLinked = await fs
-//       .access(linkPath)
-//       .then(() => true)
-//       .catch(() => false)
-//     if (alreadyLinked) continue
-
-//     const sourcePath = path.join(MONOREPO_PACKAGES, pkg)
-//     await fs.symlink(sourcePath, linkPath, 'dir')
-//   }
-// }
+  const publicActions = flag
+    .slice('--public='.length)
+    .split(',')
+    .map((a) => a.trim())
+    .filter(Boolean)
+  return { rest, publicAll: false, publicActions }
+}
 
 export async function makeFeature(
   name,
@@ -53,8 +51,9 @@ export async function makeFeature(
   { dashboard = false } = {},
 ) {
   const blueprint = new Blueprint(name)
+  const { rest, publicAll, publicActions } = extractPublicFlag(fieldArgs)
 
-  for (const arg of fieldArgs) {
+  for (const arg of rest) {
     const [fieldName, fieldType = 'string', third] = arg.split(':')
 
     if (fieldType === 'belongsTo') {
@@ -76,10 +75,11 @@ export async function makeFeature(
 
   blueprint.timestamps().api().crud()
   if (dashboard) blueprint.dashboard()
+  if (publicAll) blueprint.public()
+  else if (publicActions.length > 0) blueprint.public(publicActions)
 
   const baseDir = process.cwd()
   await ensurePackageJson(baseDir)
-  // await ensureTylixPackagesLinked(baseDir)
 
   const generator = new FeatureGenerator()
   const results = await generator.generate(blueprint, baseDir)
@@ -101,5 +101,10 @@ export async function makeFeature(
     console.log(`  Dashboard:  ${path.relative(baseDir, dashPath)}`)
   }
 
-  console.log()
+  const access = !blueprint.options.auth
+    ? 'public (no login required)'
+    : blueprint.options.publicActions.length > 0
+      ? `login required, except: ${blueprint.options.publicActions.join(', ')}`
+      : 'login required'
+  console.log(`\n  Access:     ${access}\n`)
 }

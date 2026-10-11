@@ -21,9 +21,19 @@ export class User extends Model {
         "email_verified_at",
     ];
 
+    // email_verified_at is dropped here on purpose: verification is only
+    // ever set through markEmailVerified(), never through create().
     static async create(data) {
-        const hashed = await hashPassword(data.password);
-        return super.create({ ...data, password: hashed });
+        const { email_verified_at, ...rest } = data;
+        const email = typeof rest.email === "string" ? rest.email.trim().toLowerCase() : rest.email;
+        const hashed = await hashPassword(rest.password);
+        return super.create({ ...rest, email, password: hashed });
+    }
+
+    // Emails are stored lowercased, so the lookup is lowercased too.
+    static async findByEmail(email) {
+        const normalized = String(email ?? "").trim().toLowerCase();
+        return this.query().where("email", normalized).first();
     }
 
     // ASSUMPTION: Model exposes a generic `update(id, data)` — mirrors the

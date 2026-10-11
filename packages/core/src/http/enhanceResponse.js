@@ -39,14 +39,28 @@ export function enhanceResponse(res) {
       res.end()
       return res
     }
-    res.end(typeof data === 'string' ? data : JSON.stringify(data))
-    return res
+    if (typeof data === 'string' || Buffer.isBuffer(data)) {
+      res.end(data)
+      return res
+    }
+    // Objects, numbers, booleans: send as JSON with the right Content-Type.
+    return res.json(data)
   }
 
   // Set-Cookie can legitimately appear more than once (access + refresh
   // tokens in the same response), so this appends rather than overwrites.
+  // Secure defaults to on for HTTPS requests and in production, and is
+  // forced on for SameSite=None (browsers reject it otherwise). Pass
+  // secure: false explicitly to opt out.
   res.cookie = function (name, value, options = {}) {
-    const serialized = serializeCookie(name, value, options)
+    const secureByDefault =
+      Boolean(res.req && res.req.secure) ||
+      process.env.NODE_ENV === 'production' ||
+      options.sameSite === 'None'
+    const serialized = serializeCookie(name, value, {
+      ...options,
+      secure: options.secure ?? secureByDefault,
+    })
     const existing = res.getHeader('Set-Cookie')
     const cookies = existing
       ? Array.isArray(existing)

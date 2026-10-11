@@ -10,6 +10,9 @@
 
 import { validate, required, isString, isEmail } from "@tylix/shared";
 
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
+
 const registerSchema = {
     name: [required, isString],
     email: [required, isString, isEmail],
@@ -31,8 +34,30 @@ const resetPasswordSchema = {
     password: [required, isString],
 };
 
+// Only for passwords being set (register, reset). Login must not enforce
+// it, so people with older, shorter passwords can still sign in.
+function enforcePasswordLength(data, result) {
+    const password = data?.password;
+    if (typeof password !== "string") return result;
+    if (result.errors?.password?.length) return result;
+
+    let message = null;
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        message = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    } else if (password.length > MAX_PASSWORD_LENGTH) {
+        message = `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`;
+    }
+    if (!message) return result;
+
+    return {
+        ...result,
+        valid: false,
+        errors: { ...(result.errors ?? {}), password: [message] },
+    };
+}
+
 export function validateRegister(data) {
-    return validate(data, registerSchema);
+    return enforcePasswordLength(data, validate(data, registerSchema));
 }
 
 export function validateLogin(data) {
@@ -44,5 +69,5 @@ export function validateForgotPassword(data) {
 }
 
 export function validateResetPassword(data) {
-    return validate(data, resetPasswordSchema);
+    return enforcePasswordLength(data, validate(data, resetPasswordSchema));
 }
