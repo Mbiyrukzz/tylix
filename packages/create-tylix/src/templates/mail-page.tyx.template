@@ -7,6 +7,7 @@ state
   checkedAuth: false
   logs: []
   logsLoading: true
+  logsAvailable: true
   selectedLog: null
 
 action
@@ -31,6 +32,7 @@ onMount
     this.checkedAuth = true
 
     const result = await useApi("/api/_tylix/mail-logs")
+    this.logsAvailable = result.ok
     if result.ok {
       this.logs = result.data.data
     }
@@ -53,6 +55,19 @@ template
 {{/if}}
 
 {{#if not logsLoading}}
+{{#if not logsAvailable}}
+      <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-8 text-center">
+        <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+          <IconMail class="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
+        </div>
+        <h3 class="text-slate-900 dark:text-slate-200 font-medium mb-1.5">Mail logs are only available while developing</h3>
+        <p class="text-slate-500 text-sm max-w-sm mx-auto">
+          Logged emails can contain password-reset links, so the production server does not expose them.
+        </p>
+      </div>
+{{/if}}
+
+{{#if logsAvailable}}
 {{#if logs.length is 0}}
       <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-8 text-center">
         <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
@@ -78,7 +93,7 @@ template
             <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-500">sent</span>
 {{/if}}
 {{#if log.status is "captured"}}
-            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-2000/10 text-slate-500">captured</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500">captured</span>
 {{/if}}
 {{#if log.status is "failed"}}
             <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-500">failed</span>
@@ -87,6 +102,7 @@ template
         </button>
 {{/each}}
       </div>
+{{/if}}
 {{/if}}
 {{/if}}
 

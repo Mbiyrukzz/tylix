@@ -1,0 +1,19 @@
+{
+  "name": "@tylix/charts",
+  "version": "0.1.0",
+  "description": "Hand-rolled SVG charts for Tylix: sparkline and line chart",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": ["src"],
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT"
+}

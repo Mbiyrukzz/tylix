@@ -1,0 +1,6 @@
+export { linearScale } from './scales.js'
+export { niceTicks, extent } from './ticks.js'
+export { linePath, areaPath, segments } from './path.js'
+export { sparkline } from './sparkline.js'
+export { lineChart, DEFAULT_PALETTE } from './line.js'
+export { sparklineSvg, lineChartSvg } from './svg.js'
