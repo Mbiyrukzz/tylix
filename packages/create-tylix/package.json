@@ -1,6 +1,6 @@
 {
   "name": "create-tylix",
-  "version": "0.3.8",
+  "version": "0.4.0",
   "type": "module",
   "keywords": [
     "tylix",
@@ -9,12 +9,12 @@
   ],
   "main": "./src/index.js",
   "bin": {
-    "create-tylix": "./src/index.js"
+    "create-tylix": "src/index.js"
   },
   "dependencies": {
-    "@tylix/auth": "^0.3.5",
-    "@tylix/core": "^0.3.5",
-    "@tylix/generator": "^0.3.5",
-    "@tylix/shared": "^0.3.5"
+    "@tylix/auth": "^0.4.0",
+    "@tylix/core": "^0.4.0",
+    "@tylix/generator": "^0.4.0",
+    "@tylix/shared": "^0.4.0"
   }
 }

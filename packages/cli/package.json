@@ -1,6 +1,6 @@
 {
   "name": "@tylix/cli",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "type": "module",
   "keywords": [
     "tylix",
@@ -11,12 +11,12 @@
     "tylix": "src/index.js"
   },
   "dependencies": {
-    "@tylix/auth": "^0.3.5",
-    "@tylix/compiler": "^0.3.5",
-    "@tylix/core": "^0.3.5",
-    "@tylix/generator": "^0.3.5",
-    "@tylix/mail": "^0.3.5",
-    "@tylix/orm": "^0.3.5",
-    "@tylix/shared": "^0.3.5"
+    "@tylix/auth": "^0.4.0",
+    "@tylix/compiler": "^0.4.0",
+    "@tylix/core": "^0.4.0",
+    "@tylix/generator": "^0.4.0",
+    "@tylix/mail": "^0.4.0",
+    "@tylix/orm": "^0.4.0",
+    "@tylix/shared": "^0.4.0"
   }
 }
