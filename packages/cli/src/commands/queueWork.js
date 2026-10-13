@@ -5,6 +5,8 @@ import { JobRecord } from '@tylix/core'
 import { detectLanguage } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 
+const stamp = () => new Date().toTimeString().slice(0, 8)
+
 async function loadJobHandler(baseDir, jobName) {
   const language = await detectLanguage(baseDir)
   const ext = language === 'typescript' ? 'ts' : 'js'
@@ -29,9 +31,11 @@ async function loadJobHandler(baseDir, jobName) {
 
 export async function queueWork() {
   const baseDir = process.cwd()
-  console.log('Queue worker running — polling every 2s for pending jobs...\n')
+  console.log('Queue worker starting...')
 
   await bootstrapDatabase()
+
+  console.log('Queue worker running — polling every 2s for pending jobs...\n')
 
   let isPolling = false
 
@@ -48,18 +52,22 @@ export async function queueWork() {
 
       for (const job of pending) {
         await JobRecord.update(job.id, { status: 'processing' })
+        const startedAt = Date.now()
+        console.log(`[${stamp()}] Job #${job.id} (${job.job}) started`)
 
         try {
           const handler = await loadJobHandler(baseDir, job.job)
           await handler.handle(JSON.parse(job.payload))
           await JobRecord.update(job.id, { status: 'done' })
+          const seconds = Math.round((Date.now() - startedAt) / 1000)
+          console.log(`[${stamp()}] Job #${job.id} (${job.job}) done in ${seconds}s`)
         } catch (err) {
           await JobRecord.update(job.id, {
             status: 'failed',
             attempts: (job.attempts ?? 0) + 1,
             error: err.message,
           })
-          console.error(`Job #${job.id} (${job.job}) failed:`, err.message)
+          console.error(`[${stamp()}] Job #${job.id} (${job.job}) failed:`, err.message)
         }
       }
     } catch (err) {
