@@ -5,6 +5,8 @@ const COLUMN_TYPES = {
   increments: 'INT AUTO_INCREMENT PRIMARY KEY',
   string: 'VARCHAR(255)',
   text: 'TEXT',
+  mediumText: 'MEDIUMTEXT',
+  longText: 'LONGTEXT',
   boolean: 'TINYINT(1)',
   integer: 'INT',
   date: 'DATE',

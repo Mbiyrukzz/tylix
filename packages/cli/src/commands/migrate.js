@@ -23,6 +23,8 @@ function buildSchema(adapter) {
         increments: (name) => column(name, 'increments'),
         string: (name) => column(name, 'string'),
         text: (name) => column(name, 'text'),
+        mediumText: (name) => column(name, 'mediumText'),
+        longText: (name) => column(name, 'longText'),
         boolean: (name) => column(name, 'boolean'),
         integer: (name) => column(name, 'integer'),
         date: (name) => column(name, 'date'),
@@ -79,6 +81,8 @@ function buildSchema(adapter) {
       const table = {
         string: (name) => column(name, 'string'),
         text: (name) => column(name, 'text'),
+        mediumText: (name) => column(name, 'mediumText'),
+        longText: (name) => column(name, 'longText'),
         boolean: (name) => column(name, 'boolean'),
         integer: (name) => column(name, 'integer'),
         date: (name) => column(name, 'date'),
@@ -103,6 +107,11 @@ function buildSchema(adapter) {
           `ALTER TABLE ${adapter.quoteIdentifier(tableName)} DROP COLUMN ${adapter.quoteIdentifier(name)}`,
         )
       }
+    },
+
+    // Escape hatch for statements the builders can't express (e.g. MODIFY COLUMN).
+    raw: async (sql, params = []) => {
+      await adapter.run(sql, params)
     },
   }
 }
