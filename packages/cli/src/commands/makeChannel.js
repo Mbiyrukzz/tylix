@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pascalCase } from '@tylix/shared'
+import { detectLanguage } from '../utils/detect-language.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
@@ -12,6 +13,7 @@ export async function makeChannel(name) {
   const pageName = pascalCase(name)
   const language = await detectLanguage(baseDir)
   const ext = language === 'typescript' ? 'ts' : 'js'
+  const isTs = language === 'typescript'
 
   const templatePath = path.join(
     PACKAGE_ROOT,
@@ -30,6 +32,8 @@ export async function makeChannel(name) {
   await fs.writeFile(pagePath, rendered)
   console.log(`✔ Demo page created: ${path.relative(baseDir, pagePath)}`)
 
+  const anyType = isTs ? ': any' : ''
+
   const channelsPath = path.join(baseDir, 'app', `channels.${ext}`)
   const exists = await fs
     .access(channelsPath)
@@ -39,27 +43,27 @@ export async function makeChannel(name) {
   if (!exists) {
     await fs.writeFile(
       channelsPath,
-      `export async function channels(server) {\n  server.channel("${channelName}", {\n    onConnect(client) {},\n    onMessage(client, data) {\n      server.broadcast("${channelName}", data)\n    },\n    onDisconnect(client) {},\n  })\n}\n`,
+      `export async function channels(server${anyType}) {\n  server.channel("${channelName}", {\n    onConnect(client${anyType}) {},\n    onMessage(client${anyType}, data${anyType}) {\n      server.broadcast("${channelName}", data)\n    },\n    onDisconnect(client${anyType}) {},\n  })\n}\n`,
     )
     console.log(
-      `✔ app/channels.js created with "${channelName}" channel registered`,
+      `✔ app/channels.${ext} created with "${channelName}" channel registered`,
     )
   } else {
     const existing = await fs.readFile(channelsPath, 'utf-8')
     if (existing.includes(`server.channel("${channelName}"`)) {
       console.log(
-        `— Channel "${channelName}" already registered in app/channels.js, skipped`,
+        `— Channel "${channelName}" already registered in app/channels.${ext}, skipped`,
       )
     } else {
       console.log(
-        `\nHeads up: app/channels.js already exists and wasn't modified.\n` +
+        `\nHeads up: app/channels.${ext} already exists and wasn't modified.\n` +
           `Add this inside your "channels(server)" function to wire up "${channelName}":\n\n` +
           `  server.channel("${channelName}", {\n` +
-          `    onConnect(client) {},\n` +
-          `    onMessage(client, data) {\n` +
+          `    onConnect(client${anyType}) {},\n` +
+          `    onMessage(client${anyType}, data${anyType}) {\n` +
           `      server.broadcast("${channelName}", data)\n` +
           `    },\n` +
-          `    onDisconnect(client) {},\n` +
+          `    onDisconnect(client${anyType}) {},\n` +
           `  })\n`,
       )
     }

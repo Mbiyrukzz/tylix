@@ -257,11 +257,15 @@ ${childRegistrations}
     if (typeof instance.__ready === "function") {
       await instance.__ready();
     }
-    if (typeof instance.__onMount === "function") {
-      await instance.__onMount();
-    }
 ${code}
 ${layoutMountCode}
+    if (typeof instance.__onMount === "function") {
+      try {
+        await instance.__onMount();
+      } catch (err) {
+        console.error("onMount failed:", err);
+      }
+    }
   })(document, instance, components);
 });
 `
