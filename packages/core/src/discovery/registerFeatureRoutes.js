@@ -1,9 +1,9 @@
 import { requireAuth } from "../http/requireAuth.js";
 
-export function registerFeatureRoutes(router, features, { secret } = {}) {
+export function registerFeatureRoutes(router, features, { secret, hydrate } = {}) {
     for (const { manifest, controller } of features) {
         const base = `/api/${manifest.table}`;
-        const wrap = (fn) => (manifest.auth ? requireAuth(fn, secret) : fn);
+        const wrap = (fn) => (manifest.auth ? requireAuth(fn, secret, { hydrate }) : fn);
 
         router.get(base, wrap((req, res) => controller.index(req, res)));
         router.get(`${base}/:id`, wrap((req, res) => controller.show(req, res)));

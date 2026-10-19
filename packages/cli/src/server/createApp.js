@@ -474,9 +474,9 @@ export async function createApp(
   const router = new Router()
 
   await loadCustomRoutes(router, baseDir)
-    await registerRouteFiles(router, baseDir, { secret: config.auth?.secret })
+    await registerRouteFiles(router, baseDir, { secret: config.auth?.secret, hydrate: config.auth?.hydrate })
 
-  registerFeatureRoutes(router, features, { secret: config.auth?.secret })
+  registerFeatureRoutes(router, features, { secret: config.auth?.secret, hydrate: config.auth?.hydrate })
 
   router.get('/api/_tylix/features', (req, res) => {
     res.json({

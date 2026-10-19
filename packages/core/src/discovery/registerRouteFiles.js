@@ -22,9 +22,10 @@ async function collect(dir) {
 }
 
 // Mounts every app/routes/**/*.{js,ts} file exporting routes(router, { auth }).
-export async function registerRouteFiles(router, baseDir, { secret } = {}) {
+// `hydrate` (optional) is passed to requireAuth: see http/requireAuth.js.
+export async function registerRouteFiles(router, baseDir, { secret, hydrate } = {}) {
   const routesDir = path.join(baseDir, 'app', 'routes')
-  const context = { auth: (handler) => requireAuth(handler, secret) }
+  const context = { auth: (handler) => requireAuth(handler, secret, { hydrate }) }
   const mounted = []
 
   for (const file of await collect(routesDir)) {
