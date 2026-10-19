@@ -1,8 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pascalCase } from '@tylix/shared'
-import { detectLanguage } from '../utils/detect-language.js'
+import { pascalCase, detectLanguage } from '@tylix/shared'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')

@@ -6,6 +6,8 @@ export interface CreateTableBuilder {
   increments(name: string): ColumnDef
   string(name: string): ColumnDef
   text(name: string): ColumnDef
+  mediumText(name: string): ColumnDef
+  longText(name: string): ColumnDef
   boolean(name: string): ColumnDef
   integer(name: string): ColumnDef
   date(name: string): ColumnDef
@@ -17,6 +19,8 @@ export interface CreateTableBuilder {
 export interface AlterTableBuilder {
   string(name: string): ColumnDef
   text(name: string): ColumnDef
+  mediumText(name: string): ColumnDef
+  longText(name: string): ColumnDef
   boolean(name: string): ColumnDef
   integer(name: string): ColumnDef
   date(name: string): ColumnDef
@@ -29,4 +33,5 @@ export interface Schema {
   createTable(tableName: string, callback: (table: CreateTableBuilder) => void | Promise<void>): Promise<void>
   dropTable(tableName: string): Promise<void>
   alterTable(tableName: string, callback: (table: AlterTableBuilder) => void | Promise<void>): Promise<void>
+  raw(sql: string, params?: unknown[]): Promise<void>
 }
