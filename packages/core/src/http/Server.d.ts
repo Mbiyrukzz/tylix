@@ -16,3 +16,5 @@ export declare class Server {
   createHandler(): (req: any, res: any) => Promise<void>
   listen(port: number, callback?: () => void): import('node:http').Server
 }
+
+export declare function readBody(req: any): Promise<{ raw: string; body: any }>

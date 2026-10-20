@@ -1,6 +1,6 @@
 import http from 'node:http'
 import { enhanceResponse } from './enhanceResponse.js'
-import { parseBody } from './parseBody.js'
+import { readBody } from './parseBody.js'
 import { parseQuery } from './parseQuery.js'
 import { parseCookies } from './parseCookies.js'
 
@@ -82,7 +82,11 @@ export class Server {
     req.cookies = parseCookies(req)
 
     try {
-      req.body = await parseBody(req)
+      const { raw, body } = await readBody(req)
+      // The exact text the client sent. Webhook signatures are computed
+      // over these bytes, so they must not be re-serialised from req.body.
+      req.rawBody = raw
+      req.body = body
     } catch (err) {
       res.status(400).json({ error: err.message })
       return
