@@ -489,20 +489,16 @@ export async function createApp(
     })
   })
 
-  const mailLogsHandler = async (req, res) => {
-    const logs = await MailLog.recent(50)
-    res.json({ data: logs })
-  }
-
-  if (production) {
-    // Mail logs can contain password-reset links, so production only
-    // serves them to a logged-in user. test-mail isn't registered at all.
-    router.get(
-      '/api/_tylix/mail-logs',
-      requireAuth(mailLogsHandler, config.auth.secret),
-    )
-  } else {
-    router.get('/api/_tylix/mail-logs', mailLogsHandler)
+  // Mail logs hold password-reset, verification and invite links, and
+  // MailLog.recent() returns every user's mail, not just the caller's.
+  // So these dev tools are never registered in production, where they
+  // answer 404. A logged-in check alone isn't enough: any signed-in
+  // user could read everyone else's links.
+  if (!production) {
+    router.get('/api/_tylix/mail-logs', async (req, res) => {
+      const logs = await MailLog.recent(50)
+      res.json({ data: logs })
+    })
 
     router.post('/api/_tylix/test-mail', async (req, res) => {
       const { Mail } = await import('@tylix/mail')
