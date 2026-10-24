@@ -34,6 +34,10 @@ import {
   ContinueStatement,
   CapabilityRefNode,
   MetaEntryNode,
+  BlockStatement,
+  ThrowStatement,
+  WhileStatement,
+  SwitchStatement,
 } from '../ast/nodes.js'
 import { parseExpressionString } from './parseExpressionString.js'
 
@@ -42,6 +46,7 @@ const COMPARISON_SYMBOLS = {
   [TokenType.LT]: '<',
   [TokenType.GTE]: '>=',
   [TokenType.LTE]: '<=',
+  [TokenType.INSTANCEOF]: 'instanceof',
 }
 
 const ADDITIVE_SYMBOLS = {
@@ -68,28 +73,38 @@ const COMPOUND_ASSIGNMENT_OPS = {
   [TokenType.MINUS_EQUALS]: '-',
   [TokenType.STAR_EQUALS]: '*',
   [TokenType.SLASH_EQUALS]: '/',
+  [TokenType.PERCENT_EQUALS]: '%',
 }
 
 /**
  * Parses the token stream from the Lexer into a Page AST.
  *
  * Expressions are parsed with real precedence-climbing, low to high:
- *   arrow function (x => expr, (a, b) => expr) -- tried first, with
- *     backtracking, since it can start with the same tokens as a
- *     grouped expression or a bare identifier
- *   assignment  (= += -= *= /=)
+ *   arrow function (x => expr, (a, b) => expr, block bodies
+ *     x => { ... }, and the async forms of all of these) -- tried
+ *     first, with backtracking, since it can start with the same
+ *     tokens as a grouped expression or a bare identifier
+ *   assignment  (= += -= *= /= %= ??=)
  *   ternary     (?:)
+ *   nullish     (??)
  *   logical or  (or)
  *   logical and (and)
  *   equality    (is / is not)
- *   comparison  (> < >= <=)
+ *   comparison  (> < >= <= instanceof)
  *   predicate   (has / exists / missing)
  *   additive    (+ -)
  *   multiplicative (* / %)
- *   unary       (not, -, await)
- *   member/call (a.b, a())
+ *   exponent    (**, right-associative)
+ *   unary       (not, -, await, typeof, prefix ++/--)
+ *   postfix     (x++, x--)
+ *   member/call (a.b, a(), a?.b, a?.())
  *   primary     (literals, identifiers, grouping, arrays, objects,
  *                template literals)
+ *
+ * `x++` / `++x` desugar to `x = x + 1` (same trick as compound
+ * assignment), so the expression's value is the NEW value in both
+ * forms, unlike JS where postfix yields the old one. Fine for
+ * statements and event handlers, which is where it is used.
  */
 export class Parser {
   constructor(tokens) {
@@ -205,7 +220,7 @@ export class Parser {
     )
   }
 
-  // These five double as ordinary field names in practice (title
+  // These double as ordinary field names in practice (title
   // especially), so unlike the keywords above they can't be trusted as
   // section boundaries on token type alone -- isAtSectionBoundary below
   // checks the following token to disambiguate.
@@ -262,7 +277,7 @@ export class Parser {
     throw new Error(`${message} at line ${token.line}, got ${token.type}`)
   }
 
-   parsePropEntry() {
+  parsePropEntry() {
     const startLine = this.peek().line
     const name = this.parseNameToken('Expected prop name')
     const optional = this.match(TokenType.QUESTION)
@@ -361,7 +376,7 @@ export class Parser {
     return { ...StateNode(name, value, typeAnnotation), line: startLine }
   }
 
-    parseMethod() {
+  parseMethod() {
     const startLine = this.peek().line
     const isAsync = this.match(TokenType.ASYNC)
     const name = this.parseNameToken('Expected method name')
@@ -397,19 +412,20 @@ export class Parser {
       line: startLine,
     }
   }
+
   // A binding target is anywhere a name is bound to a value: a plain
   // identifier, or -- for destructuring -- a nested object/array
   // pattern. Shared by top-level const/let targets, object pattern
   // property values, and array pattern elements, so `const { a: { b } }
   // = x` and `const [[a, b]] = x` both fall out for free instead of
   // needing separate one-level-deep parsing logic in three places.
-   parseBindingTarget() {
+  parseBindingTarget() {
     if (this.check(TokenType.LBRACE)) return this.parseObjectPattern()
     if (this.check(TokenType.LBRACKET)) return this.parseArrayPattern()
     return this.parseNameToken('Expected a binding name')
   }
 
-   parseObjectPattern() {
+  parseObjectPattern() {
     this.expect(TokenType.LBRACE, "Expected '{' to start destructuring pattern")
     const properties = []
     let rest = null
@@ -437,6 +453,7 @@ export class Parser {
     this.expect(TokenType.RBRACE, "Expected '}' to close destructuring pattern")
     return ObjectPattern(properties, rest)
   }
+
   parseArrayPattern() {
     this.expect(
       TokenType.LBRACKET,
@@ -534,6 +551,19 @@ export class Parser {
     return capability
   }
 
+  // `{ stmt stmt ... }` -- shared by the newer statement forms
+  // (while, switch clauses, block-bodied arrows). `what` only feeds
+  // the error messages.
+  parseBlockStatements(what) {
+    this.expect(TokenType.LBRACE, `Expected '{' to start ${what}`)
+    const body = []
+    while (!this.check(TokenType.RBRACE)) {
+      body.push(this.parseStatement())
+    }
+    this.expect(TokenType.RBRACE, `Expected '}' to close ${what}`)
+    return body
+  }
+
   parseStatementInner() {
     if (this.match(TokenType.RETURN)) {
       const hasValue =
@@ -543,8 +573,22 @@ export class Parser {
       return ReturnStatement(argument)
     }
 
+    if (this.match(TokenType.THROW)) {
+      const argument = this.parseExpression()
+      this.match(TokenType.SEMICOLON)
+      return ThrowStatement(argument)
+    }
+
     if (this.match(TokenType.IF)) {
       return this.parseIfStatement()
+    }
+
+    if (this.match(TokenType.WHILE)) {
+      return this.parseWhileStatement()
+    }
+
+    if (this.match(TokenType.SWITCH)) {
+      return this.parseSwitchStatement()
     }
 
     if (this.match(TokenType.FOR)) {
@@ -582,6 +626,7 @@ export class Parser {
     this.match(TokenType.SEMICOLON)
     return ExpressionStatement(expression)
   }
+
   parseIfStatement() {
     const hasParen = this.match(TokenType.LPAREN)
     const condition = this.parseExpression()
@@ -611,6 +656,57 @@ export class Parser {
     }
 
     return IfStatement(condition, consequent, alternate)
+  }
+
+  // `while cond { ... }` or `while (cond) { ... }`. Parentheses need no
+  // special handling: `(cond)` already parses as a grouped expression,
+  // which also keeps `while (a) and (b) { ... }` working.
+  parseWhileStatement() {
+    const condition = this.parseExpression()
+    const body = this.parseBlockStatements('while body')
+    return WhileStatement(condition, body)
+  }
+
+  // Tylix-style switch: braces for every clause, no fallthrough, and
+  // `case a, b { ... }` instead of stacked labels. Codegen emits the
+  // `break` itself.
+  //
+  //   switch status {
+  //     case "paid", "settled" { ... }
+  //     default { ... }
+  //   }
+  parseSwitchStatement() {
+    const discriminant = this.parseExpression()
+    this.expect(TokenType.LBRACE, "Expected '{' to start switch body")
+
+    const cases = []
+    let hasDefault = false
+    while (!this.check(TokenType.RBRACE)) {
+      if (this.match(TokenType.CASE)) {
+        const tests = [this.parseExpression()]
+        while (this.match(TokenType.COMMA)) {
+          tests.push(this.parseExpression())
+        }
+        cases.push({ tests, body: this.parseBlockStatements('case body') })
+      } else if (this.check(TokenType.DEFAULT)) {
+        const line = this.advance().line
+        if (hasDefault) {
+          throw new Error(`Duplicate 'default' in switch at line ${line}`)
+        }
+        hasDefault = true
+        cases.push({
+          tests: null,
+          body: this.parseBlockStatements('default body'),
+        })
+      } else {
+        throw new Error(
+          `Expected 'case' or 'default' in switch at line ${this.peek().line}, got ${this.peek().type}`,
+        )
+      }
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close switch body")
+
+    return SwitchStatement(discriminant, cases)
   }
 
   parseForStatement() {
@@ -729,16 +825,92 @@ export class Parser {
     return left
   }
 
+  // Parses a type expression speculatively: on failure the position is
+  // restored and null is returned instead of throwing. Needed because
+  // `cond ? label : 'none'` looks exactly like the start of a typed
+  // arrow parameter (`label: Type => ...`) until the type fails to parse.
+  tryParseTypeExpression() {
+    const savedPos = this.pos
+    try {
+      return this.parseTypeExpression()
+    } catch {
+      this.pos = savedPos
+      return null
+    }
+  }
+
+  // After `=>`: either a block body or a single expression.
+  //
+  // A `{` after `=>` is a BLOCK (JS semantics), except when the
+  // tokens right after it make that impossible -- `{ ...x }`,
+  // `{ key: value }`, `{ a, b }` -- in which case it's an object
+  // literal, so the older `x => { id: x }` style keeps working. A
+  // block can't legally start with `name :` (no labels) or `name ,`
+  // (no comma operator), so the lookahead is unambiguous. The two
+  // cases it can't resolve are `{}` and `{ name }`; those are blocks,
+  // exactly as in JS. Write `({})` / `({ name })` for an object.
+  parseArrowBody() {
+    if (this.check(TokenType.LBRACE) && !this.looksLikeObjectLiteral()) {
+      return BlockStatement(this.parseBlockStatements('arrow function body'))
+    }
+    return this.parseAssignment()
+  }
+
+  looksLikeObjectLiteral() {
+    const first = this.tokens[this.pos + 1]
+    const second = this.tokens[this.pos + 2]
+    if (!first) return false
+    if (first.type === TokenType.SPREAD) return true
+    const isKey =
+      first.type === TokenType.STRING ||
+      first.type === TokenType.IDENTIFIER ||
+      KEYWORD_TOKEN_TYPES.has(first.type)
+    return (
+      isKey &&
+      !!second &&
+      (second.type === TokenType.COLON || second.type === TokenType.COMMA)
+    )
+  }
+
+  // Entry point for arrow functions, including the async forms:
+  //   async x => ...        async (a, b) => ...
+  //   async x: Type => ...  async (a: Type) => ...
+  //
+  // `async` is a keyword token but also a legal identifier name, so
+  // it is only treated as the async modifier when what follows could
+  // start an arrow's parameter list (an identifier/keyword name or
+  // '('). `async => 1` (a param literally named async) still goes
+  // down the normal path, and so does `async(x)` as a plain call,
+  // because the speculative parse below backs out and restores the
+  // position when no `=>` follows.
+  tryParseArrowFunction() {
+    if (this.check(TokenType.ASYNC)) {
+      const next = this.tokens[this.pos + 1]
+      const startsParams =
+        next &&
+        (next.type === TokenType.LPAREN ||
+          next.type === TokenType.IDENTIFIER ||
+          (next.type !== TokenType.ARROW && KEYWORD_TOKEN_TYPES.has(next.type)))
+      if (startsParams) {
+        const savedPos = this.pos
+        this.advance() // consume 'async'
+        const arrow = this.tryParseSyncArrow()
+        if (arrow) return { ...arrow, isAsync: true }
+        this.pos = savedPos
+        return null
+      }
+    }
+    return this.tryParseSyncArrow()
+  }
+
   // Arrow functions are tried with backtracking before falling
   // through to the normal ternary/assignment chain, since both forms
   // (`x => ...` and `(a, b) => ...`) start with tokens that are
   // otherwise perfectly valid as a bare identifier or a grouped
-  // expression. v1 scope is expression-body only (no `{ ... }` block
-  // body), matching a single call to parseAssignment for the body --
-  // deliberately narrower than full JS arrow functions, to avoid
-  // reopening the entire statement grammar inside an expression
-  // position.
-  tryParseArrowFunction() {
+  // expression. The body is an expression or, via parseArrowBody, a
+  // `{ ... }` statement block (script code only -- templates reject
+  // BlockStatement in their expression generators).
+  tryParseSyncArrow() {
     // single-param form: x => expr  or  x: Type => expr
     if (
       this.check(TokenType.IDENTIFIER) ||
@@ -748,20 +920,21 @@ export class Parser {
       if (next && next.type === TokenType.ARROW) {
         const param = this.advance().value
         this.advance() // consume '=>'
-        const body = this.parseAssignment()
+        const body = this.parseArrowBody()
         return ArrowFunctionExpr([param], body, [null])
       }
       if (next && next.type === TokenType.COLON) {
         const savedPos = this.pos
         const param = this.advance().value
         this.advance() // consume ':'
-        const paramType = this.parseTypeExpression()
-        if (this.check(TokenType.ARROW)) {
+        const paramType = this.tryParseTypeExpression()
+        if (paramType !== null && this.check(TokenType.ARROW)) {
           this.advance()
-          const body = this.parseAssignment()
+          const body = this.parseArrowBody()
           return ArrowFunctionExpr([param], body, [paramType])
         }
-        // wasn't actually a typed arrow param -- back out
+        // wasn't actually a typed arrow param (e.g. the `x : y` part
+        // of a ternary) -- back out
         this.pos = savedPos
       }
       return null
@@ -786,9 +959,17 @@ export class Parser {
             break
           }
           params.push(this.advance().value)
-          paramTypes.push(
-            this.match(TokenType.COLON) ? this.parseTypeExpression() : null,
-          )
+
+          let paramType = null
+          if (this.match(TokenType.COLON)) {
+            paramType = this.tryParseTypeExpression()
+            if (paramType === null) {
+              isValidParamList = false
+              break
+            }
+          }
+          paramTypes.push(paramType)
+
           if (this.match(TokenType.COMMA)) continue
           break
         }
@@ -798,7 +979,7 @@ export class Parser {
         this.pos++
         if (this.check(TokenType.ARROW)) {
           this.pos++
-          const body = this.parseAssignment()
+          const body = this.parseArrowBody()
           return ArrowFunctionExpr(params, body, paramTypes)
         }
       }
@@ -896,13 +1077,25 @@ export class Parser {
   }
 
   parseMultiplicative() {
-    let left = this.parseUnary()
+    let left = this.parseExponent()
     while (MULTIPLICATIVE_SYMBOLS[this.peek().type]) {
       const operator = MULTIPLICATIVE_SYMBOLS[this.advance().type]
-      const right = this.parseUnary()
+      const right = this.parseExponent()
       left = BinaryExpr(operator, left, right)
     }
     return left
+  }
+
+  // `**` binds tighter than * / % and is right-associative:
+  // 2 ** 3 ** 2 is 2 ** (3 ** 2). The right side recurses into
+  // parseExponent itself to get that associativity.
+  parseExponent() {
+    const base = this.parseUnary()
+    if (this.match(TokenType.STAR_STAR)) {
+      const exponent = this.parseExponent()
+      return BinaryExpr('**', base, exponent)
+    }
+    return base
   }
 
   parseUnary() {
@@ -915,7 +1108,26 @@ export class Parser {
     if (this.match(TokenType.MINUS)) {
       return UnaryExpr('-', this.parseUnary())
     }
-    return this.parseMemberExpression()
+    if (this.match(TokenType.TYPEOF)) {
+      return UnaryExpr('typeof', this.parseUnary())
+    }
+    if (this.match(TokenType.PLUS_PLUS)) {
+      const target = this.parseUnary()
+      return AssignmentExpr(target, BinaryExpr('+', target, Literal(1)))
+    }
+    if (this.match(TokenType.MINUS_MINUS)) {
+      const target = this.parseUnary()
+      return AssignmentExpr(target, BinaryExpr('-', target, Literal(1)))
+    }
+
+    const expr = this.parseMemberExpression()
+    if (this.match(TokenType.PLUS_PLUS)) {
+      return AssignmentExpr(expr, BinaryExpr('+', expr, Literal(1)))
+    }
+    if (this.match(TokenType.MINUS_MINUS)) {
+      return AssignmentExpr(expr, BinaryExpr('-', expr, Literal(1)))
+    }
+    return expr
   }
 
   parseMemberExpression() {
@@ -941,6 +1153,11 @@ export class Parser {
       }
 
       if (this.match(TokenType.QUESTION_DOT)) {
+        // Optional call: fn?.(args)
+        if (this.check(TokenType.LPAREN)) {
+          expr = { ...CallExpr(expr, this.parseCallArguments()), optional: true }
+          continue
+        }
         if (this.match(TokenType.LBRACKET)) {
           const property = this.parseExpression()
           this.expect(
@@ -1047,8 +1264,9 @@ export class Parser {
   }
 
   // Type expressions are captured as plain strings, not a full type
-  // AST -- Tylix's own codegen never interprets the, it only needs the exact TS source text to paste into the
-  // virtual .ts file handed to the TypeScript compiler API.
+  // AST -- Tylix's own codegen never interprets them, it only needs
+  // the exact TS source text to paste into the virtual .ts file handed
+  // to the TypeScript compiler API.
   parseTypeExpression() {
     let left = this.parseUnionTypeOperand()
     while (this.check(TokenType.PIPE)) {
@@ -1100,7 +1318,7 @@ export class Parser {
     return name
   }
 
-    parseObjectTypeLiteral() {
+  parseObjectTypeLiteral() {
     this.expect(TokenType.LBRACE, "Expected '{' to start object type")
     const members = []
     while (!this.check(TokenType.RBRACE)) {
@@ -1135,6 +1353,19 @@ export class Parser {
   parseObjectLiteral() {
     const properties = []
     while (!this.check(TokenType.RBRACE)) {
+      // Object spread: { ...base, extra: 1 }. Represented as a
+      // property with `spread: true` and no key, so codegen must check
+      // `p.spread` before reading `p.key`.
+      if (this.match(TokenType.SPREAD)) {
+        properties.push({
+          key: null,
+          spread: true,
+          value: this.parseExpression(),
+        })
+        this.match(TokenType.COMMA)
+        continue
+      }
+
       const isString = this.check(TokenType.STRING)
       const isKeywordKey =
         !isString && KEYWORD_TOKEN_TYPES.has(this.peek().type)

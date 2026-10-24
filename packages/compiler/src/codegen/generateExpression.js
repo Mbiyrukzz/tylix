@@ -1,3 +1,16 @@
+import { generateStatement } from './generateStatement.js'
+
+// Note: generateStatement.js imports generateExpression and this file
+// imports generateStatement (block-bodied arrows need it). That
+// circular import is safe in ES modules because both are hoisted
+// function declarations only called at runtime, never at load time.
+
+// Word operators (typeof) need a space before their operand;
+// symbolic ones (!, -) must not get one.
+function unaryPrefix(operator) {
+  return /^[a-z]/i.test(operator) ? `${operator} ` : operator
+}
+
 /**
  * Compiles a single expression AST node into a JS (or, when
  * typed=true, TypeScript) source string. Used both for method-body
@@ -37,7 +50,7 @@ export function generateExpression(node, typed = false) {
       return `(${generateExpression(node.left, typed)} ${node.operator} ${generateExpression(node.right, typed)})`
 
     case 'UnaryExpression':
-      return `(${node.operator}${generateExpression(node.argument, typed)})`
+      return `(${unaryPrefix(node.operator)}${generateExpression(node.argument, typed)})`
 
     case 'TernaryExpression':
       return `(${generateExpression(node.condition, typed)} ? ${generateExpression(node.consequent, typed)} : ${generateExpression(node.alternate, typed)})`
@@ -58,7 +71,21 @@ export function generateExpression(node, typed = false) {
           return `${name}: ${paramType ?? 'any'}`
         })
         .join(', ')
-      return `(${params}) => (${generateExpression(node.body, typed)})`
+      const asyncPrefix = node.isAsync ? 'async ' : ''
+
+      // Block body: `x => { stmt stmt }`. Statements are emitted on
+      // one line separated by spaces; multi-line statements (if,
+      // for, try) keep their own newlines, which is still valid JS.
+      if (node.body.type === 'BlockStatement') {
+        const stmts = node.body.body
+          .map((s) => generateStatement(s, typed))
+          .join(' ')
+        return `${asyncPrefix}(${params}) => { ${stmts} }`
+      }
+
+      // Expression body is always parenthesized so an object literal
+      // body (`x => ({ ...x })`) is never parsed as a block.
+      return `${asyncPrefix}(${params}) => (${generateExpression(node.body, typed)})`
     }
 
     case 'TemplateLiteralExpression': {
@@ -77,23 +104,25 @@ export function generateExpression(node, typed = false) {
 
     case 'CallExpression': {
       const args = node.args
-        .map((a) =>
-          a.type === 'SpreadElement'
-            ? `...${generateExpression(a.argument, typed)}`
-            : generateExpression(a, typed),
-        )
+        .map((a) => generateExpression(a, typed))
         .join(', ')
-      return `${generateExpression(node.callee, typed)}(${args})`
+      return `${generateExpression(node.callee, typed)}${node.optional ? '?.' : ''}(${args})`
     }
 
     case 'AwaitExpression':
       return `await ${generateExpression(node.argument, typed)}`
 
+    case 'SpreadElement':
+      return `...${generateExpression(node.argument, typed)}`
+
     case 'ObjectExpression': {
+      // Spread entries have key === null and spread === true (see
+      // Parser.parseObjectLiteral), so check p.spread before p.key.
       const props = node.properties
-        .map(
-          (p) =>
-            `${JSON.stringify(p.key)}: ${generateExpression(p.value, typed)}`,
+        .map((p) =>
+          p.spread
+            ? `...${generateExpression(p.value, typed)}`
+            : `${JSON.stringify(p.key)}: ${generateExpression(p.value, typed)}`,
         )
         .join(', ')
       return `{ ${props} }`
@@ -101,11 +130,7 @@ export function generateExpression(node, typed = false) {
 
     case 'ArrayExpression': {
       const elements = node.elements
-        .map((e) =>
-          e.type === 'SpreadElement'
-            ? `...${generateExpression(e.argument, typed)}`
-            : generateExpression(e, typed),
-        )
+        .map((e) => generateExpression(e, typed))
         .join(', ')
       return `[${elements}]`
     }

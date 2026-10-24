@@ -1,16 +1,22 @@
 import fs from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
+import { performance } from 'node:perf_hooks'
 import { promisify } from 'node:util'
 import {
-  printBox,
-  printChecklist,
-  printLinkSection,
+  printLogo,
+  printStatus,
+  printGroup,
+  printRoute,
+  printUrls,
+  printDivider,
   loadEnv,
 } from '@tylix/shared'
 import { Server } from '@tylix/core'
 import { watchDirectoryTree, createHmrChannel } from '../hotReload.js'
 import { createApp } from '../server/createApp.js'
+import { getTylixVersion } from '../utils/version.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -55,7 +61,19 @@ const DRIVER_LABELS = {
   mongodb: 'MongoDB',
 }
 
+function getNetworkUrl(port) {
+  for (const addrs of Object.values(os.networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (a.family === 'IPv4' && !a.internal) {
+        return `http://${a.address}:${port}`
+      }
+    }
+  }
+  return null
+}
+
 function printBanner({
+  version,
   port,
   driver,
   featureCount,
@@ -63,55 +81,75 @@ function printBanner({
   featureRoutes,
   pageRoutes,
   authEnabled,
+  readyMs,
 }) {
   console.log()
-  printBox('Tylix Framework v0.1')
+  printLogo({ version })
   console.log()
-  printChecklist([
-    `Environment  development`,
-    `Database     ${DRIVER_LABELS[driver] ?? driver}`,
-    `Compiler     Ready`,
-    `ORM          Ready`,
-    `Features     ${featureCount}`,
-    `Pages        ${pageCount}`,
+
+  printStatus([
+    ['Environment', 'development'],
+    ['Database', DRIVER_LABELS[driver] ?? driver],
+    ['Compiler', 'Ready'],
+    ['ORM', 'Ready'],
+    ['Features', String(featureCount)],
+    ['Pages', String(pageCount)],
   ])
 
-  if (pageRoutes.length > 0 || featureRoutes.length > 0) {
-    console.log('\nRoutes')
-    if (pageRoutes.length > 0) console.log(`  GET   /`)
-    for (const route of pageRoutes) console.log(`  GET   ${route}`)
-    for (const route of featureRoutes) {
-      const authNote = route.auth ? '  (auth required)' : ''
-      console.log(`  GET     /api/${route.table}${authNote}`)
-      console.log(`  POST    /api/${route.table}`)
-      console.log(`  GET     /api/${route.table}/:id`)
-      console.log(`  PUT     /api/${route.table}/:id`)
-      console.log(`  DELETE  /api/${route.table}/:id`)
+  if (pageRoutes.length > 0) {
+    printGroup('Pages')
+    printRoute('GET', '/')
+    for (const route of pageRoutes) printRoute('GET', route)
+  }
+
+  if (featureRoutes.length > 0) {
+    printGroup('Features')
+    for (const { table, auth } of featureRoutes) {
+      printRoute('GET', `/api/${table}`, auth ? '🔒 auth' : '')
+      printRoute('POST', `/api/${table}`)
+      printRoute('GET', `/api/${table}/:id`)
+      printRoute('PUT', `/api/${table}/:id`)
+      printRoute('DELETE', `/api/${table}/:id`)
     }
   }
 
-  printLinkSection('Your app is running at', `http://localhost:${port}`)
-
   if (authEnabled) {
-    printLinkSection('Login', `http://localhost:${port}/login`)
-    printLinkSection('Register', `http://localhost:${port}/register`)
-    console.log('\nAPI')
-    console.log('POST /api/register')
-    console.log('POST /api/login')
-    console.log('POST /api/auth/refresh')
-    console.log('POST /api/auth/logout')
-    console.log('GET  /api/auth/verify-email')
-    console.log('POST /api/auth/forgot-password')
-    console.log('POST /api/auth/reset-password')
-    console.log('GET  /api/me')
+    printGroup('Auth')
+    printRoute('POST', '/api/register')
+    printRoute('POST', '/api/login')
+    printRoute('POST', '/api/auth/refresh')
+    printRoute('POST', '/api/auth/logout')
+    printRoute('GET', '/api/auth/verify-email')
+    printRoute('POST', '/api/auth/forgot-password')
+    printRoute('POST', '/api/auth/reset-password')
+    printRoute('GET', '/api/me', '🔒 auth')
   }
 
-  console.log('\nWatching...\n')
+  console.log()
+  printDivider()
+
+  const urls = [['Local', `http://localhost:${port}`]]
+  const network = getNetworkUrl(port)
+  if (network) urls.push(['Network', network])
+  if (authEnabled) {
+    urls.push(['Login', `http://localhost:${port}/login`])
+    urls.push(['Register', `http://localhost:${port}/register`])
+  }
+  printUrls(urls)
+
+  console.log(`\n  Ready in ${readyMs}ms · watching for changes...\n`)
 }
 
-export async function dev({ port = 3000 } = {}) {
+export async function dev({ port } = {}) {
+  const startedAt = performance.now()
+  const version = getTylixVersion()
+
   const baseDir = process.cwd()
   await loadEnv(baseDir)
+
+  // Priority: --port flag, then PORT from .env, then 3000. This has to
+  // run after loadEnv(), otherwise PORT in .env is never seen.
+  port = port ?? (Number(process.env.PORT) || 3000)
 
   const hotReloadCompiler = process.env.TYLIX_HOT_RELOAD_COMPILER === 'true'
 
@@ -132,7 +170,7 @@ export async function dev({ port = 3000 } = {}) {
     watchedDirs.push(await resolveCompilerSrcDir(baseDir))
   }
 
-  watchedDirs.map((dir) =>
+  watchedDirs.forEach((dir) =>
     watchDirectoryTree(dir, async () => {
       await buildTailwindCss(baseDir)
       hmr.notify()
@@ -144,6 +182,8 @@ export async function dev({ port = 3000 } = {}) {
   })
   server.listen(port, () => {
     printBanner({
+      version,
+      readyMs: Math.round(performance.now() - startedAt),
       port,
       driver: app.config.database.driver,
       featureCount: app.features.length,

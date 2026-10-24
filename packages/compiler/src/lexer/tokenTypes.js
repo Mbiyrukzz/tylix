@@ -23,6 +23,13 @@ export const TokenType = {
   TRY: 'TRY',
   CATCH: 'CATCH',
   FINALLY: 'FINALLY',
+  TYPEOF: 'TYPEOF',
+  INSTANCEOF: 'INSTANCEOF',
+  THROW: 'THROW',
+  WHILE: 'WHILE',
+  SWITCH: 'SWITCH',
+  CASE: 'CASE',
+  DEFAULT: 'DEFAULT',
 
   // Literals
   IDENTIFIER: 'IDENTIFIER',
@@ -59,6 +66,9 @@ export const TokenType = {
   STAR: 'STAR',
   SLASH: 'SLASH',
   PERCENT: 'PERCENT', // %
+  STAR_STAR: 'STAR_STAR', // **
+  PLUS_PLUS: 'PLUS_PLUS', // ++
+  MINUS_MINUS: 'MINUS_MINUS', // --
   GT: 'GT',
   LT: 'LT',
   GTE: 'GTE', // >=
@@ -87,6 +97,7 @@ export const TokenType = {
   MINUS_EQUALS: 'MINUS_EQUALS', // -=
   STAR_EQUALS: 'STAR_EQUALS', // *=
   SLASH_EQUALS: 'SLASH_EQUALS', // /=
+  PERCENT_EQUALS: 'PERCENT_EQUALS', // %=
   TEMPLATE_LITERAL: 'TEMPLATE_LITERAL', // `text ${expr} text`
 
   // Template-specific
@@ -110,7 +121,6 @@ export const KEYWORDS = {
   capability: TokenType.CAPABILITY,
   init: TokenType.INIT,
   title: TokenType.TITLE,
-  layout: TokenType.LAYOUT,
   needs: TokenType.NEEDS,
   prefetch: TokenType.PREFETCH,
   background: TokenType.BACKGROUND,
@@ -143,4 +153,11 @@ export const KEYWORDS = {
   try: TokenType.TRY,
   catch: TokenType.CATCH,
   finally: TokenType.FINALLY,
+  typeof: TokenType.TYPEOF,
+  instanceof: TokenType.INSTANCEOF,
+  throw: TokenType.THROW,
+  while: TokenType.WHILE,
+  switch: TokenType.SWITCH,
+  case: TokenType.CASE,
+  default: TokenType.DEFAULT,
 }

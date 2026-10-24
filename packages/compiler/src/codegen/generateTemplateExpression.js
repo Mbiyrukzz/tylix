@@ -1,5 +1,52 @@
 import { generateExpression } from './generateExpression.js'
 
+// Plain JS globals that templates may use directly. Everything else
+// that isn't a local (each variable, arrow param, $event) is treated
+// as page state/capability and prefixed with "instance.".
+const JS_GLOBALS = new Set([
+  'null',
+  'true',
+  'false',
+  'undefined',
+  'NaN',
+  'Infinity',
+  'Math',
+  'JSON',
+  'Date',
+  'Number',
+  'String',
+  'Boolean',
+  'Array',
+  'Object',
+  'Set',
+  'Map',
+  'Intl',
+  'Promise',
+  'RegExp',
+  'Symbol',
+  'Error',
+  'URL',
+  'parseInt',
+  'parseFloat',
+  'isNaN',
+  'isFinite',
+  'encodeURIComponent',
+  'decodeURIComponent',
+  'console',
+  'window',
+])
+
+function escapeTemplateLiteralText(text) {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${')
+}
+
+function unaryPrefix(operator) {
+  return /^[a-z]/i.test(operator) ? `${operator} ` : operator
+}
+
 export function generateTemplateExpression(node, scope = new Set()) {
   if (node.type === 'Identifier') {
     if (node.name === '$event' || scope.has(node.name)) {
@@ -8,19 +55,7 @@ export function generateTemplateExpression(node, scope = new Set()) {
     if (node.name === 'this') {
       return 'instance'
     }
-    // "null", "true", "false", "undefined" are JS keywords, not
-    // instance properties -- if the parser is tokenizing them as bare
-    // Identifier nodes (rather than Literal nodes), they must NOT be
-    // prefixed with "instance.", or comparisons like
-    // `serverId is not null` silently compile to
-    // `instance.serverId !== instance.null` (always undefined) instead
-    // of `instance.serverId !== null`.
-    if (
-      node.name === 'null' ||
-      node.name === 'true' ||
-      node.name === 'false' ||
-      node.name === 'undefined'
-    ) {
+    if (JS_GLOBALS.has(node.name)) {
       return node.name
     }
     return `instance.${node.name}`
@@ -46,26 +81,85 @@ export function generateTemplateExpression(node, scope = new Set()) {
   }
 
   if (node.type === 'UnaryExpression') {
-    return `(${node.operator}${generateTemplateExpression(node.argument, scope)})`
+    return `(${unaryPrefix(node.operator)}${generateTemplateExpression(node.argument, scope)})`
   }
+
+  // Only valid inside an `async` arrow (`{{ async () => await ... }}`);
+  // a bare `{{ await x }}` would land in a non-async render effect and
+  // fail when the generated code is loaded.
+  if (node.type === 'AwaitExpression') {
+    return `(await ${generateTemplateExpression(node.argument, scope)})`
+  }
+
   if (node.type === 'AssignmentExpression') {
     return `${generateTemplateExpression(node.target, scope)} = ${generateTemplateExpression(node.value, scope)}`
   }
+
   if (node.type === 'CallExpression') {
     const args = node.args
       .map((a) => generateTemplateExpression(a, scope))
       .join(', ')
-    return `${generateTemplateExpression(node.callee, scope)}(${args})`
+    return `${generateTemplateExpression(node.callee, scope)}${node.optional ? '?.' : ''}(${args})`
   }
+
   if (node.type === 'NewExpression') {
     const args = node.args
       .map((a) => generateTemplateExpression(a, scope))
       .join(', ')
     return `new ${generateTemplateExpression(node.callee, scope)}(${args})`
   }
+
+  // (a, b) => expr -- params become locals for the body, so they are
+  // referenced bare instead of being prefixed with "instance.". The
+  // whole function is parenthesized so it is safe both as a call
+  // argument and as an event handler that gets invoked immediately.
+  if (node.type === 'ArrowFunctionExpression') {
+    const innerScope = new Set([...scope, ...node.params])
+    const params = node.params.join(', ')
+    const body = generateTemplateExpression(node.body, innerScope)
+    const asyncPrefix = node.isAsync ? 'async ' : ''
+    return `(${asyncPrefix}(${params}) => ${body})`
+  }
+
+  if (node.type === 'ArrayExpression') {
+    const elements = node.elements
+      .map((e) => generateTemplateExpression(e, scope))
+      .join(', ')
+    return `[${elements}]`
+  }
+
+  // Parenthesized so an object literal is never mistaken for a block
+  // when it ends up as an arrow function body: x => ({ ... })
+  if (node.type === 'ObjectExpression') {
+    const properties = node.properties
+      .map((p) =>
+        p.spread
+          ? `...${generateTemplateExpression(p.value, scope)}`
+          : `${JSON.stringify(p.key)}: ${generateTemplateExpression(p.value, scope)}`,
+      )
+      .join(', ')
+    return `({ ${properties} })`
+  }
+
+  if (node.type === 'SpreadElement') {
+    return `...${generateTemplateExpression(node.argument, scope)}`
+  }
+
+  if (node.type === 'TemplateLiteralExpression') {
+    const body = node.parts
+      .map((part) =>
+        part.type === 'text'
+          ? escapeTemplateLiteralText(part.value)
+          : `\${${generateTemplateExpression(part.expression, scope)}}`,
+      )
+      .join('')
+    return `\`${body}\``
+  }
+
   if (node.type === 'Literal') {
     return generateExpression(node)
   }
+
   throw new Error(
     `generateTemplateExpression: unsupported node type "${node.type}" in template expression`,
   )

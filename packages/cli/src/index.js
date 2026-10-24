@@ -57,6 +57,19 @@ function flagValue(args, name) {
   return undefined
 }
 
+// Returns a valid port number, or undefined so the command can fall
+// back to PORT from .env.
+function portFlag(args) {
+  const raw = flagValue(args, 'port')
+  if (raw === undefined) return undefined
+  const port = Number(raw)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    console.error(`Invalid --port "${raw}"`)
+    process.exit(1)
+  }
+  return port
+}
+
 // Arguments that are not flags (and not the value of a "--flag value" pair).
 function positionalArgs(args, valueFlags) {
   const out = []
@@ -77,10 +90,8 @@ async function main() {
     return
   }
 
-  if (command === 'dev') {
-    const portArg = rest.find((a) => a.startsWith('--port='))
-    const port = portArg ? Number(portArg.split('=')[1]) : 3000
-    await dev({ port })
+   if (command === 'dev') {
+    await dev({ port: portFlag(rest) })
     return
   }
 
@@ -90,9 +101,7 @@ async function main() {
   }
 
   if (command === 'start') {
-    const portArg = rest.find((a) => a.startsWith('--port='))
-    const port = portArg ? Number(portArg.split('=')[1]) : undefined
-    await start({ port })
+    await start({ port: portFlag(rest) })
     return
   }
 

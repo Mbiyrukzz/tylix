@@ -12,6 +12,16 @@ function resolveDriver(config) {
   return new LogDriver()
 }
 
+// A logging failure (for example the mail_logs table not existing yet)
+// must never change the outcome of the send itself.
+async function logSafely(entry) {
+  try {
+    await MailLog.create(entry)
+  } catch (logErr) {
+    console.error('[mail] could not write mail log:', logErr.message)
+  }
+}
+
 export class Mail {
   static async send({ to, subject, view, data = {} }, config) {
     let html = ''
@@ -26,13 +36,15 @@ export class Mail {
       html = templateEngine.render(template, data)
     }
 
+    // The recipient column is a string, so store arrays as "a, b".
+    const recipientLabel = [].concat(to).join(', ')
     const driver = resolveDriver(config)
 
     try {
       const result = await driver.deliver({ to, subject, html })
       if (config.driver === 'smtp') {
-        await MailLog.create({
-          recipient: to,
+        await logSafely({
+          recipient: recipientLabel,
           subject,
           body: html,
           driver: 'smtp',
@@ -41,8 +53,8 @@ export class Mail {
       }
       return result
     } catch (err) {
-      await MailLog.create({
-        recipient: to,
+      await logSafely({
+        recipient: recipientLabel,
         subject,
         body: html,
         driver: config.driver,

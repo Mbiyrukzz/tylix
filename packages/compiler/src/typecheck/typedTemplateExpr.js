@@ -5,21 +5,38 @@
 // as a separate closed-over parameter. Inside the virtual class,
 // there is no separate "instance" -- state/props are literal class
 // members -- so the equivalent prefix is "this.".
+
+function escapeTemplateText(text) {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${')
+}
+
+function unaryPrefix(operator) {
+  return /^[a-z]/i.test(operator) ? `${operator} ` : operator
+}
+
 export function typedTemplateExpr(node, scope) {
   if (node.type === 'Identifier') {
     if (node.name === '$event' || scope.has(node.name)) return node.name
     return `this.${node.name}`
   }
   if (node.type === 'MemberExpression') {
-    return node.computed
-      ? `${typedTemplateExpr(node.object, scope)}[${typedTemplateExpr(node.property, scope)}]`
-      : `${typedTemplateExpr(node.object, scope)}.${node.property}`
+    if (node.computed) {
+      return `${typedTemplateExpr(node.object, scope)}${node.optional ? '?.' : ''}[${typedTemplateExpr(node.property, scope)}]`
+    }
+    return `${typedTemplateExpr(node.object, scope)}${node.optional ? '?.' : '.'}${node.property}`
   }
   if (node.type === 'BinaryExpression') {
     return `(${typedTemplateExpr(node.left, scope)} ${node.operator} ${typedTemplateExpr(node.right, scope)})`
   }
   if (node.type === 'UnaryExpression') {
-    return `(${node.operator}${typedTemplateExpr(node.argument, scope)})`
+    return `(${unaryPrefix(node.operator)}${typedTemplateExpr(node.argument, scope)})`
+  }
+
+  if (node.type === 'AwaitExpression') {
+    return `(await ${typedTemplateExpr(node.argument, scope)})`
   }
 
   if (node.type === 'TernaryExpression') {
@@ -35,12 +52,59 @@ export function typedTemplateExpr(node, scope) {
   }
   if (node.type === 'CallExpression') {
     const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
-    return `${typedTemplateExpr(node.callee, scope)}(${args})`
+    return `${typedTemplateExpr(node.callee, scope)}${node.optional ? '?.' : ''}(${args})`
   }
   if (node.type === 'NewExpression') {
     const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
     return `new ${typedTemplateExpr(node.callee, scope)}(${args})`
   }
+
+  // Arrow params are typed `any` unless annotated, matching what
+  // generateExpression does in typed mode. Params become locals, so
+  // they are referenced bare in the body.
+  if (node.type === 'ArrowFunctionExpression') {
+    const innerScope = new Set([...scope, ...node.params])
+    const types = node.paramTypes ?? node.params.map(() => null)
+    const params = node.params
+      .map((name, i) => `${name}: ${types[i] ?? 'any'}`)
+      .join(', ')
+    const asyncPrefix = node.isAsync ? 'async ' : ''
+    return `(${asyncPrefix}(${params}) => (${typedTemplateExpr(node.body, innerScope)}))`
+  }
+
+  if (node.type === 'ArrayExpression') {
+    const elements = node.elements
+      .map((e) => typedTemplateExpr(e, scope))
+      .join(', ')
+    return `[${elements}]`
+  }
+
+  if (node.type === 'ObjectExpression') {
+    const properties = node.properties
+      .map((p) =>
+        p.spread
+          ? `...${typedTemplateExpr(p.value, scope)}`
+          : `${JSON.stringify(p.key)}: ${typedTemplateExpr(p.value, scope)}`,
+      )
+      .join(', ')
+    return `({ ${properties} })`
+  }
+
+  if (node.type === 'SpreadElement') {
+    return `...${typedTemplateExpr(node.argument, scope)}`
+  }
+
+  if (node.type === 'TemplateLiteralExpression') {
+    const body = node.parts
+      .map((part) =>
+        part.type === 'text'
+          ? escapeTemplateText(part.value)
+          : `\${${typedTemplateExpr(part.expression, scope)}}`,
+      )
+      .join('')
+    return `\`${body}\``
+  }
+
   if (node.type === 'Literal') {
     return typeof node.value === 'string'
       ? JSON.stringify(node.value)

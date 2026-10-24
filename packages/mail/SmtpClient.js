@@ -1,5 +1,6 @@
 import net from 'node:net'
 import tls from 'node:tls'
+import crypto from 'node:crypto'
 
 const DEFAULT_TIMEOUT_MS = 10_000
 
@@ -137,6 +138,111 @@ function connectSocket(options, timeoutMs) {
   })
 }
 
+// --- Message building helpers -------------------------------------------
+
+// Any CR or LF in a header value would let the caller add headers of
+// their own (or extra SMTP commands, for the envelope addresses).
+function assertNoLineBreaks(value, label) {
+  if (typeof value !== 'string' || /[\r\n]/.test(value)) {
+    throw new Error(`Invalid ${label}: line breaks are not allowed`)
+  }
+  return value
+}
+
+// Envelope and header addresses must be a plain "user@host". This is
+// also what MAIL FROM:<...> / RCPT TO:<...> require.
+function assertAddress(value, label) {
+  assertNoLineBreaks(value, label)
+  if (!value.includes('@') || /[<>\s]/.test(value)) {
+    throw new Error(`Invalid ${label}: expected a plain email address`)
+  }
+  return value
+}
+
+// RFC 2047: non-ASCII header text is sent as encoded words. Each word
+// stays under the 75-character limit, and multi-byte characters are
+// never split across words.
+function encodeHeaderValue(value) {
+  assertNoLineBreaks(value, 'header value')
+  if (/^[\x20-\x7e]*$/.test(value)) return value
+
+  const words = []
+  let chunk = ''
+  let bytes = 0
+  for (const ch of value) {
+    const size = Buffer.byteLength(ch)
+    if (bytes + size > 45) {
+      words.push(chunk)
+      chunk = ''
+      bytes = 0
+    }
+    chunk += ch
+    bytes += size
+  }
+  if (chunk) words.push(chunk)
+
+  return words
+    .map((w) => `=?UTF-8?B?${Buffer.from(w).toString('base64')}?=`)
+    .join('\r\n ')
+}
+
+// Base64 body parts need no line-ending normalisation or dot-stuffing:
+// the encoded text only has A-Z a-z 0-9 + / = and is wrapped at 76.
+function base64Lines(value) {
+  const encoded = Buffer.from(value, 'utf-8').toString('base64')
+  return (encoded.match(/.{1,76}/g) ?? []).join('\r\n')
+}
+
+// Rough plain-text fallback so the text/plain part is never empty.
+function htmlToText(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>|<\/p>|<\/div>|<\/h[1-6]>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function buildMessage({ from, recipients, subject, html, text }) {
+  const boundary = `tylix-${crypto.randomBytes(12).toString('hex')}`
+  const domain = from.split('@')[1]
+  // RFC 5322 date, with a numeric zone instead of "GMT".
+  const date = new Date().toUTCString().replace('GMT', '+0000')
+
+  const plain = text || htmlToText(html || '')
+
+  const message = [
+    `From: ${from}`,
+    `To: ${recipients.join(', ')}`,
+    `Subject: ${encodeHeaderValue(subject)}`,
+    `Date: ${date}`,
+    `Message-ID: <${crypto.randomUUID()}@${domain}>`,
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    base64Lines(plain),
+    `--${boundary}`,
+    'Content-Type: text/html; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    base64Lines(html || ''),
+    `--${boundary}--`,
+  ].join('\r\n')
+
+  // Dot-stuffing per RFC 5321, then the terminator. Nothing in the
+  // message above can start a line with "." today, but this keeps it
+  // safe if a part is ever sent unencoded.
+  return `${message.replace(/(^|\r\n)\./g, '$1..')}\r\n.`
+}
+
+// --- Client ----------------------------------------------------------------
+
 export class SmtpClient {
   constructor({
     host,
@@ -144,6 +250,10 @@ export class SmtpClient {
     secure = false,
     user,
     password,
+    // Name announced in EHLO. Must identify THIS machine or app, not the
+    // server, which some servers reject. "localhost" is accepted by
+    // nearly all of them; set it to your app's hostname for production.
+    clientName = 'localhost',
     timeoutMs = DEFAULT_TIMEOUT_MS,
   }) {
     this.host = host
@@ -151,6 +261,7 @@ export class SmtpClient {
     this.secure = secure
     this.user = user
     this.password = password
+    this.clientName = clientName
     this.timeoutMs = timeoutMs
   }
 
@@ -162,7 +273,7 @@ export class SmtpClient {
     this.reader = new SmtpResponseReader(this.socket)
 
     checkCode(await this.reader.read(this.timeoutMs), [220])
-    writeCommand(this.socket, `EHLO ${this.host}`)
+    writeCommand(this.socket, `EHLO ${this.clientName}`)
     checkCode(await this.reader.read(this.timeoutMs), [250])
 
     if (!this.secure && this.port === 587) {
@@ -171,7 +282,12 @@ export class SmtpClient {
 
       this.reader.detach()
       this.socket = await new Promise((resolve, reject) => {
-        const tlsSocket = tls.connect({ socket: this.socket })
+        // servername is needed so the certificate is checked against
+        // the real host name (and so SNI is sent).
+        const tlsSocket = tls.connect({
+          socket: this.socket,
+          servername: this.host,
+        })
         const timer = setTimeout(() => {
           tlsSocket.destroy()
           reject(new Error('STARTTLS upgrade timed out'))
@@ -187,7 +303,7 @@ export class SmtpClient {
       })
       this.reader = new SmtpResponseReader(this.socket)
 
-      writeCommand(this.socket, `EHLO ${this.host}`)
+      writeCommand(this.socket, `EHLO ${this.clientName}`)
       checkCode(await this.reader.read(this.timeoutMs), [250])
     }
 
@@ -202,13 +318,27 @@ export class SmtpClient {
   }
 
   async send({ from, to, subject, html, text }) {
+    // Validate everything before opening a connection.
+    assertAddress(from, 'from address')
+    const recipients = (Array.isArray(to) ? to : [to]).map((r) =>
+      assertAddress(r, 'recipient address'),
+    )
+    assertNoLineBreaks(subject ?? '', 'subject')
+
+    const message = buildMessage({
+      from,
+      recipients,
+      subject: subject ?? '',
+      html,
+      text,
+    })
+
     try {
       await this.connect()
 
       writeCommand(this.socket, `MAIL FROM:<${from}>`)
       checkCode(await this.reader.read(this.timeoutMs), [250])
 
-      const recipients = Array.isArray(to) ? to : [to]
       for (const recipient of recipients) {
         writeCommand(this.socket, `RCPT TO:<${recipient}>`)
         checkCode(await this.reader.read(this.timeoutMs), [250, 251])
@@ -217,30 +347,13 @@ export class SmtpClient {
       writeCommand(this.socket, 'DATA')
       checkCode(await this.reader.read(this.timeoutMs), [354])
 
-      const boundary = `tylix-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const body = [
-        `From: ${from}`,
-        `To: ${recipients.join(', ')}`,
-        `Subject: ${subject}`,
-        'MIME-Version: 1.0',
-        `Content-Type: multipart/alternative; boundary="${boundary}"`,
-        '',
-        `--${boundary}`,
-        'Content-Type: text/plain; charset=utf-8',
-        '',
-        (text || '').replace(/^\./gm, '..'), // dot-stuffing per RFC 5321
-        `--${boundary}`,
-        'Content-Type: text/html; charset=utf-8',
-        '',
-        (html || '').replace(/^\./gm, '..'),
-        `--${boundary}--`,
-        '.',
-      ].join('\r\n')
-
-      writeCommand(this.socket, body)
+      writeCommand(this.socket, message)
       checkCode(await this.reader.read(this.timeoutMs), [250])
 
       writeCommand(this.socket, 'QUIT')
+      // Give the server a moment to acknowledge before the socket closes.
+      // The message is already accepted, so a missing reply is not an error.
+      await this.reader.read(2000).catch(() => {})
     } finally {
       this.reader?.detach()
       this.socket?.end()

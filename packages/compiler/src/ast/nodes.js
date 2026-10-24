@@ -184,8 +184,18 @@ export function ContinueStatement() {
   return { type: 'ContinueStatement' }
 }
 
-export function ArrowFunctionExpr(params, body, paramTypes = null) {
-  return { type: 'ArrowFunctionExpression', params, body, paramTypes }
+export function ArrowFunctionExpr(
+  params,
+  body,
+  paramTypes = null,
+  isAsync = false,
+) {
+  // body is either an expression node, or a BlockStatement node for
+  // block-bodied arrows (`x => { ... }`). Block bodies are only valid
+  // in script code; the template generators reject BlockStatement
+  // with their normal "unsupported node type" error.
+  // isAsync marks `async x => ...` / `async (a, b) => ...`.
+  return { type: 'ArrowFunctionExpression', params, body, paramTypes, isAsync }
 }
 
 export function TemplateLiteralExpr(parts) {
@@ -195,6 +205,7 @@ export function TemplateLiteralExpr(parts) {
 export function SpreadElement(argument) {
   return { type: 'SpreadElement', argument }
 }
+
 export function TryStatement(tryBlock, catchParam, catchBlock, finallyBlock) {
   return {
     type: 'TryStatement',
@@ -203,4 +214,22 @@ export function TryStatement(tryBlock, catchParam, catchBlock, finallyBlock) {
     catchBlock,
     finallyBlock,
   }
+}
+
+export function BlockStatement(body) {
+  return { type: 'BlockStatement', body }
+}
+
+export function ThrowStatement(argument) {
+  return { type: 'ThrowStatement', argument }
+}
+
+export function WhileStatement(condition, body) {
+  return { type: 'WhileStatement', condition, body }
+}
+
+// cases: [{ tests: Expression[] | null, body: Statement[] }]
+// tests === null marks the `default` clause.
+export function SwitchStatement(discriminant, cases) {
+  return { type: 'SwitchStatement', discriminant, cases }
 }

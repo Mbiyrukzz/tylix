@@ -15,3 +15,4 @@ export const yellow = wrap(33)
 export const red = wrap(31)
 export const gray = wrap(90)
 export const white = wrap(37)
+export const blue = (s) => `\x1b[34m${s}\x1b[39m`

@@ -101,16 +101,45 @@ export function createResource<T extends { id: number | string }>({ list, create
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^0.4.0',
-  '@tylix/core': '^0.4.0',
-  '@tylix/compiler': '^0.4.0',
-  '@tylix/generator': '^0.4.0',
-  '@tylix/orm': '^0.4.0',
-  '@tylix/shared': '^0.4.0',
-  '@tylix/auth': '^0.4.0',
-  '@tylix/mail': '^0.4.0',
-  'tylix-icons': '^0.4.0',
+  '@tylix/cli': '^0.5.0',
+  '@tylix/core': '^0.5.0',
+  '@tylix/compiler': '^0.5.0',
+  '@tylix/generator': '^0.5.0',
+  '@tylix/orm': '^0.5.0',
+  '@tylix/shared': '^0.5.0',
+  '@tylix/auth': '^0.5.0',
+  '@tylix/mail': '^0.5.0',
+  'tylix-icons': '^0.5.0',
 }
+
+// Package name -> folder under packages/. Used for file: links and for
+// `overrides`, so transitive @tylix/* dependencies (e.g. the CLI's own
+// dependency on core) also resolve to the local checkout instead of
+// the registry.
+const LOCAL_PACKAGE_DIRS = {
+  '@tylix/cli': 'cli',
+  '@tylix/core': 'core',
+  '@tylix/compiler': 'compiler',
+  '@tylix/generator': 'generator',
+  '@tylix/orm': 'orm',
+  '@tylix/shared': 'shared',
+  '@tylix/mail': 'mail',
+  '@tylix/auth': 'auth',
+  'tylix-icons': 'tylix-icons',
+}
+
+// Packages every generated app depends on directly. @tylix/auth is
+// added separately, only when authentication is enabled.
+const BASE_DEPENDENCIES = [
+  '@tylix/cli',
+  '@tylix/core',
+  '@tylix/compiler',
+  '@tylix/generator',
+  '@tylix/orm',
+  '@tylix/shared',
+  '@tylix/mail',
+  'tylix-icons',
+]
 
 // Shared by .env and .env.example. Off by default: with it on, the server
 // believes the X-Forwarded-For header, which any client can fake unless a
@@ -207,9 +236,9 @@ export async function createProjectStructure(config) {
       // with "Cannot find name 'useApi'" (TS2304).
       await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
       await fs.writeFile(
-        path.join(targetDir, 'app', 'types', 'globals.d.ts'),
-        `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n`,
-      )
+  path.join(targetDir, 'app', 'types', 'globals.d.ts'),
+  `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n\ndeclare function reactive<T extends object>(state: T): T\n`,
+)
     }
 
     await fs.mkdir(path.join(targetDir, 'app', 'models'), { recursive: true })
@@ -366,42 +395,27 @@ export async function createProjectStructure(config) {
       `export async function seed() {\n  // e.g.:\n  // await Post.create({ title: 'First post', body: '...' })\n}\n`,
     )
 
-    // Only use file: links to the monorepo's own packages when we're
-    // actually running from inside a dev checkout of the monorepo (the
-    // sibling `packages/` dir exists on disk). Anyone who installed
-    // create-tylix from the npm registry has no such directory next to
-    // it -- for them, every dependency must resolve to a real published
-    // version instead of a broken local path.
-    const isDevMonorepoContext = await pathExists(MONOREPO_PACKAGES_DIR)
+    // Use file: links only when THIS create-tylix is the copy inside the
+    // monorepo checkout (or TYLIX_LOCAL=1 forces it). A bare "a packages/
+    // dir exists" check could misfire if someone runs `npx create-tylix`
+    // from inside an unrelated monorepo; comparing our own location
+    // cannot. Everyone who installed from the registry gets real
+    // published versions instead of broken local paths.
+    const isDevMonorepoContext =
+      process.env.TYLIX_LOCAL === '1' ||
+      PACKAGE_ROOT === path.join(MONOREPO_PACKAGES_DIR, 'create-tylix')
 
-    const filePkg = (name) => `file:${path.join(MONOREPO_PACKAGES_DIR, name)}`
+    const filePkg = (name) =>
+      `file:${path.join(MONOREPO_PACKAGES_DIR, LOCAL_PACKAGE_DIRS[name])}`
+    const pkgSpec = (name) =>
+      isDevMonorepoContext ? filePkg(name) : PUBLISHED_VERSIONS[name]
 
-    const dependencies = isDevMonorepoContext
-      ? {
-          '@tylix/cli': filePkg('cli'),
-          '@tylix/core': filePkg('core'),
-          '@tylix/compiler': filePkg('compiler'),
-          '@tylix/generator': filePkg('generator'),
-          '@tylix/orm': filePkg('orm'),
-          '@tylix/shared': filePkg('shared'),
-          '@tylix/mail': filePkg('mail'),
-          'tylix-icons': filePkg('tylix-icons'),
-        }
-      : {
-          '@tylix/cli': PUBLISHED_VERSIONS['@tylix/cli'],
-          '@tylix/core': PUBLISHED_VERSIONS['@tylix/core'],
-          '@tylix/compiler': PUBLISHED_VERSIONS['@tylix/compiler'],
-          '@tylix/generator': PUBLISHED_VERSIONS['@tylix/generator'],
-          '@tylix/orm': PUBLISHED_VERSIONS['@tylix/orm'],
-          '@tylix/shared': PUBLISHED_VERSIONS['@tylix/shared'],
-          '@tylix/mail': PUBLISHED_VERSIONS['@tylix/mail'],
-          'tylix-icons': PUBLISHED_VERSIONS['tylix-icons'],
-        }
-
+    const dependencies = {}
+    for (const name of BASE_DEPENDENCIES) {
+      dependencies[name] = pkgSpec(name)
+    }
     if (config.authEnabled) {
-      dependencies['@tylix/auth'] = isDevMonorepoContext
-        ? filePkg('auth')
-        : PUBLISHED_VERSIONS['@tylix/auth']
+      dependencies['@tylix/auth'] = pkgSpec('@tylix/auth')
     }
 
     const devDependencies = {}
@@ -449,6 +463,18 @@ export async function createProjectStructure(config) {
       scripts,
       dependencies,
       devDependencies,
+    }
+
+    // Local testing only: force every @tylix/* package, including the
+    // ones pulled in transitively (the CLI depends on core, core on
+    // auth, and so on), to resolve to the local checkout. Without this
+    // npm mixes local copies with registry copies. The override specs
+    // are identical to the direct dependency specs above, which npm
+    // requires, otherwise it throws EOVERRIDE.
+    if (isDevMonorepoContext) {
+      packageJson.overrides = Object.fromEntries(
+        Object.keys(LOCAL_PACKAGE_DIRS).map((name) => [name, filePkg(name)]),
+      )
     }
 
     await fs.writeFile(

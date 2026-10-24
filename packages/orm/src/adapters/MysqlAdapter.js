@@ -31,10 +31,19 @@ export class MysqlAdapter extends DatabaseAdapter {
     this.connection = null
   }
 
-  async connect() {
-    this.connection = await mysql.createConnection(this.config)
-    return this
-  }
+ async connect() {
+  this.connection = mysql.createPool({
+    ...this.config,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+  })
+  const conn = await this.connection.getConnection() // fail fast on bad credentials
+  conn.release()
+  return this
+}
 
   async close() {
     if (this.connection) {

@@ -3,8 +3,6 @@ import path from 'node:path'
 import {
   Blueprint,
   ModelGenerator,
-  ControllerGenerator,
-  ValidatorGenerator,
   AlterMigrationGenerator,
 } from '@tylix/generator'
 
@@ -84,22 +82,18 @@ export async function fieldAdd(name, fieldArgs = []) {
       fullBlueprint.hasMany(rel.model, { foreignKey: rel.foreignKey })
   }
 
+  // Only the model is regenerated. The controller and validator are
+  // often hand-edited, so they are left alone.
   await new ModelGenerator().generate(
     fullBlueprint,
     path.join(baseDir, 'app', 'models'),
     language,
   )
-  await new ControllerGenerator().generate(
-    fullBlueprint,
-    path.join(baseDir, 'app', 'controllers'),
-    language,
-  )
-  await new ValidatorGenerator().generate(
-    fullBlueprint,
-    path.join(baseDir, 'app', 'validators'),
-    language,
-  )
 
-  console.log(`✔ Model, controller, and validator regenerated for ${name}`)
+  const fieldList = newFields.map((f) => f.name).join(', ')
+  console.log(`✔ Model regenerated for ${name}`)
+  console.log(`\nController and validator were not touched. To use ${fieldList}:`)
+  console.log(`  - add it to app/validators/${name}Validator`)
+  console.log(`  - update app/controllers/${name}Controller if it lists fields`)
   console.log(`\nRun "tylix migrate" to apply the new column.`)
 }

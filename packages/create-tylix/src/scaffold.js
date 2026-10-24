@@ -33,120 +33,177 @@ import { writeCapabilities } from './steps/writeCapabilities.js'
 import { initGit } from './steps/initGit.js'
 import { finalize } from './steps/finalize.js'
 
-async function runWizard(initialProjectName) {
+// Defaults used when --yes is set and a value wasn't passed as a flag.
+const DEFAULTS = {
+  language: 'typescript',
+  database: 'sqlite',
+  authEnabled: true,
+  styling: 'plain-css',
+  starter: 'starter',
+  packageManager: 'npm',
+  gitInit: true,
+  installNow: true,
+}
+
+async function runWizard(initialProjectName, options = {}) {
+  const nonInteractive = Boolean(options.nonInteractive)
+
+  // A value given as a flag wins. Otherwise ask, unless --yes was
+  // passed, in which case use the default.
+  const resolve = async (given, fallback, ask) => {
+    if (given !== undefined) return given
+    if (nonInteractive) return fallback
+    const value = await ask()
+    printDivider(110)
+    return value
+  }
+
   printLogo()
   printDivider()
 
-  const projectName = await text({
-    message: 'Project Name',
-    initial: initialProjectName || 'tylix-app',
-  })
-  printDivider(110)
+  const projectName = nonInteractive
+    ? initialProjectName
+    : await resolve(undefined, undefined, () =>
+        text({
+          message: 'Project Name',
+          initial: initialProjectName || 'tylix-app',
+        }),
+      )
 
-  const language = await select({
-    message: 'Choose your language',
-    choices: [
-      { label: 'JavaScript', value: 'javascript', hint: '(Recommended)' },
-      { label: 'TypeScript', value: 'typescript' },
-    ],
-  })
-  printDivider(110)
+  const language = await resolve(
+    options.language,
+    DEFAULTS.language,
+    () =>
+      select({
+        message: 'Choose your language',
+        choices: [
+          {
+            label: 'JavaScript',
+            value: 'javascript',
+            hint: '(Recommended)',
+          },
+          { label: 'TypeScript', value: 'typescript' },
+        ],
+      }),
+  )
 
-  const database = await select({
-    message: 'Choose your database',
-    choices: [
-      { label: 'SQLite', value: 'sqlite', hint: 'Great for development' },
-      { label: 'MySQL', value: 'mysql', hint: 'Production ready' },
-      { label: 'PostgreSQL', value: 'postgres', hint: 'Advanced SQL' },
-      { label: 'MongoDB', value: 'mongodb', hint: 'Document database' },
-      { label: 'None', value: 'none', hint: "I'll configure later" },
-    ],
-  })
-  printDivider(110)
+  const database = await resolve(
+    options.database,
+    DEFAULTS.database,
+    () =>
+      select({
+        message: 'Choose your database',
+        choices: [
+          { label: 'SQLite', value: 'sqlite', hint: 'Great for development' },
+          { label: 'MySQL', value: 'mysql', hint: 'Production ready' },
+          { label: 'PostgreSQL', value: 'postgres', hint: 'Advanced SQL' },
+          { label: 'MongoDB', value: 'mongodb', hint: 'Document database' },
+          { label: 'None', value: 'none', hint: "I'll configure later" },
+        ],
+      }),
+  )
 
   let databaseUser = ''
   let databasePassword = ''
   if (database === 'postgres' || database === 'mysql') {
     const defaultUser = database === 'postgres' ? 'postgres' : 'root'
-    const detectedUsers = detectDatabaseUsers(database)
 
-    const choices = detectedUsers
-      ? detectedUsers.map((name) => ({
-          label: name,
-          value: name,
-          hint: name === defaultUser ? 'Default admin user' : undefined,
-        }))
-      : [
-          {
-            label: defaultUser,
-            value: defaultUser,
-            hint: 'Common default — not verified',
-          },
-        ]
+    databaseUser = await resolve(options.databaseUser, defaultUser, async () => {
+      const detectedUsers = detectDatabaseUsers(database)
 
-    choices.push({ label: 'Custom…', value: '__custom__' })
+      const choices = detectedUsers
+        ? detectedUsers.map((name) => ({
+            label: name,
+            value: name,
+            hint: name === defaultUser ? 'Default admin user' : undefined,
+          }))
+        : [
+            {
+              label: defaultUser,
+              value: defaultUser,
+              hint: 'Common default — not verified',
+            },
+          ]
 
-    const userChoice = await select({
-      message: detectedUsers
-        ? 'Database User (detected from your local server)'
-        : 'Database User',
-      choices,
-    })
-    printDivider(110)
+      choices.push({ label: 'Custom…', value: '__custom__' })
 
-    if (userChoice === '__custom__') {
-      databaseUser = await text({
+      const userChoice = await select({
+        message: detectedUsers
+          ? 'Database User (detected from your local server)'
+          : 'Database User',
+        choices,
+      })
+
+      if (userChoice !== '__custom__') return userChoice
+
+      printDivider(110)
+      return text({
         message: 'Enter database username',
         initial: defaultUser,
       })
-      printDivider(110)
-    } else {
-      databaseUser = userChoice
-    }
-
-    databasePassword = await password({
-      message: `Enter the password for the "${databaseUser}" user`,
     })
-    printDivider(110)
+
+    databasePassword = await resolve(options.databasePassword, '', () =>
+      password({
+        message: `Enter the password for the "${databaseUser}" user`,
+      }),
+    )
   }
 
-  const authEnabled = await confirm({ message: 'Authentication' })
-  printDivider(110)
+  const authEnabled = await resolve(
+    options.authEnabled,
+    DEFAULTS.authEnabled,
+    () => confirm({ message: 'Authentication' }),
+  )
 
-  const styling = await select({
-    message: 'Styling',
-    choices: [
-      { label: 'Tailwind CSS', value: 'tailwind' },
-      { label: 'CSS Modules', value: 'css-modules' },
-      { label: 'Sass', value: 'sass' },
-      { label: 'Plain CSS', value: 'plain-css' },
-    ],
-  })
-  printDivider(110)
+  if (authEnabled && database === 'none') {
+    throw new Error(
+      'Authentication needs a database. Choose a database or disable authentication.',
+    )
+  }
 
-  const starter = await select({
-    message: 'Starter Template',
-    choices: [
-      { label: 'Starter App', value: 'starter' },
-      { label: 'Blank', value: 'blank' },
-    ],
-  })
-  printDivider(110)
+  const styling = await resolve(options.styling, DEFAULTS.styling, () =>
+    select({
+      message: 'Styling',
+     choices: [
+  { label: 'Tailwind CSS', value: 'tailwind' },
+  { label: 'Plain CSS', value: 'plain-css' },
+],
+    }),
+  )
 
-  const packageManager = await select({
-    message: 'Package Manager',
-    choices: [
-      { label: 'npm', value: 'npm' },
-      { label: 'pnpm', value: 'pnpm' },
-    ],
-  })
-  printDivider(110)
+  const starter = await resolve(options.starter, DEFAULTS.starter, () =>
+    select({
+      message: 'Starter Template',
+      choices: [
+        { label: 'Starter App', value: 'starter' },
+        { label: 'Blank', value: 'blank' },
+      ],
+    }),
+  )
 
-  const gitInit = await confirm({ message: 'Initialize Git?' })
-  printDivider(110)
+  const packageManager = await resolve(
+    options.packageManager,
+    DEFAULTS.packageManager,
+    () =>
+      select({
+        message: 'Package Manager',
+        choices: [
+          { label: 'npm', value: 'npm' },
+          { label: 'pnpm', value: 'pnpm' },
+        ],
+      }),
+  )
 
-  const installNow = await confirm({ message: 'Install dependencies now?' })
-  printDivider(110)
+  const gitInit = await resolve(options.gitInit, DEFAULTS.gitInit, () =>
+    confirm({ message: 'Initialize Git?' }),
+  )
+
+  const installNow = await resolve(
+    options.installNow,
+    DEFAULTS.installNow,
+    () => confirm({ message: 'Install dependencies now?' }),
+  )
 
   console.log(bold('Configuration'))
   console.log(`Project Name      ${cyanBright(projectName)}`)
@@ -168,10 +225,13 @@ async function runWizard(initialProjectName) {
   console.log(`Git               ${gitInit ? green('Yes') : dim('No')}`)
   printDivider(54)
 
-  await select({
-    message: '',
-    choices: [{ label: 'Create Project', value: true }],
-  })
+  // The final "Create Project" confirmation is only for humans.
+  if (!nonInteractive) {
+    await select({
+      message: '',
+      choices: [{ label: 'Create Project', value: true }],
+    })
+  }
 
   return {
     projectName,
@@ -211,12 +271,14 @@ async function runBuildSteps(config) {
     { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
   )
 
-  if (config.authEnabled) {
-    steps.push({
-      label: 'Generating authentication',
-      fn: () => generateAuth(config),
-    })
-  }
+ if (config.authEnabled) {
+  steps.push({
+    label: 'Generating authentication',
+    fn: () => generateAuth(config),
+    optional: !config.installNow,
+    warningMessage: `Authentication was not generated because dependencies weren't installed. Run "cd ${config.projectName} && npm install && npx tylix make:auth && npm run migrate".`,
+  })
+}
   steps.push({
     label: 'Creating capabilities',
     fn: () => writeCapabilities(config),
@@ -306,7 +368,7 @@ function printSuccessScreen(config) {
 
   printSection(
     'Pages',
-    config.starter === 'starter' && config.authEnabled
+    config.authEnabled
       ? ['Home', 'Login', 'Register', 'Dashboard']
       : ['Home'],
   )
@@ -325,20 +387,23 @@ function printSuccessScreen(config) {
   console.log(bold('Database'))
   console.log(`${green('✓')} ${config.database}\n`)
 
-  console.log(bold('API'))
-  console.log('POST   /api/register')
-  console.log('POST   /api/login')
-  console.log('POST   /api/auth/refresh')
-  console.log('POST   /api/auth/logout')
-  console.log('GET    /api/auth/verify-email')
-  console.log('POST   /api/auth/forgot-password')
-  console.log('POST   /api/auth/reset-password')
-  console.log('GET    /api/me')
-  if (config.starter === 'starter' && config.authEnabled) {
-    console.log('GET    /api/posts')
-    console.log('POST   /api/posts')
-    console.log('GET    /api/posts/:id')
-    console.log('DELETE /api/posts/:id')
+  // Only list routes that actually exist for this configuration.
+  if (config.authEnabled) {
+    console.log(bold('API'))
+    console.log('POST   /api/register')
+    console.log('POST   /api/login')
+    console.log('POST   /api/auth/refresh')
+    console.log('POST   /api/auth/logout')
+    console.log('GET    /api/auth/verify-email')
+    console.log('POST   /api/auth/forgot-password')
+    console.log('POST   /api/auth/reset-password')
+    console.log('GET    /api/me')
+    if (config.starter === 'starter') {
+      console.log('GET    /api/posts')
+      console.log('POST   /api/posts')
+      console.log('GET    /api/posts/:id')
+      console.log('DELETE /api/posts/:id')
+    }
     console.log('GET    /dashboard')
   }
   printHeavyDivider()
@@ -361,8 +426,11 @@ function printSuccessScreen(config) {
   console.log(bold(green('Happy building with Tylix ')))
 }
 
-export async function scaffold({ projectName: initialProjectName } = {}) {
-  const config = await runWizard(initialProjectName)
+export async function scaffold({
+  projectName: initialProjectName,
+  options = {},
+} = {}) {
+  const config = await runWizard(initialProjectName, options)
   await runBuildSteps(config)
   printSuccessScreen(config)
 }

@@ -9,7 +9,6 @@ const SINGLE_CHAR_TOKENS = {
   '.': TokenType.DOT,
   '[': TokenType.LBRACKET,
   ']': TokenType.RBRACKET,
-  '.': TokenType.DOT,
 }
 
 export class Lexer {
@@ -75,9 +74,27 @@ export class Lexer {
         continue
       }
 
-      // Compound assignment operators must be checked before their
-      // single-char fallbacks below, same lookahead-before-fallback
-      // pattern already used for '=>', '>=', '<=' above.
+      // Multi-char operators are checked before their single-char
+      // fallbacks, same lookahead-before-fallback pattern as '=>',
+      // '>=', '<=' above.
+      if (char === '+' && this.source[this.pos + 1] === '+') {
+        this.pushToken(TokenType.PLUS_PLUS, '++')
+        this.pos += 2
+        continue
+      }
+
+      if (char === '-' && this.source[this.pos + 1] === '-') {
+        this.pushToken(TokenType.MINUS_MINUS, '--')
+        this.pos += 2
+        continue
+      }
+
+      if (char === '*' && this.source[this.pos + 1] === '*') {
+        this.pushToken(TokenType.STAR_STAR, '**')
+        this.pos += 2
+        continue
+      }
+
       if (char === '+' && this.source[this.pos + 1] === '=') {
         this.pushToken(TokenType.PLUS_EQUALS, '+=')
         this.pos += 2
@@ -98,6 +115,12 @@ export class Lexer {
 
       if (char === '/' && this.source[this.pos + 1] === '=') {
         this.pushToken(TokenType.SLASH_EQUALS, '/=')
+        this.pos += 2
+        continue
+      }
+
+      if (char === '%' && this.source[this.pos + 1] === '=') {
+        this.pushToken(TokenType.PERCENT_EQUALS, '%=')
         this.pos += 2
         continue
       }
@@ -266,6 +289,37 @@ export class Lexer {
     }
   }
 
+  // Called with this.pos on the backslash. Consumes the escape
+  // sequence and returns the character(s) it stands for. Unknown
+  // escapes (\\, \', \", \`, \$) just yield the escaped character.
+  readEscape() {
+    this.pos++ // skip '\'
+    const c = this.source[this.pos]
+    if (c === undefined) return ''
+    this.pos++
+    switch (c) {
+      case 'n':
+        return '\n'
+      case 't':
+        return '\t'
+      case 'r':
+        return '\r'
+      case 'b':
+        return '\b'
+      case 'f':
+        return '\f'
+      case 'v':
+        return '\v'
+      case '0':
+        return '\0'
+      case '\n':
+        this.line++ // line continuation
+        return ''
+      default:
+        return c
+    }
+  }
+
   readString(quoteChar) {
     const startLine = this.line
     this.pos++ // skip opening quote
@@ -274,6 +328,11 @@ export class Lexer {
       this.pos < this.source.length &&
       this.source[this.pos] !== quoteChar
     ) {
+      if (this.source[this.pos] === '\\') {
+        value += this.readEscape()
+        continue
+      }
+      if (this.source[this.pos] === '\n') this.line++
       value += this.source[this.pos]
       this.pos++
     }
@@ -315,6 +374,11 @@ export class Lexer {
       if (char === '`') {
         this.pos++ // skip closing backtick
         break
+      }
+
+      if (char === '\\') {
+        textBuf += this.readEscape()
+        continue
       }
 
       if (char === '$' && this.source[this.pos + 1] === '{') {

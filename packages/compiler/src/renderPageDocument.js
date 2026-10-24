@@ -155,6 +155,10 @@ export async function renderPageDocument(
     props = {},
     apiHelpers = '',
     channelsPort = null,
+    // Stylesheets to link in <head>, in order. createApp passes the ones
+    // that actually exist in public/. The default keeps older callers
+    // working exactly as before.
+    stylesheets = ['/tailwind.css'],
     capabilitiesDir = path.join(process.cwd(), 'app', 'capabilities'),
   } = {},
 ) {
@@ -228,6 +232,8 @@ ${layoutCompiled.code}
       ? `<script>window.__TYLIX_CHANNELS_PORT__ = ${JSON.stringify(channelsPort)};</script>`
       : ''
 
+  // If __ready() rejects (a failed needs/prefetch call), log it and keep
+  // going so the page still renders, instead of showing a blank screen.
   const inlineScript = `
 ${RUNTIME_SOURCE}
 
@@ -255,7 +261,11 @@ document.addEventListener("DOMContentLoaded", () => {
 ${childRegistrations}
   (async function (document, instance, components) {
     if (typeof instance.__ready === "function") {
-      await instance.__ready();
+      try {
+        await instance.__ready();
+      } catch (err) {
+        console.error("ready failed:", err);
+      }
     }
 ${code}
 ${layoutMountCode}
@@ -271,6 +281,10 @@ ${layoutMountCode}
 `
 
   const styleTag = style.trim().length > 0 ? `<style>\n${style}\n</style>` : ''
+
+  const styleLinks = stylesheets
+    .map((href) => `<link rel="stylesheet" href="${href}">`)
+    .join('\n  ')
 
   const scriptSegments = [
     { name: 'runtime (reactive.js)', code: RUNTIME_SOURCE },
@@ -323,7 +337,7 @@ ${layoutMountCode}
     })();
   </script>
   <title>${pageNode.title ?? pageName}</title>
-  <link rel="stylesheet" href="/tailwind.css">
+  ${styleLinks}
 ${styleTag}
 </head>
 <body>

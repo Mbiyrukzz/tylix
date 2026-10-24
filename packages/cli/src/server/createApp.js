@@ -17,11 +17,27 @@ import { renderErrorPage } from '../utils/error-page.js'
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
 
+// Stylesheets a project may have in public/, in link order. tailwind.css
+// comes from the Tailwind build; styles.css is the project's own file
+// (or the precompiled starter styles for non-Tailwind projects). Listing
+// styles.css last lets a project override Tailwind output.
+const STYLESHEET_CANDIDATES = ['tailwind.css', 'styles.css']
+
 async function pathExists(p) {
   return fs
     .access(p)
     .then(() => true)
     .catch(() => false)
+}
+
+async function resolveStylesheets(baseDir) {
+  const found = []
+  for (const file of STYLESHEET_CANDIDATES) {
+    if (await pathExists(path.join(baseDir, 'public', file))) {
+      found.push(`/${file}`)
+    }
+  }
+  return found
 }
 
 async function resolveCompilerEntryUrl(baseDir) {
@@ -303,9 +319,9 @@ async function registerPageRoutes(
     : null
 
   // Everything that doesn't depend on the request: the cleaned page
-  // source, layout, components, API helpers. `ctx.source` is set as
-  // soon as it's known so a failure later still gets a code frame in
-  // the dev error page.
+  // source, layout, components, API helpers, stylesheets. `ctx.source`
+  // is set as soon as it's known so a failure later still gets a code
+  // frame in the dev error page.
   async function preparePage(filePath, ctx) {
     const {
       renderPageDocument,
@@ -362,7 +378,19 @@ async function registerPageRoutes(
     const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
     const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
 
-    return { renderPageDocument, source, layout, components, apiHelpers, channelsPort }
+    // Dev re-checks public/ on every request, so a Tailwind build that
+    // finishes after startup is picked up on the next reload.
+    const stylesheets = await resolveStylesheets(baseDir)
+
+    return {
+      renderPageDocument,
+      source,
+      layout,
+      components,
+      apiHelpers,
+      channelsPort,
+      stylesheets,
+    }
   }
 
   // Dev prepares on every request (so edits show up immediately).
@@ -394,6 +422,7 @@ async function registerPageRoutes(
           props: params,
           apiHelpers: prepared.apiHelpers,
           channelsPort: prepared.channelsPort,
+          stylesheets: prepared.stylesheets,
         },
       )
       return { html: production ? html : injectHmrScript(html), ok: true }
@@ -474,9 +503,15 @@ export async function createApp(
   const router = new Router()
 
   await loadCustomRoutes(router, baseDir)
-    await registerRouteFiles(router, baseDir, { secret: config.auth?.secret, hydrate: config.auth?.hydrate })
+  await registerRouteFiles(router, baseDir, {
+    secret: config.auth?.secret,
+    hydrate: config.auth?.hydrate,
+  })
 
-  registerFeatureRoutes(router, features, { secret: config.auth?.secret, hydrate: config.auth?.hydrate })
+  registerFeatureRoutes(router, features, {
+    secret: config.auth?.secret,
+    hydrate: config.auth?.hydrate,
+  })
 
   router.get('/api/_tylix/features', (req, res) => {
     res.json({
