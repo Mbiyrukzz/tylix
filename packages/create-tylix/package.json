@@ -1,6 +1,6 @@
 {
   "name": "create-tylix",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "keywords": [
     "tylix",
@@ -20,11 +20,11 @@
     "prepublishOnly": "npm run build:starter-css"
   },
   "dependencies": {
-    "@tylix/auth": "^0.5.0",
-    "@tylix/cli": "^0.5.0",
-    "@tylix/core": "^0.5.0",
-    "@tylix/generator": "^0.5.0",
-    "@tylix/shared": "^0.5.0"
+    "@tylix/auth": "^0.5.1",
+    "@tylix/cli": "^0.5.1",
+    "@tylix/core": "^0.5.1",
+    "@tylix/generator": "^0.5.1",
+    "@tylix/shared": "^0.5.1"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0"

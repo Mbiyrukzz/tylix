@@ -1,6 +1,6 @@
 {
   "name": "@tylix/mail",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Mail system for Tylix: Mailables, SMTP and log drivers, and mail logging",
   "type": "module",
   "keywords": [
@@ -28,10 +28,10 @@
     "SmtpClient.js"
   ],
   "dependencies": {
-    "@tylix/shared": "^0.5.0"
+    "@tylix/shared": "^0.5.1"
   },
   "peerDependencies": {
-    "@tylix/orm": "^0.5.0"
+    "@tylix/orm": "^0.5.1"
   },
   "publishConfig": {
     "access": "public"
