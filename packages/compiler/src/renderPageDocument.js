@@ -33,6 +33,11 @@ const USE_CHANNEL_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
+ 
+  const NOT_FOUND_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'notFound.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
 const capabilityCache = new Map() // capabilitiesDir -> { signature, code }
 
 async function loadCapabilityDefinitions(capabilitiesDir) {
@@ -245,6 +250,8 @@ ${LOADING_INDICATOR_SOURCE}
 
 ${USE_API_SOURCE}
 
+${NOT_FOUND_SOURCE}
+
 ${USE_CHANNEL_SOURCE}
 
 ${apiHelpers}
@@ -292,6 +299,7 @@ ${layoutMountCode}
     { name: 'capability definitions', code: capabilityDefinitions },
     { name: 'loading indicator', code: LOADING_INDICATOR_SOURCE },
     { name: 'useApi', code: USE_API_SOURCE },
+    { name: 'notFound', code: NOT_FOUND_SOURCE },
     { name: 'useChannel', code: USE_CHANNEL_SOURCE },
     { name: 'app/useApi helpers', code: apiHelpers },
     { name: 'page class', code: classSource },
@@ -337,6 +345,7 @@ ${layoutMountCode}
     })();
   </script>
   <title>${pageNode.title ?? pageName}</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   ${styleLinks}
 ${styleTag}
 </head>

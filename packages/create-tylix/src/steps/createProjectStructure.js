@@ -151,6 +151,27 @@ const TRUST_PROXY_ENV_LINES = [
   `TRUST_PROXY=false`,
 ]
 
+
+function buildDebugEnvLines(value) {
+  return [
+    `# Shows real error details (SQL, stack traces, request data) in the browser`,
+    `# and API responses. Keep false in production: it leaks internals.`,
+    `APP_DEBUG=${value}`,
+  ]
+}
+
+function buildMailEnvLines(config) {
+  return [
+    `MAIL_DRIVER=log`,
+    `MAIL_FROM=noreply@${config.projectName}.test`,
+    `MAIL_HOST=`,
+    `MAIL_PORT=`,
+    `MAIL_SECURE=false`,
+    `MAIL_USER=`,
+    `MAIL_PASSWORD=`,
+  ]
+}
+
 // YYYYMMDDHHMMSS, the same scheme the auth and feature migrations use.
 // The offset (in seconds) keeps migrations created in one run distinct
 // and in a stable order.
@@ -235,10 +256,10 @@ export async function createProjectStructure(config) {
       // Without this, every generated .ts file that calls useApi() fails
       // with "Cannot find name 'useApi'" (TS2304).
       await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
-      await fs.writeFile(
-  path.join(targetDir, 'app', 'types', 'globals.d.ts'),
-  `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n\ndeclare function reactive<T extends object>(state: T): T\n`,
-)
+            await fs.writeFile(
+        path.join(targetDir, 'app', 'types', 'globals.d.ts'),
+        `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n\ndeclare function reactive<T extends object>(state: T): T\n\ndeclare function notFound(): void\n`,
+      )
     }
 
     await fs.mkdir(path.join(targetDir, 'app', 'models'), { recursive: true })
@@ -292,12 +313,17 @@ export async function createProjectStructure(config) {
     )
     const dbEnvLines = buildDatabaseEnvLines(config)
 
-    await fs.writeFile(
+       await fs.writeFile(
       path.join(targetDir, '.env'),
       [
         `PORT=3000`,
         `AUTH_SECRET=${crypto.randomBytes(32).toString('hex')}`,
+        ``,
+        ...buildDebugEnvLines('true'),
+        ``,
         ...dbEnvLines,
+        ``,
+        ...buildMailEnvLines(config),
         ``,
         ...TRUST_PROXY_ENV_LINES,
         ``,
@@ -310,16 +336,14 @@ export async function createProjectStructure(config) {
       [
         `PORT=3000`,
         `AUTH_SECRET=`,
+        ``,
+        ...buildDebugEnvLines('false'),
+        ``,
         ...dbEnvLines.map((line) =>
           line.startsWith('DATABASE_PASSWORD=') ? 'DATABASE_PASSWORD=' : line,
         ),
         ``,
-        `MAIL_DRIVER=log`,
-        `MAIL_FROM=noreply@${config.projectName}.test`,
-        `MAIL_HOST=`,
-        `MAIL_PORT=`,
-        `MAIL_USER=`,
-        `MAIL_PASSWORD=`,
+        ...buildMailEnvLines(config),
         ``,
         ...TRUST_PROXY_ENV_LINES,
         ``,
@@ -495,6 +519,17 @@ export async function createProjectStructure(config) {
     await fs.copyFile(
       path.join(PACKAGE_ROOT, 'assets', 'logo-full.png'),
       path.join(targetDir, 'public', 'logo-full.png'),
+    )
+
+        // Favicon: browsers request /favicon.ico on their own even without a
+    // <link> tag, so ship both names. Both are copies of the logo mark.
+    await fs.copyFile(
+      path.join(PACKAGE_ROOT, 'assets', 'logo-mark.png'),
+      path.join(targetDir, 'public', 'favicon.png'),
+    )
+    await fs.copyFile(
+      path.join(PACKAGE_ROOT, 'assets', 'logo-mark.png'),
+      path.join(targetDir, 'public', 'favicon.ico'),
     )
 
     return targetDir

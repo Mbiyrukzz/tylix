@@ -1,4 +1,5 @@
 import { DatabaseAdapter } from './DatabaseAdapter.js'
+import { normalizeDatabaseError } from './DatabaseError.js'
 
 const COLUMN_TYPES = {
   increments: 'INTEGER PRIMARY KEY AUTOINCREMENT',
@@ -20,8 +21,14 @@ export class SqliteAdapter extends DatabaseAdapter {
   }
 
   async connect() {
-    const { DatabaseSync } = await import('node:sqlite')
-    this.db = new DatabaseSync(this.filename)
+    try {
+      const { DatabaseSync } = await import('node:sqlite')
+      this.db = new DatabaseSync(this.filename)
+    } catch (err) {
+      const error = normalizeDatabaseError('sqlite', err)
+      error.detail = `Database file: ${this.filename}`
+      throw error
+    }
     return this
   }
 
@@ -42,45 +49,48 @@ export class SqliteAdapter extends DatabaseAdapter {
     }
   }
 
-  async run(sql, params = []) {
+  // The one place every statement runs through. SQLite reports most
+  // mistakes (missing table or column, bad syntax) when the statement
+  // is prepared, so prepare() is inside the try as well.
+  execute(method, sql, params = []) {
     this.ensureConnected()
-    const stmt = this.db.prepare(sql)
-    return stmt.run(...params)
+    try {
+      return this.db.prepare(sql)[method](...params)
+    } catch (err) {
+      throw normalizeDatabaseError('sqlite', err, { sql, params })
+    }
+  }
+
+  async run(sql, params = []) {
+    return this.execute('run', sql, params)
   }
 
   async get(sql, params = []) {
-    this.ensureConnected()
-    const stmt = this.db.prepare(sql)
-    return stmt.get(...params) ?? null
+    return this.execute('get', sql, params) ?? null
   }
 
   async all(sql, params = []) {
-    this.ensureConnected()
-    const stmt = this.db.prepare(sql)
-    return stmt.all(...params)
+    return this.execute('all', sql, params)
   }
 
   async count(table) {
-    this.ensureConnected()
-    const row = this.db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get()
+    const row = this.execute('get', `SELECT COUNT(*) as count FROM ${table}`)
     return row.count
   }
 
   async paginate(table, limit, offset) {
-    this.ensureConnected()
-    const stmt = this.db.prepare(
+    return this.execute(
+      'all',
       `SELECT * FROM ${table} ORDER BY id ASC LIMIT ? OFFSET ?`,
+      [limit, offset],
     )
-    return stmt.all(limit, offset)
   }
 
   async listTables() {
-    this.ensureConnected()
-    const rows = this.db
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-      )
-      .all()
+    const rows = this.execute(
+      'all',
+      "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+    )
     return rows.map((r) => r.name)
   }
 

@@ -14,8 +14,12 @@ const STATIC_TEMPLATE_BY_PAGE = {
   Register: 'register-page.tyx.template',
   Dashboard: 'dashboard-page.tyx.template',
   'dashboard/Mail': 'mail-page.tyx.template',
+  _not_found: 'not-found-page.tyx.template',
 }
 
+
+// Page keys whose file name differs from the key.
+const FILE_NAME_BY_PAGE = { _not_found: '_not-found' }
 // Home.tyx's auth-enabled variant does `uses: Auth` and reads
 // `Auth.user` -- that capability only gets scaffolded when
 // config.authEnabled is true (see writeCapabilities.js), so a
@@ -38,8 +42,16 @@ export async function writePage(config, pageName) {
   const content = await fs.readFile(
     path.join(PACKAGE_ROOT, 'src', 'templates', templateName),
     'utf-8',
+ 
   )
-  const outputPath = path.join(targetDir, 'app', 'pages', `${pageName}.tyx`)
+
+  const outputPath = path.join(
+  targetDir,
+  'app',
+  'pages',
+  `${FILE_NAME_BY_PAGE[pageName] ?? pageName}.tyx`,
+)
+ 
   await fs.mkdir(path.dirname(outputPath), { recursive: true })
   await fs.writeFile(outputPath, content)
 }

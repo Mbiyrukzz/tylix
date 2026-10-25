@@ -13,7 +13,8 @@ import { MailLog } from '@tylix/mail'
 import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
-import { renderErrorPage } from '../utils/error-page.js'
+import { renderErrorPage,  } from '../utils/error-page.js'
+import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
 
@@ -22,6 +23,10 @@ const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
 // (or the precompiled starter styles for non-Tailwind projects). Listing
 // styles.css last lets a project override Tailwind output.
 const STYLESHEET_CANDIDATES = ['tailwind.css', 'styles.css']
+
+// Special page file. The closest one to the requested URL renders with a
+// 404 status. It is never a route itself.
+const NOT_FOUND_FILE = '_not-found.tyx'
 
 async function pathExists(p) {
   return fs
@@ -162,9 +167,33 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
   router.post('/api/login', (req, res) => controller.login(req, res))
   router.post('/api/auth/refresh', (req, res) => controller.refresh(req, res))
   router.post('/api/auth/logout', (req, res) => controller.logout(req, res))
-  router.get('/api/auth/verify-email', (req, res) =>
-    controller.verifyEmail(req, res),
-  )
+  router.get('/api/auth/verify-email', (req, res) => {
+    // Browsers (the link in the email) get a themed page; API clients keep JSON.
+    if (wantsHtml(req)) {
+      res.json = (body) => {
+        const ok = body?.ok === true
+        res.setHeader('Content-Type', 'text/html')
+        res.end(
+          renderStatusPage({
+            tone: ok ? 'success' : 'error',
+            title: ok ? 'Email verified' : 'Verification failed',
+            message: ok
+              ? (body?.message ?? 'Your email is verified. You can now log in.')
+              : (body?.error ??
+                body?.message ??
+                'This link is invalid or has expired.'),
+            actions: ok
+              ? [
+                  { label: 'Log in', href: '/login' },
+                  { label: 'Go home', href: '/' },
+                ]
+              : [{ label: 'Go home', href: '/' }],
+          }),
+        )
+      }
+    }
+    return controller.verifyEmail(req, res)
+  })
   router.post('/api/auth/forgot-password', (req, res) =>
     controller.forgotPassword(req, res),
   )
@@ -191,7 +220,11 @@ async function walkPagesDir(dir) {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       files.push(...(await walkPagesDir(fullPath)))
-    } else if (entry.name.endsWith('.tyx') && entry.name !== '_layout.tyx') {
+       } else if (
+      entry.name.endsWith('.tyx') &&
+      entry.name !== '_layout.tyx' &&
+      entry.name !== NOT_FOUND_FILE
+    ) {
       files.push(fullPath)
     }
   }
@@ -300,13 +333,59 @@ function renderProductionErrorPage() {
 </html>`
 }
 
+
+async function collectNotFoundFiles(dir, segments = [], found = []) {
+  const entries = await fs
+    .readdir(dir, { withFileTypes: true })
+    .catch(() => [])
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name === NOT_FOUND_FILE) {
+      found.push({ segments, file: path.join(dir, entry.name) })
+    } else if (entry.isDirectory() && entry.name !== 'components') {
+      const dynamic = /^\[(.+)\]$/.exec(entry.name)
+      const segment = dynamic ? `:${dynamic[1]}` : entry.name.toLowerCase()
+      await collectNotFoundFiles(
+        path.join(dir, entry.name),
+        [...segments, segment],
+        found,
+      )
+    }
+  }
+  return found
+}
+
+// The deepest not-found file whose folder prefix matches the URL.
+function pickNotFound(found, urlPath) {
+  let decoded
+  try {
+    decoded = decodeURIComponent(urlPath)
+  } catch {
+    return null
+  }
+  const parts = decoded
+    .split('/')
+    .filter(Boolean)
+    .map((s) => s.toLowerCase())
+
+  let best = null
+  for (const item of found) {
+    const { segments } = item
+    if (segments.length > parts.length) continue
+    const matches = segments.every((seg, i) => seg.startsWith(':') || seg === parts[i])
+    if (matches && (!best || segments.length > best.segments.length)) best = item
+  }
+  return best ? best.file : null
+}
+
 async function registerPageRoutes(
   router,
   baseDir,
   { hotReloadCompiler, production },
 ) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
-  if (!(await pathExists(pagesDir))) return []
+  if (!(await pathExists(pagesDir))) {
+    return { routes: [], renderNotFound: null }
+  }
 
   const files = await walkPagesDir(pagesDir)
 
@@ -469,7 +548,30 @@ async function registerPageRoutes(
     })
   }
 
-  return registered
+  // Renders the closest _not-found.tyx for an unmatched URL, with status 404.
+  // Dev re-scans on every miss, so adding the file needs no restart.
+  // Production scans once.
+  let notFoundCache = null
+  async function renderNotFound(req, res) {
+    let found
+    if (production && notFoundCache) {
+      found = notFoundCache
+    } else {
+      found = await collectNotFoundFiles(pagesDir)
+      if (production) notFoundCache = found
+    }
+
+    const file = pickNotFound(found, String(req.url).split('?')[0])
+    if (!file) return false
+
+    const { html, ok } = await renderFileSafely(file, {})
+    res.status(ok ? 404 : 500)
+    res.setHeader('Content-Type', 'text/html')
+    res.end(html)
+    return true
+  }
+
+  return { routes: registered, renderNotFound }
 }
 
 // Refuses to run production with a missing or default auth secret --
@@ -556,10 +658,12 @@ export async function createApp(
     config.auth,
     config.mail,
   )
-  const pageRoutes = await registerPageRoutes(router, baseDir, {
-    hotReloadCompiler,
-    production,
-  })
+  
+   const { routes: pageRoutes, renderNotFound } = await registerPageRoutes(
+    router,
+    baseDir,
+    { hotReloadCompiler, production },
+  )
 
   if (pageRoutes.length === 0 && features.length === 0) {
     router.get('/', (req, res) => {
@@ -590,7 +694,27 @@ export async function createApp(
     features,
     pageRoutes,
     authEnabled,
-    notFoundHandler: (req, res) =>
-      serveStaticAsset(req, res, baseDir, { production }),
-  }
-}
+        notFoundHandler: async (req, res) => {
+      if (await serveStaticAsset(req, res, baseDir, { production })) return true
+
+      // Browser navigations only. /api/* and fetch calls keep the JSON 404.
+      if (wantsHtml(req) && !String(req.url).startsWith('/api/')) {
+        if (renderNotFound && (await renderNotFound(req, res))) return true
+
+        res.status(404)
+        res.setHeader('Content-Type', 'text/html')
+        res.end(
+          renderStatusPage({
+            tone: 'notfound',
+            code: '404',
+            title: 'Page not found',
+            message:
+              "The page you're looking for doesn't exist or has been moved.",
+            actions: [{ label: 'Go home', href: '/' }],
+          }),
+        )
+        return true
+      }
+      return false
+    },
+}}

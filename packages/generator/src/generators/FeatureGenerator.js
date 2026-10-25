@@ -4,7 +4,6 @@ import { ModelGenerator } from './ModelGenerator.js'
 import { MigrationGenerator } from './MigrationGenerator.js'
 import { ControllerGenerator } from './ControllerGenerator.js'
 import { ValidatorGenerator } from './ValidatorGenerator.js'
-import { ApiHelperGenerator } from './ApiHelperGenerator.js'
 
 export class FeatureGenerator {
   constructor({
@@ -12,13 +11,11 @@ export class FeatureGenerator {
     migrationGenerator = new MigrationGenerator(),
     controllerGenerator = new ControllerGenerator(),
     validatorGenerator = new ValidatorGenerator(),
-    apiHelperGenerator = new ApiHelperGenerator(),
   } = {}) {
     this.modelGenerator = modelGenerator
     this.migrationGenerator = migrationGenerator
     this.controllerGenerator = controllerGenerator
     this.validatorGenerator = validatorGenerator
-    this.apiHelperGenerator = apiHelperGenerator
   }
 
   async generate(blueprint, baseDir) {
@@ -48,15 +45,6 @@ export class FeatureGenerator {
       path.join(baseDir, 'app', 'controllers'),
       language,
     )
-
-    const apiHelperResults = await this.apiHelperGenerator.generate(
-      blueprint,
-      path.join(baseDir, 'app', 'useApi', blueprint.name.toLowerCase()),
-      language,
-    )
-
-    results.apiHelper = apiHelperResults.flat
-    results.apiHelperResource = apiHelperResults.resource
 
     results.manifest = await this.writeManifest(blueprint, baseDir, language)
 

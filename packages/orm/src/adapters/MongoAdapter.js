@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb'
 import { DatabaseAdapter } from './DatabaseAdapter.js'
+import { normalizeDatabaseError } from './DatabaseError.js'
 
 export function parseQuery(sql) {
   const trimmed = sql.trim().replace(/\s+/g, ' ')
@@ -20,10 +21,6 @@ export function parseQuery(sql) {
 
   if ((match = /^ALTER TABLE (\w+) DROP COLUMN (\w+)$/i.exec(trimmed))) {
     return { type: 'alterDropColumn', table: match[1], column: match[2] }
-  }
-
-  if ((match = /^SELECT \* FROM (\w+) WHERE (\w+) = \?$/i.exec(trimmed))) {
-    return { type: 'findOne', table: match[1], field: match[2] }
   }
 
   if ((match = /^SELECT \* FROM (\w+) WHERE (\w+) = \?$/i.exec(trimmed))) {
@@ -71,9 +68,22 @@ export class MongoAdapter extends DatabaseAdapter {
   }
 
   async connect() {
-    this.client = new MongoClient(this.url)
-    await this.client.connect()
-    this.db = this.client.db(this.dbName)
+    try {
+      // Fail after 5s instead of the driver's default 30s, so a stopped
+      // MongoDB server shows up quickly.
+      this.client = new MongoClient(this.url, { serverSelectionTimeoutMS: 5000 })
+      await this.client.connect()
+      this.db = this.client.db(this.dbName)
+    } catch (err) {
+      const error = normalizeDatabaseError('mongodb', err)
+      // Never print credentials: mongodb://user:pass@host -> mongodb://***@host
+      const safeUrl = String(this.url).replace(/\/\/[^@/]*@/, '//***@')
+      error.detail = `Tried ${safeUrl}, database "${this.dbName}"`
+      await this.client?.close().catch(() => {})
+      this.client = null
+      this.db = null
+      throw error
+    }
     return this
   }
 
@@ -95,6 +105,18 @@ export class MongoAdapter extends DatabaseAdapter {
     }
   }
 
+  // Wraps any Mongo operation so failures become DatabaseErrors.
+  // `sql` is whatever text best describes what was attempted: the
+  // SQL-like string for run/get/all, or an equivalent db.x.find(...)
+  // description for query/count/paginate.
+  async guard(ctx, fn) {
+    try {
+      return await fn()
+    } catch (err) {
+      throw normalizeDatabaseError('mongodb', err, ctx)
+    }
+  }
+
   async nextId(table) {
     const counters = this.db.collection('__tylix_counters')
     const result = await counters.findOneAndUpdate(
@@ -107,6 +129,10 @@ export class MongoAdapter extends DatabaseAdapter {
 
   async run(sql, params = []) {
     this.ensureConnected()
+    return this.guard({ sql, params }, () => this._run(sql, params))
+  }
+
+  async _run(sql, params) {
     const query = parseQuery(sql)
 
     if (query.type === 'createTable') {
@@ -179,100 +205,121 @@ export class MongoAdapter extends DatabaseAdapter {
 
   async get(sql, params = []) {
     this.ensureConnected()
-    const query = parseQuery(sql)
+    return this.guard({ sql, params }, async () => {
+      const query = parseQuery(sql)
 
-    if (query.type === 'findOne') {
-      const doc = await this.db
-        .collection(query.table)
-        .findOne({ [query.field]: params[0] }, { projection: { _id: 0 } })
-      return doc ?? null
-    }
+      if (query.type === 'findOne') {
+        const doc = await this.db
+          .collection(query.table)
+          .findOne({ [query.field]: params[0] }, { projection: { _id: 0 } })
+        return doc ?? null
+      }
 
-    throw new Error(`get() cannot handle query type "${query.type}"`)
+      throw new Error(`get() cannot handle query type "${query.type}"`)
+    })
   }
 
   async all(sql, params = []) {
     this.ensureConnected()
-    const query = parseQuery(sql)
+    return this.guard({ sql, params }, async () => {
+      const query = parseQuery(sql)
 
-    if (query.type === 'findAll') {
-      return this.db
-        .collection(query.table)
-        .find({}, { projection: { _id: 0 } })
-        .toArray()
-    }
+      if (query.type === 'findAll') {
+        return this.db
+          .collection(query.table)
+          .find({}, { projection: { _id: 0 } })
+          .toArray()
+      }
 
-    if (query.type === 'findOne') {
-      return this.db
-        .collection(query.table)
-        .find({ [query.field]: params[0] }, { projection: { _id: 0 } })
-        .toArray()
-    }
+      if (query.type === 'findOne') {
+        return this.db
+          .collection(query.table)
+          .find({ [query.field]: params[0] }, { projection: { _id: 0 } })
+          .toArray()
+      }
 
-    throw new Error(`all() cannot handle query type "${query.type}"`)
+      throw new Error(`all() cannot handle query type "${query.type}"`)
+    })
   }
 
   async count(table) {
     this.ensureConnected()
-    return this.db.collection(table).countDocuments()
+    return this.guard({ sql: `db.${table}.countDocuments()` }, () =>
+      this.db.collection(table).countDocuments(),
+    )
   }
 
   async paginate(table, limit, offset) {
     this.ensureConnected()
-    return this.db
-      .collection(table)
-      .find({}, { projection: { _id: 0 } })
-      .sort({ id: 1 })
-      .skip(offset)
-      .limit(limit)
-      .toArray()
+    return this.guard(
+      {
+        sql: `db.${table}.find({}).sort({"id":1}).skip(${offset}).limit(${limit})`,
+      },
+      () =>
+        this.db
+          .collection(table)
+          .find({}, { projection: { _id: 0 } })
+          .sort({ id: 1 })
+          .skip(offset)
+          .limit(limit)
+          .toArray(),
+    )
   }
 
   async listTables() {
     this.ensureConnected()
-    const collections = await this.db.listCollections().toArray()
-    return collections.map((c) => c.name)
+    return this.guard({ sql: 'db.listCollections()' }, async () => {
+      const collections = await this.db.listCollections().toArray()
+      return collections.map((c) => c.name)
+    })
+  }
+
+  async query(table, { wheres = [], orders = [], limitValue, offsetValue } = {}) {
+    this.ensureConnected()
+
+    const filter = {}
+    const sort = {}
+    const description = () => {
+      let text = `db.${table}.find(${JSON.stringify(filter)})`
+      if (Object.keys(sort).length) text += `.sort(${JSON.stringify(sort)})`
+      if (offsetValue !== undefined) text += `.skip(${offsetValue})`
+      if (limitValue !== undefined) text += `.limit(${limitValue})`
+      return text
+    }
+
+    return this.guard({ get sql() { return description() } }, async () => {
+      for (const w of wheres) {
+        if (w.operator === '=') filter[w.field] = w.value
+        else if (w.operator === '!=') filter[w.field] = { $ne: w.value }
+        else if (w.operator === '>') filter[w.field] = { $gt: w.value }
+        else if (w.operator === '<') filter[w.field] = { $lt: w.value }
+        else if (w.operator === '>=') filter[w.field] = { $gte: w.value }
+        else if (w.operator === '<=') filter[w.field] = { $lte: w.value }
+        else
+          throw new Error(
+            `Unsupported where operator "${w.operator}" for MongoAdapter`,
+          )
+      }
+
+      let cursor = this.db
+        .collection(table)
+        .find(filter, { projection: { _id: 0 } })
+
+      if (orders.length > 0) {
+        orders.forEach((o) => {
+          sort[o.field] = o.direction.toUpperCase() === 'DESC' ? -1 : 1
+        })
+        cursor = cursor.sort(sort)
+      }
+
+      if (offsetValue !== undefined) cursor = cursor.skip(offsetValue)
+      if (limitValue !== undefined) cursor = cursor.limit(limitValue)
+
+      return cursor.toArray()
+    })
   }
 
   columnType() {
     return null
   }
-}
-
-MongoAdapter.prototype.query = async function (
-  table,
-  { wheres = [], orders = [], limitValue, offsetValue } = {},
-) {
-  this.ensureConnected()
-
-  const filter = {}
-  for (const w of wheres) {
-    if (w.operator === '=') filter[w.field] = w.value
-    else if (w.operator === '!=') filter[w.field] = { $ne: w.value }
-    else if (w.operator === '>') filter[w.field] = { $gt: w.value }
-    else if (w.operator === '<') filter[w.field] = { $lt: w.value }
-    else if (w.operator === '>=') filter[w.field] = { $gte: w.value }
-    else if (w.operator === '<=') filter[w.field] = { $lte: w.value }
-    else
-      throw new Error(
-        `Unsupported where operator "${w.operator}" for MongoAdapter`,
-      )
-  }
-
-  let cursor = this.db
-    .collection(table)
-    .find(filter, { projection: { _id: 0 } })
-
-  if (orders.length > 0) {
-    const sort = {}
-    orders.forEach((o) => {
-      sort[o.field] = o.direction.toUpperCase() === 'DESC' ? -1 : 1
-    })
-    cursor = cursor.sort(sort)
-  }
-
-  if (offsetValue !== undefined) cursor = cursor.skip(offsetValue)
-  if (limitValue !== undefined) cursor = cursor.limit(limitValue)
-
-  return cursor.toArray()
 }

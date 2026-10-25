@@ -1,14 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import {
   Blueprint,
   FeatureGenerator,
   DashboardGenerator,
+  RouteGenerator,
 } from '@tylix/generator'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MONOREPO_PACKAGES = path.resolve(__dirname, '../../..')
+import { detectLanguage } from '@tylix/shared'
 
 async function ensurePackageJson(baseDir) {
   const pkgPath = path.join(baseDir, 'package.json')
@@ -31,7 +29,9 @@ async function ensurePackageJson(baseDir) {
 // --public           -> every action is open (no login)
 // --public=store,index -> login required except for those actions
 function extractPublicFlag(fieldArgs) {
-  const flag = fieldArgs.find((a) => a === '--public' || a.startsWith('--public='))
+  const flag = fieldArgs.find(
+    (a) => a === '--public' || a.startsWith('--public='),
+  )
   const rest = fieldArgs.filter((a) => a !== flag)
 
   if (!flag) return { rest, publicAll: false, publicActions: [] }
@@ -84,16 +84,27 @@ export async function makeFeature(
   const generator = new FeatureGenerator()
   const results = await generator.generate(blueprint, baseDir)
 
+  // Visible route file in app/routes/, same place make:api writes to.
+  const language = await detectLanguage(baseDir)
+  const routeFile = await new RouteGenerator().generate(
+    blueprint,
+    baseDir,
+    language,
+  )
+
   console.log(`\n✔ Feature "${blueprint.name}" created:\n`)
   console.log(`  Model:      ${path.relative(baseDir, results.model)}`)
   console.log(`  Migration:  ${path.relative(baseDir, results.migration)}`)
   console.log(`  Validator:  ${path.relative(baseDir, results.validator)}`)
   console.log(`  Controller: ${path.relative(baseDir, results.controller)}`)
-  console.log(`  Manifest:   ${path.relative(baseDir, results.manifest)}`)
-  console.log(`  API helper: ${path.relative(baseDir, results.apiHelper)}`)
   console.log(
-    `  Resource:   ${path.relative(baseDir, results.apiHelperResource)}`,
+    `  Routes:     ${
+      routeFile
+        ? path.relative(baseDir, routeFile)
+        : 'already exists, not overwritten'
+    }`,
   )
+  console.log(`  Manifest:   ${path.relative(baseDir, results.manifest)}`)
 
   if (blueprint.options.dashboard) {
     const dashGen = new DashboardGenerator()

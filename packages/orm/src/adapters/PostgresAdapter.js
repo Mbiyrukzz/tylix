@@ -1,5 +1,6 @@
 import pg from 'pg'
 import { DatabaseAdapter } from './DatabaseAdapter.js'
+import { normalizeDatabaseError } from './DatabaseError.js'
 
 const COLUMN_TYPES = {
   increments: 'SERIAL PRIMARY KEY',
@@ -38,8 +39,24 @@ export class PostgresAdapter extends DatabaseAdapter {
 
   async connect() {
     this.pool = new pg.Pool(this.config)
+    try {
+      // pg connects lazily, so test it now. A wrong password or a
+      // stopped server should fail at startup, not on the first request.
+      const client = await this.pool.connect()
+      client.release()
+    } catch (err) {
+      const error = normalizeDatabaseError('postgres', err)
+      const { host, port, user, database } = this.config
+      error.detail = this.config.connectionString
+        ? 'Using DATABASE_URL connection string'
+        : `Tried ${host}:${port} as "${user}", database "${database}"`
+      await this.pool.end().catch(() => {})
+      this.pool = null
+      throw error
+    }
     return this
   }
+
   async close() {
     if (this.pool) {
       await this.pool.end()
@@ -57,39 +74,43 @@ export class PostgresAdapter extends DatabaseAdapter {
     }
   }
 
-  async run(sql, params = []) {
+  // The one place every statement runs through. `sql` here is the final
+  // SQL (with $1, $2 placeholders), exactly what PostgreSQL received.
+  async execute(sql, params = []) {
     this.ensureConnected()
-    const finalSql = toPositionalPlaceholders(ensureReturningId(sql))
-    const result = await this.pool.query(finalSql, params)
+    try {
+      return await this.pool.query(sql, params)
+    } catch (err) {
+      throw normalizeDatabaseError('postgres', err, { sql, params })
+    }
+  }
+
+  async run(sql, params = []) {
+    const result = await this.execute(
+      toPositionalPlaceholders(ensureReturningId(sql)),
+      params,
+    )
     const lastInsertRowid = result.rows[0]?.id
     return { ...result, lastInsertRowid }
   }
 
   async get(sql, params = []) {
-    this.ensureConnected()
-    const finalSql = toPositionalPlaceholders(sql)
-    const result = await this.pool.query(finalSql, params)
+    const result = await this.execute(toPositionalPlaceholders(sql), params)
     return result.rows[0] ?? null
   }
 
   async all(sql, params = []) {
-    this.ensureConnected()
-    const finalSql = toPositionalPlaceholders(sql)
-    const result = await this.pool.query(finalSql, params)
+    const result = await this.execute(toPositionalPlaceholders(sql), params)
     return result.rows
   }
 
   async count(table) {
-    this.ensureConnected()
-    const result = await this.pool.query(
-      `SELECT COUNT(*) as count FROM ${table}`,
-    )
+    const result = await this.execute(`SELECT COUNT(*) as count FROM ${table}`)
     return Number(result.rows[0].count)
   }
 
   async paginate(table, limit, offset) {
-    this.ensureConnected()
-    const result = await this.pool.query(
+    const result = await this.execute(
       `SELECT * FROM ${table} ORDER BY id ASC LIMIT $1 OFFSET $2`,
       [limit, offset],
     )
@@ -97,8 +118,7 @@ export class PostgresAdapter extends DatabaseAdapter {
   }
 
   async listTables() {
-    this.ensureConnected()
-    const result = await this.pool.query(
+    const result = await this.execute(
       "SELECT tablename FROM pg_tables WHERE schemaname = 'public'",
     )
     return result.rows.map((r) => r.tablename)

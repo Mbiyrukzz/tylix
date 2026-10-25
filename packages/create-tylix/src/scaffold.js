@@ -284,10 +284,17 @@ async function runBuildSteps(config) {
     fn: () => writeCapabilities(config),
   })
 
-  steps.push({
+   steps.push({
     label: 'Creating Home page',
     fn: () => writePage(config, 'Home'),
   })
+
+  if (config.starter === 'starter') {
+    steps.push({
+      label: 'Creating Not Found page',
+      fn: () => writePage(config, '_not_found'),
+    })
+  }
 
   if (config.authEnabled) {
     steps.push(

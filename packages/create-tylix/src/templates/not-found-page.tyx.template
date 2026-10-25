@@ -1,0 +1,11 @@
+page NotFound
+
+title "Page not found"
+
+template
+  <main class="min-h-[70vh] flex flex-col items-center justify-center text-center px-6">
+    <p class="text-sm font-bold tracking-widest text-emerald-500">404</p>
+    <h1 class="mt-2 text-3xl font-semibold text-slate-900 dark:text-slate-100">Page not found</h1>
+    <p class="mt-3 text-slate-500 dark:text-slate-400">The page you're looking for doesn't exist.</p>
+    <a href="/" class="mt-6 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 text-white font-semibold">Go home</a>
+  </main>

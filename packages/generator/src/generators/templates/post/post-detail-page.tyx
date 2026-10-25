@@ -3,7 +3,6 @@ page PostDetail
 state
   post: null
   loading: true
-  notFound: false
   deleting: false
   error: ""
 
@@ -13,20 +12,22 @@ onMount
     const postId = params.get("id")
 
     if not postId {
-      this.notFound = true
+      notFound()
+      return null
+    }
+
+    const result = await useApi("/api/posts/" + postId)
+
+    if result.status is 401 {
+      window.location.href = "/login"
+    } else if result.status is 404 {
+      notFound()
+    } else if result.ok {
+      this.post = result.data
       this.loading = false
     } else {
-      const result = await useApi("/api/posts/" + postId)
-
-      if result.status is 401 {
-        window.location.href = "/login"
-      } else if result.ok {
-        this.post = result.data
-        this.loading = false
-      } else {
-        this.notFound = true
-        this.loading = false
-      }
+      this.error = "Couldn't load this post."
+      this.loading = false
     }
   }
 
@@ -62,13 +63,13 @@ template
     <p class="text-slate-500 text-sm">Loading post&hellip;</p>
 {{/if}}
 
-{{#if notFound}}
-    <div class="rounded-xl border border-slate-800/60 bg-slate-900/40 backdrop-blur p-8 text-center">
-      <div class="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center text-xl mx-auto mb-4">🔍</div>
-      <h2 class="text-slate-200 font-medium mb-2">Post not found</h2>
-      <p class="text-slate-500 text-sm mb-6">It may have been deleted, or the link is wrong.</p>
+{{#if not loading}}
+{{#if not post}}
+    <div class="relative rounded-xl border border-slate-800/60 bg-slate-900/40 p-8 text-center">
+      <p class="text-rose-400 text-sm mb-4">{{ error }}</p>
       <a href="/dashboard" class="text-violet-400 text-sm hover:underline">&larr; Back to dashboard</a>
     </div>
+{{/if}}
 {{/if}}
 
 {{#if post}}
