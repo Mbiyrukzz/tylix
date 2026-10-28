@@ -6,6 +6,41 @@ import { parseCookies } from './parseCookies.js'
 import { buildDebugPayload } from './debug/buildDebugPayload.js'
 import { renderDebugPage } from './debug/renderDebugPage.js'
 
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+// Pages inline their scripts, so script-src needs 'unsafe-inline'. The rest
+// still blocks framing, base-tag and form hijacking, plugins, and data being
+// sent to other origins. ws:/wss: is open because the channels server runs
+// on its own port. Override the whole policy with CSP_POLICY if needed.
+const DEFAULT_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' ws: wss:",
+  'frame-src https://challenges.cloudflare.com',
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+].join('; ')
+
+function parseList(value) {
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function originOf(value) {
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
 // Forwarding headers are only believed when the app is told it sits behind
 // a proxy it controls, because any client can send X-Forwarded-For. The LAST
 // hop is the one our own proxy appended, so a forged leading entry is ignored.
@@ -18,6 +53,12 @@ function clientIp(req, trustProxy) {
     if (hops.length > 0) return hops[hops.length - 1]
   }
   return req.socket.remoteAddress || 'unknown'
+}
+
+function requestHost(req, trustProxy) {
+  const forwarded = trustProxy ? String(req.headers['x-forwarded-host'] || '') : ''
+  const raw = forwarded ? forwarded.split(',').pop() : String(req.headers.host || '')
+  return raw.trim().toLowerCase()
 }
 
 function isSecure(req, trustProxy) {
@@ -65,6 +106,22 @@ export class Server {
     // generic 500. Defaults to the APP_DEBUG=true env var.
     this.debug = debug ?? process.env.APP_DEBUG === 'true'
 
+    // Origins allowed to make browser write requests from elsewhere
+    // (TRUSTED_ORIGINS=https://a.example,https://b.example). APP_URL counts too.
+    this.trustedOrigins = new Set(
+      [...parseList(process.env.TRUSTED_ORIGINS), process.env.APP_URL]
+        .filter(Boolean)
+        .map(originOf)
+        .filter(Boolean),
+    )
+
+    // CSP_MODE: off | report-only | enforce. Production defaults to
+    // report-only: violations show in the browser console, nothing breaks.
+    this.cspMode = String(
+      process.env.CSP_MODE || (this.production ? 'report-only' : 'off'),
+    ).toLowerCase()
+    this.csp = process.env.CSP_POLICY || DEFAULT_CSP
+
     if (this.debug && this.production) {
       console.warn(
         '[tylix] APP_DEBUG is on while NODE_ENV=production. Error responses ' +
@@ -84,12 +141,60 @@ export class Server {
     }
   }
 
-  async handle(req, res) {
+  applySecurityHeaders(req, res) {
     res.setHeader('X-Content-Type-Options', 'nosniff')
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+    res.setHeader('X-Frame-Options', 'DENY')
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    // allow-popups keeps OAuth and payment popups working.
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
 
+    if (req.secure) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000')
+    }
+
+    if (this.cspMode === 'enforce') {
+      res.setHeader('Content-Security-Policy', this.csp)
+    } else if (this.cspMode === 'report-only') {
+      res.setHeader('Content-Security-Policy-Report-Only', this.csp)
+    }
+
+    // API responses carry private data: never let a browser or proxy cache them.
+    // Route handlers can still override this.
+    if (String(req.url).startsWith('/api/')) {
+      res.setHeader('Cache-Control', 'no-store')
+    }
+  }
+
+  // Browsers always label cross-origin requests (Sec-Fetch-Site / Origin), so
+  // a browser write from another site is refused. Requests with neither header
+  // (curl, webhooks, server-to-server) are not browser CSRF and pass through.
+  isCrossSiteWrite(req) {
+    if (!UNSAFE_METHODS.has(req.method)) return false
+
+    const site = req.headers['sec-fetch-site']
+    const origin = req.headers.origin
+    if (!site && !origin) return false
+    if (site === 'same-origin' || site === 'none') return false
+
+    if (!origin) return true
+
+    const parsed = originOf(origin)
+    if (!parsed) return true
+    if (this.trustedOrigins.has(parsed)) return false
+    return new URL(parsed).host !== requestHost(req, this.trustProxy)
+  }
+
+  async handle(req, res) {
     req.ip = clientIp(req, this.trustProxy)
     req.secure = isSecure(req, this.trustProxy)
+
+    this.applySecurityHeaders(req, res)
+
+    if (this.isCrossSiteWrite(req)) {
+      res.status(403).json({ error: 'Cross-site request blocked.' })
+      return
+    }
 
     let match = this.router.match(req.method, req.url)
     // HEAD is GET without a body; Node drops the body for us.
