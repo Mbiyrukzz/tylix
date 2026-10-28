@@ -33,8 +33,7 @@ const USE_CHANNEL_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
- 
-  const NOT_FOUND_SOURCE = fs
+const NOT_FOUND_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'notFound.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
@@ -87,6 +86,29 @@ async function loadCapabilityDefinitions(capabilitiesDir) {
 
   capabilityCache.set(capabilitiesDir, { signature, code: definitions })
   return definitions
+}
+
+const headCache = new Map() // headFile -> { mtimeMs, html }
+
+// Optional project file (app/head.html) whose contents are dropped into
+// <head> on every page: extra <script>, <meta> or <link> tags. A missing
+// file means no extra tags. Cached by modified time so production does not
+// re-read it on every request, while dev edits show up on the next reload.
+async function loadHeadTags(headFile) {
+  let stat
+  try {
+    stat = await fs.promises.stat(headFile)
+  } catch {
+    return ''
+  }
+  if (!stat.isFile()) return ''
+
+  const cached = headCache.get(headFile)
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.html
+
+  const html = await fs.promises.readFile(headFile, 'utf-8')
+  headCache.set(headFile, { mtimeMs: stat.mtimeMs, html })
+  return html
 }
 
 function compileComponentSource(source, fallbackClassName) {
@@ -165,6 +187,8 @@ export async function renderPageDocument(
     // working exactly as before.
     stylesheets = ['/tailwind.css'],
     capabilitiesDir = path.join(process.cwd(), 'app', 'capabilities'),
+    // Optional file of extra <head> tags (scripts, meta, links).
+    headFile = path.join(process.cwd(), 'app', 'head.html'),
   } = {},
 ) {
   const {
@@ -188,6 +212,7 @@ export async function renderPageDocument(
   const { code, rootVar } = generateTemplate(templateNodes)
 
   const capabilityDefinitions = await loadCapabilityDefinitions(capabilitiesDir)
+  const headTags = await loadHeadTags(headFile)
 
   const childNames = Object.keys(childComponents)
   const childClassSources = childNames
@@ -334,6 +359,7 @@ ${layoutMountCode}
 <html>
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   ${channelsPortScript}
   <script>
     (function () {
@@ -347,6 +373,7 @@ ${layoutMountCode}
   <title>${pageNode.title ?? pageName}</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   ${styleLinks}
+${headTags}
 ${styleTag}
 </head>
 <body>
