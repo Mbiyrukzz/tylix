@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+// Must match FEATURE_ROUTE_MARKER in @tylix/core registerFeatureRoutes.js
+const FEATURE_ROUTE_MARKER = '// @tylix-feature'
+
 const ACTIONS = [
   { name: 'index', method: 'get', suffix: '' },
   { name: 'store', method: 'post', suffix: '' },
@@ -38,7 +41,7 @@ export class RouteGenerator {
       ? '(req: TylixRequest, res: TylixResponse)'
       : '(req, res)'
 
-    const lines = []
+    const lines = [FEATURE_ROUTE_MARKER, '']
     if (isTs) {
       lines.push("import type { Router, TylixRequest, TylixResponse } from '@tylix/core'")
     }
