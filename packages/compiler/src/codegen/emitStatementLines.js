@@ -1,4 +1,9 @@
-import { generateExpression } from './generateExpression.js'
+import { generateExpression, generateParams } from './generateExpression.js'
+import {
+  declarationSource,
+  forHeaderSource,
+  generateDeclarationTarget,
+} from './generateStatement.js'
 
 // Structurally the same cases as generateStatement.js, but emits one
 // line at a time through `sink.pushLine(text, originalLine)` instead
@@ -11,8 +16,8 @@ import { generateExpression } from './generateExpression.js'
 // Every generateExpression() call here passes `true` for its typed
 // param -- this file has exactly one consumer (buildVirtualPageTs,
 // building the virtual .ts fed to the TypeScript compiler API), so
-// unlike generateExpression itself (shared between real JS and
-// virtual TS output), there's no "untyped" mode to preserve here.
+// there's no "untyped" mode to preserve here. Binding-target and
+// declaration rendering is shared with generateStatement.js.
 //
 // Block-bodied arrows never reach this file directly: they are
 // emitted by generateExpression, which delegates their statements to
@@ -26,6 +31,10 @@ export function emitStatementLines(node, sink, indent = '    ') {
   }
 
   switch (node.type) {
+    case 'EmptyStatement':
+      push(';')
+      break
+
     case 'ReturnStatement':
       push(node.argument ? `return ${expr(node.argument)};` : 'return;')
       break
@@ -39,9 +48,15 @@ export function emitStatementLines(node, sink, indent = '    ') {
       break
 
     case 'VariableDeclaration':
+      push(`${declarationSource(node, true)};`)
+      break
+
+    case 'FunctionDeclaration':
       push(
-        `${node.kind} ${generateDeclarationTarget(node.name)} = ${expr(node.init)};`,
+        `${node.isAsync ? 'async ' : ''}function ${node.name}(${generateParams(node.params, true)}) {`,
       )
+      nested(node.body)
+      push('}')
       break
 
     case 'IfStatement':
@@ -58,6 +73,12 @@ export function emitStatementLines(node, sink, indent = '    ') {
       push(`while (${expr(node.condition)}) {`)
       nested(node.body)
       push('}')
+      break
+
+    case 'DoWhileStatement':
+      push('do {')
+      nested(node.body)
+      push(`} while (${expr(node.condition)});`)
       break
 
     // Mirrors generateStatement: every clause body sits in its own
@@ -82,7 +103,23 @@ export function emitStatementLines(node, sink, indent = '    ') {
       break
 
     case 'ForInStatement':
-      push(`for (const ${node.varName} of ${expr(node.iterable)}) {`)
+      push(
+        `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, true)} of ${expr(node.iterable)}) {`,
+      )
+      nested(node.body)
+      push('}')
+      break
+
+    case 'ForKeysStatement':
+      push(
+        `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, true)} in ${expr(node.object)}) {`,
+      )
+      nested(node.body)
+      push('}')
+      break
+
+    case 'ForStatement':
+      push(`for (${forHeaderSource(node, true)}) {`)
       nested(node.body)
       push('}')
       break
@@ -126,47 +163,4 @@ export function emitStatementLines(node, sink, indent = '    ') {
     default:
       throw new Error(`emitStatementLines: unknown node type "${node.type}"`)
   }
-}
-
-// Same binding-target rendering as generateStatement.js (kept as a
-// local copy so that file's exports stay untouched): a plain
-// identifier, or a nested ObjectPattern/ArrayPattern with renames,
-// defaults and rest elements. If you change one, change both.
-function generateDeclarationTarget(target) {
-  if (typeof target === 'string') {
-    return target
-  }
-
-  if (target.type === 'ObjectPattern') {
-    const parts = target.properties.map((p) => {
-      const bindingStr = generateDeclarationTarget(p.binding)
-      const needsColon = typeof p.binding !== 'string' || p.binding !== p.key
-      const lhs = needsColon ? `${p.key}: ${bindingStr}` : p.key
-      return p.defaultValue
-        ? `${lhs} = ${generateExpression(p.defaultValue, true)}`
-        : lhs
-    })
-    if (target.rest) {
-      parts.push(`...${target.rest}`)
-    }
-    return `{ ${parts.join(', ')} }`
-  }
-
-  if (target.type === 'ArrayPattern') {
-    const parts = target.elements.map((el) => {
-      if (el === null) return ''
-      const bindingStr = generateDeclarationTarget(el.binding)
-      return el.defaultValue
-        ? `${bindingStr} = ${generateExpression(el.defaultValue, true)}`
-        : bindingStr
-    })
-    if (target.rest) {
-      parts.push(`...${target.rest}`)
-    }
-    return `[${parts.join(', ')}]`
-  }
-
-  throw new Error(
-    `generateDeclarationTarget: unknown pattern type "${target.type}"`,
-  )
 }

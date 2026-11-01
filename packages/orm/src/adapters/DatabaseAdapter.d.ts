@@ -5,6 +5,9 @@ export interface RunResult {
 }
 
 export declare class DatabaseAdapter {
+    /** SQL keyword used for LIKE conditions: "LIKE" by default, "ILIKE" on Postgres. */
+    readonly likeOperator: 'LIKE' | 'ILIKE';
+
     connect(): Promise<this>;
     close(): Promise<void>;
     run(sql: string, params?: unknown[]): Promise<RunResult>;

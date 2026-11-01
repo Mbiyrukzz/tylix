@@ -1,5 +1,6 @@
 // orm/src/model/Model.d.ts
 import { QueryBuilder } from '../query/QueryBuilder.js';
+import type { WhereClause } from '../query/types.js';
 
 interface PaginateOptions {
     page?: number;
@@ -17,6 +18,8 @@ interface PaginateResult<T> {
     };
 }
 
+type Row = Record<string, unknown>;
+
 export declare class Model {
     static table: string | null;
     static fillable: string[];
@@ -25,25 +28,42 @@ export declare class Model {
     static getTable(): string;
     static getAdapter(): unknown;
 
-    static all(): Promise<Record<string, unknown>[]>;
-    static query(): QueryBuilder<Record<string, unknown>>;
-    static paginate(options?: PaginateOptions): Promise<PaginateResult<Record<string, unknown>>>;
-    static find(id: number | string): Promise<Record<string, unknown> | null>;
-    static create(data: Record<string, unknown>): Promise<Record<string, unknown> | null>;
-    static update(id: number | string, data: Record<string, unknown>): Promise<Record<string, unknown> | null>;
+    static all(): Promise<Row[]>;
+    static query(): QueryBuilder<Row>;
+    static where(field: string, value: unknown): QueryBuilder<Row>;
+    static where(field: string, operator: WhereClause['operator'], value: unknown): QueryBuilder<Row>;
+    static whereNull(field: string): QueryBuilder<Row>;
+    static whereNotNull(field: string): QueryBuilder<Row>;
+    static whereIn(field: string, values: readonly unknown[]): QueryBuilder<Row>;
+    static whereNotIn(field: string, values: readonly unknown[]): QueryBuilder<Row>;
+    static latest(column?: string): QueryBuilder<Row>;
+    static oldest(column?: string): QueryBuilder<Row>;
+    static paginate(options?: PaginateOptions): Promise<PaginateResult<Row>>;
+    static find(id: number | string): Promise<Row | null>;
+    static findOrFail(id: number | string): Promise<Row>;
+    static create(data: Row): Promise<Row | null>;
+    static update(id: number | string, data: Row): Promise<Row | null>;
     static delete(id: number | string): Promise<boolean>;
+    static destroy(...ids: Array<number | string | Array<number | string>>): Promise<number>;
+
+    static firstOrCreate(attributes: Row, values?: Row): Promise<Row | null>;
+    static updateOrCreate(attributes: Row, values?: Row): Promise<Row | null>;
+
+    static pluck(column: string): Promise<unknown[]>;
+    static pluck(column: string, keyColumn: string): Promise<Record<string, unknown>>;
+    static exists(): Promise<boolean>;
 
     static belongsTo(
-        row: Record<string, unknown> | null,
+        row: Row | null,
         foreignKey: string,
         RelatedModel: typeof Model,
-    ): Promise<Record<string, unknown> | null>;
+    ): Promise<Row | null>;
     static hasMany(
         row: { id: number },
         RelatedModel: typeof Model,
         foreignKey: string,
-    ): Promise<Record<string, unknown>[]>;
+    ): Promise<Row[]>;
 
-    static first(): Promise<Record<string, unknown> | null>;
+    static first(): Promise<Row | null>;
     static count(): Promise<number>;
 }

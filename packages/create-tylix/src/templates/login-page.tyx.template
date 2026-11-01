@@ -1,6 +1,8 @@
 page Login
 
-uses
+title "Log in"
+
+needs
   Auth
 
 state
@@ -19,23 +21,73 @@ action
     this.remember = not this.remember
   }
 
-  async submit() {
-    if not this.submitting {
-      this.submitting = true
-      this.error = ""
+  validate() {
+    if not /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email) {
+      return "Enter a valid email address."
+    }
+    if this.password.length is 0 {
+      return "Enter your password."
+    }
+    return ""
+  }
 
+  messageFor(result) {
+    switch result.status {
+      case 401, 403 {
+        return "Invalid email or password."
+      }
+      case 422 {
+        const errors = result.data?.errors
+        if errors {
+          const firstField = Object.keys(errors)[0]
+          return errors[firstField][0]
+        }
+        return "Check your details and try again."
+      }
+      case 429 {
+        return "Too many attempts. Wait a minute and try again."
+      }
+      default {
+        return result.error ?? "Could not log in. Try again."
+      }
+    }
+  }
+
+  async submit() {
+    if this.submitting {
+      return null
+    }
+
+    this.error = this.validate()
+    if this.error {
+      return null
+    }
+
+    this.submitting = true
+    let succeeded = false
+
+    try {
       const result = await Auth.login(this.email, this.password)
 
       if result.ok {
+        succeeded = true
         window.location.href = "/dashboard"
-      } else if result.status is 422 and result.data.errors {
-        const firstField = Object.keys(result.data.errors)[0]
-        this.error = result.data.errors[firstField][0]
-        this.submitting = false
       } else {
-        this.error = result.error or "Invalid email or password."
+        this.error = this.messageFor(result)
+      }
+    } catch (err) {
+      this.error = "Network error. Check your connection and try again."
+    } finally {
+      if not succeeded {
         this.submitting = false
       }
+    }
+  }
+
+onMount
+  {
+    if Auth.user {
+      window.location.href = "/dashboard"
     }
   }
 
@@ -86,6 +138,7 @@ template
             placeholder="you@example.com"
             value="{{ email }}"
             oninput="{{ setField('email', event.target.value) }}"
+            onkeydown="{{ event.key is 'Enter' and submit() }}"
             class="w-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-2.5 mb-4 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
           />
 
@@ -98,32 +151,30 @@ template
             placeholder="••••••••"
             value="{{ password }}"
             oninput="{{ setField('password', event.target.value) }}"
+            onkeydown="{{ event.key is 'Enter' and submit() }}"
             class="w-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-2.5 mb-4 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
           />
 
           <div class="flex items-center justify-between mb-6">
             <label class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-{{#if remember}}
-              <input type="checkbox" checked onclick="{{ toggleRemember() }}" class="rounded border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-emerald-500 focus:ring-emerald-500" />
-{{/if}}
-{{#if not remember}}
-              <input type="checkbox" onclick="{{ toggleRemember() }}" class="rounded border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-emerald-500 focus:ring-emerald-500" />
-{{/if}}
+              <input
+                type="checkbox"
+                checked="{{ remember }}"
+                onclick="{{ toggleRemember() }}"
+                class="rounded border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-emerald-500 focus:ring-emerald-500"
+              />
               Remember me
             </label>
             <a href="/forgot-password" class="text-sm text-emerald-700 dark:text-emerald-400 hover:underline">Forgot password?</a>
           </div>
 
-{{#if submitting}}
-          <button disabled class="w-full bg-emerald-500 text-white dark:text-slate-950 rounded-full py-2.5 font-semibold opacity-50 transition">
-            Logging in…
+          <button
+            onclick="{{ submit() }}"
+            disabled="{{ submitting }}"
+            class="w-full bg-emerald-500 text-white dark:text-slate-950 rounded-full py-2.5 font-semibold shadow-sm hover:bg-emerald-400 hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ submitting ? 'Logging in…' : 'Log In' }}
           </button>
-{{/if}}
-{{#if not submitting}}
-          <button onclick="{{ submit() }}" class="w-full bg-emerald-500 text-white dark:text-slate-950 rounded-full py-2.5 font-semibold shadow-sm hover:bg-emerald-400 hover:shadow transition-all">
-            Log In
-          </button>
-{{/if}}
 
           <p class="text-sm text-slate-500 text-center mt-6">
             Need an account? <a href="/register" class="text-emerald-700 dark:text-emerald-400 hover:underline">Sign up</a>

@@ -6,6 +6,9 @@ export async function makeMigration(name, fieldArgs = []) {
   const baseDir = process.cwd()
   const blueprint = new Blueprint(name)
 
+  // Use the table name exactly as typed: "abc" -> abc, "abcs" -> abcs
+  blueprint.table(name)
+
   for (const arg of fieldArgs) {
     const [fieldName, fieldType = 'string', modifier] = arg.split(':')
     const options = modifier === 'unique' ? { unique: true } : {}

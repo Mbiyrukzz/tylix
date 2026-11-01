@@ -6,17 +6,21 @@ import {
   AlterMigrationGenerator,
 } from '@tylix/generator'
 
-import { detectLanguage } from '@tylix/shared'
+import { detectLanguage, pascalCase } from '@tylix/shared'
 
 export async function fieldAdd(name, fieldArgs = []) {
   const baseDir = process.cwd()
   const language = await detectLanguage(baseDir)
 
+  // Feature folders use the PascalCase name ("Customer"), so "customer"
+  // has to resolve to the same folder on case-sensitive filesystems.
+  const featureName = pascalCase(name)
+
   const manifestPath = path.join(
     baseDir,
     'app',
     'Features',
-    name,
+    featureName,
     'feature.json',
   )
 
@@ -26,7 +30,7 @@ export async function fieldAdd(name, fieldArgs = []) {
     .catch(() => false)
   if (!exists) {
     console.error(
-      `No feature found at app/Features/${name}/feature.json. Run "tylix make:feature ${name} ..." first.`,
+      `No feature found at app/Features/${featureName}/feature.json. Run "tylix make:feature ${featureName} ..." first.`,
     )
     process.exit(1)
   }
@@ -43,14 +47,21 @@ export async function fieldAdd(name, fieldArgs = []) {
     }
   })
 
+  const seen = new Set()
   for (const f of newFields) {
+    if (seen.has(f.name)) {
+      console.error(`Field "${f.name}" is listed more than once.`)
+      process.exit(1)
+    }
+    seen.add(f.name)
+
     if (manifest.fields.some((existing) => existing.name === f.name)) {
-      console.error(`Field "${f.name}" already exists on ${name}.`)
+      console.error(`Field "${f.name}" already exists on ${featureName}.`)
       process.exit(1)
     }
   }
 
-  const alterBlueprint = new Blueprint(name)
+  const alterBlueprint = new Blueprint(featureName)
   for (const f of newFields) {
     alterBlueprint.field(f.name, f.type, { unique: f.unique })
   }
@@ -68,7 +79,7 @@ export async function fieldAdd(name, fieldArgs = []) {
   manifest.fields = [...manifest.fields, ...newFields]
   await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
 
-  const fullBlueprint = new Blueprint(name)
+  const fullBlueprint = new Blueprint(featureName)
   for (const f of manifest.fields) {
     fullBlueprint.field(f.name, f.type, { unique: f.unique, system: f.system })
   }
@@ -82,6 +93,13 @@ export async function fieldAdd(name, fieldArgs = []) {
       fullBlueprint.hasMany(rel.model, { foreignKey: rel.foreignKey })
   }
 
+  // belongsTo() adds its foreign key as a field, and the manifest already
+  // lists that key, so keep only the first entry per name (the manifest
+  // one, which carries the unique/system flags).
+  fullBlueprint.fields = fullBlueprint.fields.filter(
+    (f, index, all) => all.findIndex((other) => other.name === f.name) === index,
+  )
+
   // Only the model is regenerated. The controller and validator are
   // often hand-edited, so they are left alone.
   await new ModelGenerator().generate(
@@ -91,9 +109,9 @@ export async function fieldAdd(name, fieldArgs = []) {
   )
 
   const fieldList = newFields.map((f) => f.name).join(', ')
-  console.log(`✔ Model regenerated for ${name}`)
+  console.log(`✔ Model regenerated for ${featureName}`)
   console.log(`\nController and validator were not touched. To use ${fieldList}:`)
-  console.log(`  - add it to app/validators/${name}Validator`)
-  console.log(`  - update app/controllers/${name}Controller if it lists fields`)
+  console.log(`  - add it to app/validators/${featureName}Validator`)
+  console.log(`  - update app/controllers/${featureName}Controller if it lists fields`)
   console.log(`\nRun "tylix migrate" to apply the new column.`)
 }

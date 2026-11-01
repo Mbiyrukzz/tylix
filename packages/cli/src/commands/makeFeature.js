@@ -51,6 +51,11 @@ export async function makeFeature(
   { dashboard = false } = {},
 ) {
   const blueprint = new Blueprint(name)
+
+  // Table name exactly as typed (lowercased, never pluralized):
+  // "abc" -> abc, "abcs" -> abcs
+  blueprint.table(name.toLowerCase())
+
   const { rest, publicAll, publicActions } = extractPublicFlag(fieldArgs)
 
   for (const arg of rest) {

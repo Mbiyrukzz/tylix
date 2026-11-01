@@ -1,4 +1,4 @@
-import { generateExpression } from './generateExpression.js'
+import { generateExpression, generateParams } from './generateExpression.js'
 
 /**
  * Compiles a single statement AST node into a JS source line.
@@ -14,6 +14,9 @@ export function generateStatement(node, typed = false) {
     list.map((s) => `    ${generateStatement(s, typed)}`).join('\n')
 
   switch (node.type) {
+    case 'EmptyStatement':
+      return ';'
+
     case 'ReturnStatement':
       return node.argument ? `return ${expr(node.argument)};` : 'return;'
 
@@ -24,7 +27,10 @@ export function generateStatement(node, typed = false) {
       return `${expr(node.expression)};`
 
     case 'VariableDeclaration':
-      return `${node.kind} ${generateDeclarationTarget(node.name, typed)} = ${expr(node.init)};`
+      return `${declarationSource(node, typed)};`
+
+    case 'FunctionDeclaration':
+      return `${node.isAsync ? 'async ' : ''}function ${node.name}(${generateParams(node.params, typed)}) {\n${stmts(node.body)}\n  }`
 
     case 'IfStatement': {
       let out = `if (${expr(node.condition)}) {\n${stmts(node.consequent)}\n  }`
@@ -36,6 +42,9 @@ export function generateStatement(node, typed = false) {
 
     case 'WhileStatement':
       return `while (${expr(node.condition)}) {\n${stmts(node.body)}\n  }`
+
+    case 'DoWhileStatement':
+      return `do {\n${stmts(node.body)}\n  } while (${expr(node.condition)});`
 
     // Each clause body is wrapped in its own braces so `const`/`let`
     // declared in one case can't collide with another, and a `break`
@@ -54,7 +63,13 @@ export function generateStatement(node, typed = false) {
     }
 
     case 'ForInStatement':
-      return `for (const ${node.varName} of ${expr(node.iterable)}) {\n${stmts(node.body)}\n  }`
+      return `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, typed)} of ${expr(node.iterable)}) {\n${stmts(node.body)}\n  }`
+
+    case 'ForKeysStatement':
+      return `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, typed)} in ${expr(node.object)}) {\n${stmts(node.body)}\n  }`
+
+    case 'ForStatement':
+      return `for (${forHeaderSource(node, typed)}) {\n${stmts(node.body)}\n  }`
 
     case 'ForRangeStatement':
       return `for (let ${node.varName} = ${expr(node.start)}; ${node.varName} < ${expr(node.end)}; ${node.varName}++) {\n${stmts(node.body)}\n  }`
@@ -90,15 +105,44 @@ export function generateStatement(node, typed = false) {
   }
 }
 
-// Renders a VariableDeclaration's binding target -- a plain identifier
-// (the base case), or -- for destructuring -- a nested ObjectPattern/
-// ArrayPattern, each with optional per-field renames, defaults, and a
-// rest element, recursing through `binding` so patterns can nest
-// arbitrarily deep (e.g. `const { data: { id, name } } = result`)
-// instead of only supporting one flat level. Matches real JS
-// destructuring syntax so the generated line is exactly what a
-// hand-written `const { a } = x` would look like.
-function generateDeclarationTarget(target, typed = false) {
+// `const a = 1, { b } = x` -- the declaration WITHOUT a trailing
+// semicolon (used by statements and by C-style for headers). A null
+// init (`let x`) emits just the target.
+export function declarationSource(node, typed = false) {
+  const one = (name, init) =>
+    init == null
+      ? generateDeclarationTarget(name, typed)
+      : `${generateDeclarationTarget(name, typed)} = ${generateExpression(init, typed)}`
+  const parts = [
+    one(node.name, node.init),
+    ...(node.more ?? []).map((m) => one(m.name, m.init)),
+  ]
+  return `${node.kind} ${parts.join(', ')}`
+}
+
+// The three parts of a C-style `for (init; test; update)` header.
+export function forHeaderSource(node, typed = false) {
+  const init = !node.init
+    ? ''
+    : node.init.type === 'VariableDeclaration'
+      ? declarationSource(node.init, typed)
+      : node.init.expressions.map((e) => generateExpression(e, typed)).join(', ')
+  const test = node.test ? generateExpression(node.test, typed) : ''
+  const update = (node.update ?? [])
+    .map((e) => generateExpression(e, typed))
+    .join(', ')
+  return `${init}; ${test}; ${update}`
+}
+
+// Renders a binding target -- a plain identifier (the base case), or
+// -- for destructuring -- a nested ObjectPattern/ArrayPattern, each
+// with optional per-field renames, defaults, and a rest element,
+// recursing through `binding` so patterns can nest arbitrarily deep
+// (e.g. `const { data: { id, name } } = result`) instead of only
+// supporting one flat level. Matches real JS destructuring syntax so
+// the generated line is exactly what a hand-written `const { a } = x`
+// would look like.
+export function generateDeclarationTarget(target, typed = false) {
   if (typeof target === 'string') {
     return target
   }

@@ -1,13 +1,6 @@
 import { emitStatementLines } from '../codegen/emitStatementLines.js'
+import { generateParams } from '../codegen/generateExpression.js'
 import { collectTemplateChecks } from './typedTemplateExpr.js'
-
-function paramListWithTypes(params) {
-  return params
-    .map(
-      (p) => `${p.name}${p.typeAnnotation ? `: ${p.typeAnnotation}` : ': any'}`,
-    )
-    .join(', ')
-}
 
 // Recursively emits a check tree (see collectTemplateChecks) into
 // the virtual __render() body. `each` entries open a real
@@ -15,6 +8,8 @@ function paramListWithTypes(params) {
 // an actual TS declaration, not a bare identifier the checker has
 // never seen -- `as any[]` since state/props are typically `any`
 // here anyway, and iterating `any` never fails strict mode regardless.
+// The optional index binding of `{{#each item, i in items}}` is
+// declared as a number.
 function emitChecks(checks, sink, indent) {
   for (const c of checks) {
     if (c.kind === 'each') {
@@ -22,12 +17,17 @@ function emitChecks(checks, sink, indent) {
         `${indent}for (const ${c.itemName} of (${c.iterableExpr} as any[])) {`,
         c.line,
       )
+      if (c.indexName) {
+        sink.pushLine(`${indent}  const ${c.indexName}: number = 0;`, null)
+      }
       emitChecks(c.children, sink, indent + '  ')
       sink.pushLine(`${indent}}`, null)
     } else if (c.eventType) {
+      const base = c.eventBase ?? 'Event'
+      const full = `${base} & { target: ${c.eventType} }`
       sink.pushLine(`${indent}{`, null)
       sink.pushLine(
-        `${indent}  const event: Event & { target: ${c.eventType} } = new Event("synthetic") as unknown as Event & { target: ${c.eventType} };`,
+        `${indent}  const event: ${full} = new Event("synthetic") as unknown as ${full};`,
         null,
       )
       sink.pushLine(`${indent}  const $event = event;`, null)
@@ -91,7 +91,7 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
       : ''
     sink.pushLine(``, null)
     sink.pushLine(
-      `  ${a.isAsync ? 'async ' : ''}${a.name}(${paramListWithTypes(a.params)})${returnType ? `: ${returnType}` : ''} {`,
+      `  ${a.isAsync ? 'async ' : ''}${a.name}(${generateParams(a.params, true)})${returnType ? `: ${returnType}` : ''} {`,
       a.line,
     )
     for (const stmt of a.body) emitStatementLines(stmt, sink, '    ')
@@ -112,7 +112,8 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
     collectTemplateChecks(templateNodes, new Set(), checks)
     if (checks.length > 0) {
       sink.pushLine(``, null)
-      sink.pushLine(`  __render() {`, null)
+      // async so `await` inside event handlers typechecks
+      sink.pushLine(`  async __render() {`, null)
       emitChecks(checks, sink, '    ')
       sink.pushLine(`  }`, null)
     }

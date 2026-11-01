@@ -1,5 +1,10 @@
 page Register
 
+title "Create account"
+
+needs
+  Auth
+
 state
   name: ""
   email: ""
@@ -10,6 +15,33 @@ state
   submitting: false
   registered: false
 
+computed
+  passwordsMatch() {
+    return this.password is this.confirmPassword
+  }
+
+  passwordScore() {
+    if this.password.length < 8 {
+      return 0
+    }
+
+    const hasMixedCase = /[a-z]/.test(this.password) and /[A-Z]/.test(this.password)
+    const hasDigit = /[0-9]/.test(this.password)
+    const hasSymbol = /[^A-Za-z0-9]/.test(this.password)
+
+    let score = 1
+    if hasMixedCase {
+      score += 1
+    }
+    if hasDigit {
+      score += 1
+    }
+    if hasSymbol {
+      score += 1
+    }
+    return score
+  }
+
 action
   setField(field, value) {
     this[field] = value
@@ -19,21 +51,62 @@ action
     this.agreedToTerms = not this.agreedToTerms
   }
 
+  validate() {
+    const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email)
+
+    if this.name.trim().length is 0 {
+      return "Enter your name."
+    }
+    if not emailOk {
+      return "Enter a valid email address."
+    }
+    if this.password.length < 8 {
+      return "Password must be at least 8 characters."
+    }
+    if not this.passwordsMatch {
+      return "Passwords don't match."
+    }
+    if not this.agreedToTerms {
+      return "Please agree to the Terms of Service to continue."
+    }
+    return ""
+  }
+
+  messageFor(result) {
+    switch result.status {
+      case 409 {
+        return "An account with this email already exists."
+      }
+      case 422 {
+        const errors = result.data?.errors
+        if errors {
+          const firstField = Object.keys(errors)[0]
+          return errors[firstField][0]
+        }
+        return "Check your details and try again."
+      }
+      case 429 {
+        return "Too many attempts. Wait a minute and try again."
+      }
+      default {
+        return result.error ?? "Could not create account. Check your details and try again."
+      }
+    }
+  }
+
   async submit() {
-    if not this.submitting {
-      if this.password is not this.confirmPassword {
-        this.error = "Passwords don't match."
-        return null
-      }
+    if this.submitting {
+      return null
+    }
 
-      if not this.agreedToTerms {
-        this.error = "Please agree to the Terms of Service to continue."
-        return null
-      }
+    this.error = this.validate()
+    if this.error {
+      return null
+    }
 
-      this.submitting = true
-      this.error = ""
+    this.submitting = true
 
+    try {
       const result = await useApi("/api/register", {
         method: "POST",
         body: { name: this.name, email: this.email, password: this.password }
@@ -41,15 +114,20 @@ action
 
       if result.ok {
         this.registered = true
-        this.submitting = false
-      } else if result.status is 422 and result.data.errors {
-        const firstField = Object.keys(result.data.errors)[0]
-        this.error = result.data.errors[firstField][0]
-        this.submitting = false
       } else {
-        this.error = result.error or "Could not create account. Check your details and try again."
-        this.submitting = false
+        this.error = this.messageFor(result)
       }
+    } catch (err) {
+      this.error = "Network error. Check your connection and try again."
+    } finally {
+      this.submitting = false
+    }
+  }
+
+onMount
+  {
+    if Auth.user {
+      window.location.href = "/dashboard"
     }
   }
 
@@ -136,9 +214,20 @@ template
             placeholder="••••••••"
             value="{{ password }}"
             oninput="{{ setField('password', event.target.value) }}"
-            class="w-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
+            class="w-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-2.5 mb-2 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
           />
+
+{{#if password.length > 0}}
+          <div class="flex gap-1.5 mb-1.5">
+{{#each n in [0, 1, 2, 3]}}
+            <div class="{{ 'h-1 flex-1 rounded-full transition-colors ' + (n < passwordScore ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700') }}"></div>
+{{/each}}
+          </div>
+          <p class="text-slate-500 text-xs mb-4">{{ ['Too short', 'Weak', 'Okay', 'Good', 'Strong'][passwordScore] }}</p>
+{{/if}}
+{{#if password.length is 0}}
           <p class="text-slate-400 dark:text-slate-600 text-xs mb-4">At least 8 characters.</p>
+{{/if}}
 
           <label for="confirmPassword" class="block text-slate-500 dark:text-slate-400 text-xs font-medium mb-2">Confirm password</label>
           <input
@@ -149,16 +238,20 @@ template
             placeholder="••••••••"
             value="{{ confirmPassword }}"
             oninput="{{ setField('confirmPassword', event.target.value) }}"
-            class="w-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-2.5 mb-5 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
+            onkeydown="{{ event.key is 'Enter' and submit() }}"
+            class="w-full border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-800 dark:text-slate-200 rounded-xl px-4 py-2.5 mb-2 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
           />
+{{#if confirmPassword.length > 0 and not passwordsMatch}}
+          <p class="text-rose-700 dark:text-rose-400 text-xs mb-3">Passwords don't match.</p>
+{{/if}}
 
-          <label class="flex items-start gap-2.5 text-sm text-slate-500 dark:text-slate-400 mb-6">
-{{#if agreedToTerms}}
-            <input type="checkbox" checked onclick="{{ toggleTerms() }}" class="mt-0.5 rounded border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-emerald-500 focus:ring-emerald-500" />
-{{/if}}
-{{#if not agreedToTerms}}
-            <input type="checkbox" onclick="{{ toggleTerms() }}" class="mt-0.5 rounded border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-emerald-500 focus:ring-emerald-500" />
-{{/if}}
+          <label class="flex items-start gap-2.5 text-sm text-slate-500 dark:text-slate-400 my-5">
+            <input
+              type="checkbox"
+              checked="{{ agreedToTerms }}"
+              onclick="{{ toggleTerms() }}"
+              class="mt-0.5 rounded border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-emerald-500 focus:ring-emerald-500"
+            />
             <span>
               I agree to the
               <a href="https://tylix.dev/terms" class="text-emerald-700 dark:text-emerald-400 hover:underline">Terms of Service</a>
@@ -167,16 +260,13 @@ template
             </span>
           </label>
 
-{{#if submitting}}
-          <button disabled class="w-full bg-emerald-500 text-white dark:text-slate-950 rounded-full py-2.5 font-semibold opacity-50 transition">
-            Creating account…
+          <button
+            onclick="{{ submit() }}"
+            disabled="{{ submitting }}"
+            class="w-full bg-emerald-500 text-white dark:text-slate-950 rounded-full py-2.5 font-semibold shadow-sm hover:bg-emerald-400 hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ submitting ? 'Creating account…' : 'Sign Up' }}
           </button>
-{{/if}}
-{{#if not submitting}}
-          <button onclick="{{ submit() }}" class="w-full bg-emerald-500 text-white dark:text-slate-950 rounded-full py-2.5 font-semibold shadow-sm hover:bg-emerald-400 hover:shadow transition-all">
-            Sign Up
-          </button>
-{{/if}}
 
           <p class="text-sm text-slate-500 text-center mt-6">
             Already have an account? <a href="/login" class="text-emerald-700 dark:text-emerald-400 hover:underline">Log in</a>

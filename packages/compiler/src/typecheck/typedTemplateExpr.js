@@ -1,3 +1,5 @@
+import { JS_GLOBALS, paramNames } from '../codegen/jsGlobals.js'
+
 // generateTemplateExpression's twin, for the virtual .ts class body
 // built in buildVirtualPageTs. The REAL compiled template (see
 // codegen/generateTemplateExpression.js) prefixes state reads with
@@ -20,6 +22,8 @@ function unaryPrefix(operator) {
 export function typedTemplateExpr(node, scope) {
   if (node.type === 'Identifier') {
     if (node.name === '$event' || scope.has(node.name)) return node.name
+    if (node.name === 'this') return 'this'
+    if (JS_GLOBALS.has(node.name)) return node.name
     return `this.${node.name}`
   }
   if (node.type === 'MemberExpression') {
@@ -61,12 +65,20 @@ export function typedTemplateExpr(node, scope) {
 
   // Arrow params are typed `any` unless annotated, matching what
   // generateExpression does in typed mode. Params become locals, so
-  // they are referenced bare in the body.
+  // they are referenced bare in the body. Destructured/rest params are
+  // stored as source strings; paramNames() extracts the names they
+  // bind. Defaults are checked in the arrow's own scope.
   if (node.type === 'ArrowFunctionExpression') {
-    const innerScope = new Set([...scope, ...node.params])
+    const innerScope = new Set([...scope, ...paramNames(node.params)])
     const types = node.paramTypes ?? node.params.map(() => null)
+    const defaults = node.paramDefaults ?? []
     const params = node.params
-      .map((name, i) => `${name}: ${types[i] ?? 'any'}`)
+      .map((name, i) => {
+        const base = `${name}: ${types[i] ?? 'any'}`
+        return defaults[i]
+          ? `${base} = ${typedTemplateExpr(defaults[i], innerScope)}`
+          : base
+      })
       .join(', ')
     const asyncPrefix = node.isAsync ? 'async ' : ''
     return `(${asyncPrefix}(${params}) => (${typedTemplateExpr(node.body, innerScope)}))`
@@ -81,11 +93,18 @@ export function typedTemplateExpr(node, scope) {
 
   if (node.type === 'ObjectExpression') {
     const properties = node.properties
-      .map((p) =>
-        p.spread
-          ? `...${typedTemplateExpr(p.value, scope)}`
-          : `${JSON.stringify(p.key)}: ${typedTemplateExpr(p.value, scope)}`,
-      )
+      .map((p) => {
+        if (p.spread) return `...${typedTemplateExpr(p.value, scope)}`
+        if (p.method) {
+          throw new Error(
+            'Method shorthand ({ fn() {} }) is only allowed in script code, not in template expressions',
+          )
+        }
+        const keySrc = p.keyExpr
+          ? `[${typedTemplateExpr(p.keyExpr, scope)}]`
+          : JSON.stringify(p.key)
+        return `${keySrc}: ${typedTemplateExpr(p.value, scope)}`
+      })
       .join(', ')
     return `({ ${properties} })`
   }
@@ -113,33 +132,81 @@ export function typedTemplateExpr(node, scope) {
   throw new Error(`typedTemplateExpr: unsupported node type "${node.type}"`)
 }
 
-const EVENT_ATTR_RE = /^on(click|input|change|submit)$/i
+// Any on<event> attribute is an event listener (see generateTemplate).
+const EVENT_ATTR_RE = /^on([a-z]+)$/i
 
-// Which DOM element type a synthetic $event's `target` should be
-// typed as, keyed by the event name captured from EVENT_ATTR_RE
-// (lowercased). Deliberately narrow -- these are the only event
-// attributes the template grammar currently recognizes at all.
-// Anything not listed falls back to the generic HTMLElement, same as
-// a real framework would for an untyped/unknown handler.
-const EVENT_TARGET_TYPES = {
-  input: 'HTMLInputElement',
-  change: 'HTMLInputElement',
-  submit: 'HTMLFormElement',
-  click: 'HTMLElement',
+// [event interface, element type of `event.target`] per DOM event
+// name. Anything not listed falls back to a plain Event on a generic
+// HTMLElement, same as a real framework would for an unknown handler.
+const MOUSE = ['MouseEvent', 'HTMLElement']
+const KEY = ['KeyboardEvent', 'HTMLInputElement']
+const FOCUS = ['FocusEvent', 'HTMLInputElement']
+const POINTER = ['PointerEvent', 'HTMLElement']
+const DRAG = ['DragEvent', 'HTMLElement']
+const TOUCH = ['TouchEvent', 'HTMLElement']
+const EVENT_TYPES = {
+  click: MOUSE,
+  dblclick: MOUSE,
+  auxclick: MOUSE,
+  contextmenu: MOUSE,
+  mousedown: MOUSE,
+  mouseup: MOUSE,
+  mousemove: MOUSE,
+  mouseenter: MOUSE,
+  mouseleave: MOUSE,
+  mouseover: MOUSE,
+  mouseout: MOUSE,
+  keydown: KEY,
+  keyup: KEY,
+  keypress: KEY,
+  input: ['InputEvent', 'HTMLInputElement'],
+  change: ['Event', 'HTMLInputElement'],
+  submit: ['SubmitEvent', 'HTMLFormElement'],
+  reset: ['Event', 'HTMLFormElement'],
+  focus: FOCUS,
+  blur: FOCUS,
+  focusin: FOCUS,
+  focusout: FOCUS,
+  scroll: ['Event', 'HTMLElement'],
+  wheel: ['WheelEvent', 'HTMLElement'],
+  pointerdown: POINTER,
+  pointerup: POINTER,
+  pointermove: POINTER,
+  pointerenter: POINTER,
+  pointerleave: POINTER,
+  pointercancel: POINTER,
+  drag: DRAG,
+  dragstart: DRAG,
+  dragend: DRAG,
+  dragenter: DRAG,
+  dragleave: DRAG,
+  dragover: DRAG,
+  drop: DRAG,
+  touchstart: TOUCH,
+  touchmove: TOUCH,
+  touchend: TOUCH,
+  touchcancel: TOUCH,
+}
+
+function eventTypesFor(eventName) {
+  return EVENT_TYPES[eventName.toLowerCase()] ?? ['Event', 'HTMLElement']
 }
 
 // Walks a parsed template AST (from parseTemplate) collecting every
 // bindable expression as a tree of check entries, ready for
 // buildVirtualPageTs to emit into a synthetic __render() method.
 // Entries come in two kinds:
-//   { kind: 'check', expr, line, eventType } -- a single expression
-//     to typecheck (interpolation, #if condition, dynamic attribute)
-//   { kind: 'each', itemName, iterableExpr, line, children } -- an
-//     #each block; children is itself a list of these same entries
+//   { kind: 'check', expr, line, eventType, eventBase } -- a single
+//     expression to typecheck (interpolation, #if condition, dynamic
+//     attribute). eventType/eventBase are set for event handlers.
+//   { kind: 'each', itemName, indexName, iterableExpr, line, children }
+//     -- an #each block; children is itself a list of these same entries
 // The 'each' kind exists so the emitted TS can wrap its children in
 // a real `for (const f of ...)` -- without an actual declaration for
 // the loop variable, TS has no way to resolve identifiers like `f`
 // inside the block, regardless of what our own scope-tracking says.
+// {{#else}} branches are collected as ordinary entries after their
+// block, in the OUTER scope (an each-else has no loop variable).
 export function collectTemplateChecks(nodes, scope, out) {
   for (const node of nodes) {
     if (node.type === 'Interpolation') {
@@ -148,6 +215,7 @@ export function collectTemplateChecks(nodes, scope, out) {
         expr: typedTemplateExpr(node.expression, scope),
         line: node.line,
         eventType: null,
+        eventBase: null,
       })
     } else if (node.type === 'If') {
       out.push({
@@ -155,23 +223,32 @@ export function collectTemplateChecks(nodes, scope, out) {
         expr: typedTemplateExpr(node.condition, scope),
         line: node.line,
         eventType: null,
+        eventBase: null,
       })
       collectTemplateChecks(node.children, scope, out)
+      if (node.elseChildren) {
+        collectTemplateChecks(node.elseChildren, scope, out)
+      }
     } else if (node.type === 'Each') {
       const iterableExpr = typedTemplateExpr(node.iterable, scope)
       const children = []
-      collectTemplateChecks(
-        node.children,
-        new Set([...scope, node.itemName]),
-        children,
-      )
+      const innerScope = new Set([
+        ...scope,
+        ...paramNames([node.itemName]),
+        ...(node.indexName ? [node.indexName] : []),
+      ])
+      collectTemplateChecks(node.children, innerScope, children)
       out.push({
         kind: 'each',
         itemName: node.itemName,
+        indexName: node.indexName ?? null,
         iterableExpr,
         line: node.line,
         children,
       })
+      if (node.elseChildren) {
+        collectTemplateChecks(node.elseChildren, scope, out)
+      }
     } else if (node.type === 'Element') {
       for (const attr of node.attributes) {
         if (!attr.dynamic) continue
@@ -179,13 +256,15 @@ export function collectTemplateChecks(nodes, scope, out) {
         const attrScope = eventMatch
           ? new Set([...scope, '$event', 'event'])
           : scope
+        const [eventBase, eventType] = eventMatch
+          ? eventTypesFor(eventMatch[1])
+          : [null, null]
         out.push({
           kind: 'check',
           expr: typedTemplateExpr(attr.value, attrScope),
           line: attr.line,
-          eventType: eventMatch
-            ? (EVENT_TARGET_TYPES[eventMatch[1].toLowerCase()] ?? 'HTMLElement')
-            : null,
+          eventType,
+          eventBase,
         })
       }
       collectTemplateChecks(node.children, scope, out)

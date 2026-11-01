@@ -1,15 +1,28 @@
+// Database settings. Every value comes from .env, which is loaded before
+// this file is read, so change them there rather than here. Only the
+// settings for the chosen driver are used.
+const driver = process.env.DATABASE_DRIVER
+
+if (!driver) {
+  throw new Error(
+    'DATABASE_DRIVER is not set. Add it to your .env file (sqlite, mysql, postgres, mongodb or none).',
+  )
+}
+
+const defaultPorts = { postgres: 5432, mysql: 3306 }
+
 export default {
   database: {
-    driver: "{{DATABASE_DRIVER}}",
+    driver,
     // sqlite
-    filename: "database.sqlite",
-    // postgres/mysql
-    host: "127.0.0.1",
-    port: {{DATABASE_PORT}},
-    user: "root",
-    password: "",
-    database: "{{PROJECT_NAME}}",
+    filename: process.env.DATABASE_FILENAME ?? "database.sqlite",
+    // postgres / mysql
+    host: process.env.DATABASE_HOST ?? "127.0.0.1",
+    port: Number(process.env.DATABASE_PORT) || defaultPorts[driver],
+    user: process.env.DATABASE_USER,
+    password: process.env.DATABASE_PASSWORD ?? "",
+    database: process.env.DATABASE_NAME,
     // mongodb
-    uri: "mongodb://127.0.0.1:27017/{{PROJECT_NAME}}",
+    uri: process.env.DATABASE_URL ?? "mongodb://127.0.0.1:27017",
   },
 };

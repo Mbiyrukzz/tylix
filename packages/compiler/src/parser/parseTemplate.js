@@ -11,7 +11,13 @@ import { parseExpressionString } from './parseExpressionString.js'
 const TAG_NAME_RE = /^[a-zA-Z][a-zA-Z0-9-]*/
 const ATTR_NAME_RE = /^[a-zA-Z][a-zA-Z0-9-]*/
 const INTERP_ATTR_RE = /^\{\{\s*([\s\S]*?)\s*\}\}$/
-const EACH_HEADER_RE = /^([A-Za-z_$][A-Za-z0-9_$]*)\s+in\s+([\s\S]+)$/
+
+// {{#each item in items}}            {{#each item of items}}
+// {{#each item, i in items}}         {{#each [k, v] in Object.entries(o)}}
+// {{#each { id, name } in rows}}
+// group 1: item (name or destructuring pattern), 2: index name, 3: iterable
+const EACH_HEADER_RE =
+  /^(\[[^\]]*\]|\{[^}]*\}|[A-Za-z_$][A-Za-z0-9_$]*)(?:\s*,\s*([A-Za-z_$][A-Za-z0-9_$]*))?\s+(?:in|of)\s+([\s\S]+)$/
 
 const NAMED_ENTITIES = {
   amp: '&',
@@ -69,6 +75,9 @@ class TemplateParser {
   constructor(source) {
     this.source = source
     this.pos = 0
+    // Set by parseNodes: which marker it stopped at (the stopMarker,
+    // one of alsoStopAt, or null for a closing tag).
+    this.stopHit = null
     // Precomputed once so lineAt() is a binary search instead of
     // rescanning from the start on every node -- parsing jumps around
     // via indexOf() in several places (interpolations, {{#if}}/
@@ -99,19 +108,57 @@ class TemplateParser {
     return lo + 1
   }
 
+  // Finds the "}}" that closes a {{ ... }} whose content starts at
+  // `from`. Skips nested braces and string/template literals, so
+  // {{ fn({a:{b:1}}) }} and {{ "}}" }} work, where a plain
+  // indexOf('}}') would cut the expression short.
+  findInterpEnd(from) {
+    let depth = 0
+    let quote = null
+    for (let i = from; i < this.source.length; i++) {
+      const c = this.source[i]
+      if (quote) {
+        if (c === '\\') i++
+        else if (c === quote) quote = null
+        continue
+      }
+      if (c === '"' || c === "'" || c === '`') {
+        quote = c
+        continue
+      }
+      if (c === '{') depth++
+      else if (c === '}') {
+        if (depth === 0 && this.source[i + 1] === '}') return i
+        if (depth > 0) depth--
+      }
+    }
+    return -1
+  }
+
   // Parses sibling nodes. `stopTag` (an HTML tag name) or `stopMarker`
   // (a literal like "{{/if}}") tell this call when to return; nested
   // control blocks / elements consume their own closing marker before
   // returning, so recursion handles arbitrary nesting automatically.
-  parseNodes(stopTag, stopMarker = null) {
+  // `alsoStopAt` lists marker PREFIXES (like "{{#else") that end this
+  // call WITHOUT being consumed, so the caller can parse them itself.
+  // After returning, this.stopHit says which one ended the call.
+  parseNodes(stopTag, stopMarker = null, alsoStopAt = []) {
     const nodes = []
     while (this.pos < this.source.length) {
       if (stopMarker && this.remaining().startsWith(stopMarker)) {
         this.pos += stopMarker.length
+        this.stopHit = stopMarker
+        return nodes
+      }
+
+      const also = alsoStopAt.find((m) => this.remaining().startsWith(m))
+      if (also) {
+        this.stopHit = also
         return nodes
       }
 
       if (this.remaining().startsWith('</')) {
+        this.stopHit = null
         if (stopTag === null) return nodes
         this.consumeClosingTag(stopTag)
         return nodes
@@ -152,6 +199,7 @@ class TemplateParser {
     if (stopTag !== null) {
       throw new Error(`Unclosed tag <${stopTag}>: reached end of template`)
     }
+    this.stopHit = null
     return nodes
   }
 
@@ -170,11 +218,16 @@ class TemplateParser {
   parseInterpolation() {
     const line = this.lineAt(this.pos)
     const start = this.pos + 2
-    const end = this.source.indexOf('}}', start)
+    const end = this.findInterpEnd(start)
     if (end === -1) {
       throw new Error("Unterminated interpolation: missing '}}'")
     }
     const exprSource = this.source.slice(start, end).trim()
+    if (exprSource.startsWith('#') || exprSource.startsWith('/')) {
+      throw new Error(
+        `Unexpected block tag "{{${exprSource}}}" at line ${line}: it has no matching opening or closing tag (check {{#if}} / {{#each}} / {{#else}} / {{/if}} / {{/each}})`,
+      )
+    }
     this.pos = end + 2
     return { ...InterpolationNode(parseExpressionString(exprSource)), line }
   }
@@ -184,16 +237,47 @@ class TemplateParser {
     this.pos += 2 // "{{"
     this.pos += 3 // "#if"
     this.skipWhitespace()
-    const end = this.source.indexOf('}}', this.pos)
+    const end = this.findInterpEnd(this.pos)
     if (end === -1) {
       throw new Error("Unterminated {{#if}} header: missing '}}'")
     }
     const conditionSource = this.source.slice(this.pos, end).trim()
     this.pos = end + 2
+    return this.parseIfRest(conditionSource, line)
+  }
 
-    const children = this.parseNodes(null, '{{/if}}')
+  // Parses the body of an {{#if}} (header already consumed), plus an
+  // optional {{#else}} or {{#else if cond}} chain. An else-if is a
+  // nested IfNode in elseChildren that shares the single {{/if}}.
+  parseIfRest(conditionSource, line) {
+    const children = this.parseNodes(null, '{{/if}}', ['{{#else'])
+
+    let elseChildren = null
+    if (this.stopHit === '{{#else') {
+      this.pos += '{{#else'.length
+      this.skipWhitespace()
+      const elseLine = this.lineAt(this.pos)
+      const end = this.findInterpEnd(this.pos)
+      if (end === -1) {
+        throw new Error("Unterminated {{#else}} header: missing '}}'")
+      }
+      const header = this.source.slice(this.pos, end).trim()
+      this.pos = end + 2
+
+      const elseIf = /^if\b\s*([\s\S]+)$/.exec(header)
+      if (header === '') {
+        elseChildren = this.parseNodes(null, '{{/if}}')
+      } else if (elseIf) {
+        elseChildren = [this.parseIfRest(elseIf[1].trim(), elseLine)]
+      } else {
+        throw new Error(
+          `Invalid {{#else}} header "${header}" at line ${elseLine}: expected {{#else}} or {{#else if condition}}`,
+        )
+      }
+    }
+
     return {
-      ...IfNode(parseExpressionString(conditionSource), children),
+      ...IfNode(parseExpressionString(conditionSource), children, elseChildren),
       line,
     }
   }
@@ -203,7 +287,7 @@ class TemplateParser {
     this.pos += 2 // "{{"
     this.pos += 5 // "#each"
     this.skipWhitespace()
-    const end = this.source.indexOf('}}', this.pos)
+    const end = this.findInterpEnd(this.pos)
     if (end === -1) {
       throw new Error("Unterminated {{#each}} header: missing '}}'")
     }
@@ -213,15 +297,41 @@ class TemplateParser {
     const match = EACH_HEADER_RE.exec(header)
     if (!match) {
       throw new Error(
-        `Invalid {{#each}} header "${header}": expected "item in items"`,
+        `Invalid {{#each}} header "${header}": expected "item in items", "item, index in items" or "[a, b] in pairs"`,
       )
     }
     const itemName = match[1]
-    const iterableSource = match[2].trim()
+    const indexName = match[2] ?? null
+    const iterableSource = match[3].trim()
 
-    const children = this.parseNodes(null, '{{/each}}')
+    const children = this.parseNodes(null, '{{/each}}', ['{{#else'])
+
+    let elseChildren = null
+    if (this.stopHit === '{{#else') {
+      this.pos += '{{#else'.length
+      this.skipWhitespace()
+      const elseEnd = this.findInterpEnd(this.pos)
+      if (elseEnd === -1) {
+        throw new Error("Unterminated {{#else}} header: missing '}}'")
+      }
+      const elseHeader = this.source.slice(this.pos, elseEnd).trim()
+      if (elseHeader !== '') {
+        throw new Error(
+          `{{#else}} inside {{#each}} takes no condition (got "${elseHeader}")`,
+        )
+      }
+      this.pos = elseEnd + 2
+      elseChildren = this.parseNodes(null, '{{/each}}')
+    }
+
     return {
-      ...EachNode(itemName, parseExpressionString(iterableSource), children),
+      ...EachNode(
+        itemName,
+        parseExpressionString(iterableSource),
+        children,
+        indexName,
+        elseChildren,
+      ),
       line,
     }
   }

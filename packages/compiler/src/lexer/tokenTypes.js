@@ -27,14 +27,21 @@ export const TokenType = {
   INSTANCEOF: 'INSTANCEOF',
   THROW: 'THROW',
   WHILE: 'WHILE',
+  DO: 'DO',
   SWITCH: 'SWITCH',
   CASE: 'CASE',
   DEFAULT: 'DEFAULT',
+  DELETE: 'DELETE',
+  VOID: 'VOID',
+  OF: 'OF',
+  FUNCTION: 'FUNCTION',
 
   // Literals
   IDENTIFIER: 'IDENTIFIER',
   NUMBER: 'NUMBER',
+  BIGINT: 'BIGINT', // 10n -> value is the digit text without the "n"
   STRING: 'STRING',
+  REGEX: 'REGEX', // /pattern/flags -> value is { pattern, flags }
 
   // Punctuation
   LBRACE: 'LBRACE', // {
@@ -73,13 +80,20 @@ export const TokenType = {
   LT: 'LT',
   GTE: 'GTE', // >=
   LTE: 'LTE', // <=
-  PIPE: 'PIPE', // |
+  PIPE: 'PIPE', // |  (union type separator AND bitwise OR)
+  AMP: 'AMP', // &  (bitwise AND)
+  CARET: 'CARET', // ^  (bitwise XOR)
+  TILDE: 'TILDE', // ~  (bitwise NOT)
+  // Shifts (<< >> >>>) are NOT single tokens: the Lexer emits them as
+  // adjacent LT/GT tokens so generic types like Array<Array<T>> still
+  // close correctly. The Parser recombines adjacent tokens in
+  // expression context (see Parser.shiftOperatorAt).
 
   // Word operators (Tylix-native, not symbol-based)
-  AND: 'AND', // and
-  OR: 'OR', // or
-  NOT: 'NOT', // not
-  IS: 'IS', // is / is not
+  AND: 'AND', // and, &&
+  OR: 'OR', // or, ||
+  NOT: 'NOT', // not, !
+  IS: 'IS', // is / is not, ==, ===, !=, !==
   HAS: 'HAS', // has (membership)
   EXISTS: 'EXISTS', // exists (postfix, != null)
   MISSING: 'MISSING', // missing (postfix, == null)
@@ -98,12 +112,18 @@ export const TokenType = {
   STAR_EQUALS: 'STAR_EQUALS', // *=
   SLASH_EQUALS: 'SLASH_EQUALS', // /=
   PERCENT_EQUALS: 'PERCENT_EQUALS', // %=
+  STAR_STAR_EQUALS: 'STAR_STAR_EQUALS', // **=
+  OR_EQUALS: 'OR_EQUALS', // ||=
+  AND_EQUALS: 'AND_EQUALS', // &&=
+  AMP_EQUALS: 'AMP_EQUALS', // &=
+  PIPE_EQUALS: 'PIPE_EQUALS', // |=
+  CARET_EQUALS: 'CARET_EQUALS', // ^=
   TEMPLATE_LITERAL: 'TEMPLATE_LITERAL', // `text ${expr} text`
 
   // Template-specific
   TEMPLATE_TEXT: 'TEMPLATE_TEXT', // raw HTML-like text between tags
-  INTERP_START: 'INTERP_START', // {{
-  INTERP_END: 'INTERP_END', // }}
+  INTERP_START: 'INTERP_START', // {{ (no longer produced by the Lexer)
+  INTERP_END: 'INTERP_END', // }} (no longer produced by the Lexer)
 
   EOF: 'EOF',
 }
@@ -145,6 +165,7 @@ export const KEYWORDS = {
   missing: TokenType.MISSING,
   for: TokenType.FOR,
   in: TokenType.IN,
+  of: TokenType.OF,
   from: TokenType.FROM,
   to: TokenType.TO,
   repeat: TokenType.REPEAT,
@@ -157,7 +178,11 @@ export const KEYWORDS = {
   instanceof: TokenType.INSTANCEOF,
   throw: TokenType.THROW,
   while: TokenType.WHILE,
+  do: TokenType.DO,
   switch: TokenType.SWITCH,
   case: TokenType.CASE,
   default: TokenType.DEFAULT,
+  delete: TokenType.DELETE,
+  void: TokenType.VOID,
+  function: TokenType.FUNCTION,
 }

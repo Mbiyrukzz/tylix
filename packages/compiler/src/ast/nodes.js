@@ -58,6 +58,20 @@ export function MethodNode(name, params, body, returnType = null) {
   return { type: 'Method', name, params, body, returnType }
 }
 
+// A function/method parameter:
+//   name          plain name, or destructuring source text ("{ a, b }")
+//   typeAnnotation  TS type text or null
+//   defaultValue  expression node or null
+//   rest          true for `...name`
+export function Param(
+  name,
+  typeAnnotation = null,
+  defaultValue = null,
+  rest = false,
+) {
+  return { name, typeAnnotation, defaultValue, rest }
+}
+
 export function AssignmentExpr(target, value) {
   return { type: 'AssignmentExpression', target, value }
 }
@@ -103,6 +117,10 @@ export function ExpressionStatement(expression) {
   return { type: 'ExpressionStatement', expression }
 }
 
+export function EmptyStatement() {
+  return { type: 'EmptyStatement' }
+}
+
 export function ElementNode(tag, attributes, children) {
   return { type: 'Element', tag, attributes, children }
 }
@@ -119,12 +137,31 @@ export function InterpolationNode(expression) {
   return { type: 'Interpolation', expression }
 }
 
-export function IfNode(condition, children) {
-  return { type: 'If', condition, children }
+// elseChildren: null, or the nodes of the {{#else}} branch. An
+// `{{#else if c}}` is represented as elseChildren = [IfNode(...)].
+export function IfNode(condition, children, elseChildren = null) {
+  return { type: 'If', condition, children, elseChildren }
 }
 
-export function EachNode(itemName, iterable, children) {
-  return { type: 'Each', itemName, iterable, children }
+// itemName may be a plain name or destructuring source text
+// ("[k, v]", "{ id, name }"). indexName is the optional second binding
+// of `{{#each item, i in items}}`. elseChildren renders when the list
+// is empty.
+export function EachNode(
+  itemName,
+  iterable,
+  children,
+  indexName = null,
+  elseChildren = null,
+) {
+  return {
+    type: 'Each',
+    itemName,
+    iterable,
+    children,
+    indexName,
+    elseChildren,
+  }
 }
 
 export function CallExpr(callee, args) {
@@ -135,12 +172,17 @@ export function AwaitExpr(argument) {
   return { type: 'AwaitExpression', argument }
 }
 
-export function VariableDeclaration(kind, name, init) {
-  return { type: 'VariableDeclaration', kind, name, init }
+// `more` holds extra declarators of `const a = 1, b = 2`:
+// [{ name, init }]. init may be null for `let x`.
+export function VariableDeclaration(kind, name, init, more = []) {
+  return { type: 'VariableDeclaration', kind, name, init, more }
 }
 
 export function ObjectExpr(properties) {
-  // properties: [{ key, value }]
+  // properties: [{ key, value }]            plain
+  //             [{ key: null, keyExpr, value }]   computed key
+  //             [{ key, keyExpr, method: true, value: FunctionExpr }]
+  //             [{ key: null, spread: true, value }]
   return { type: 'ObjectExpression', properties }
 }
 
@@ -164,8 +206,23 @@ export function TernaryExpr(condition, consequent, alternate) {
   return { type: 'TernaryExpression', condition, consequent, alternate }
 }
 
-export function ForInStatement(varName, iterable, body) {
-  return { type: 'ForInStatement', varName, iterable, body }
+// varName: a plain name or a destructuring pattern node. declKind is
+// 'const' (default) or 'let'. Iterates VALUES (for...of).
+export function ForInStatement(varName, iterable, body, declKind = 'const') {
+  return { type: 'ForInStatement', varName, iterable, body, declKind }
+}
+
+// JS `for (const k in obj)` -- iterates KEYS.
+export function ForKeysStatement(varName, object, body, declKind = 'const') {
+  return { type: 'ForKeysStatement', varName, object, body, declKind }
+}
+
+// C-style `for (init; test; update) { }`
+//   init:   VariableDeclaration | { type: 'ExpressionList', expressions } | null
+//   test:   expression | null
+//   update: expression[]
+export function ForStatement(init, test, update, body) {
+  return { type: 'ForStatement', init, test, update, body }
 }
 
 export function ForRangeStatement(varName, start, end, body) {
@@ -189,13 +246,33 @@ export function ArrowFunctionExpr(
   body,
   paramTypes = null,
   isAsync = false,
+  paramDefaults = null,
 ) {
   // body is either an expression node, or a BlockStatement node for
   // block-bodied arrows (`x => { ... }`). Block bodies are only valid
   // in script code; the template generators reject BlockStatement
   // with their normal "unsupported node type" error.
   // isAsync marks `async x => ...` / `async (a, b) => ...`.
-  return { type: 'ArrowFunctionExpression', params, body, paramTypes, isAsync }
+  // params are source strings ("x", "[k, v]", "{ id }", "...rest");
+  // paramDefaults is a parallel array of expression nodes or null.
+  return {
+    type: 'ArrowFunctionExpression',
+    params,
+    body,
+    paramTypes,
+    isAsync,
+    paramDefaults,
+  }
+}
+
+// `function name(a, b = 1, ...rest) { ... }` used as an expression
+// (also the value of object-literal method shorthand). Script only.
+export function FunctionExpr(params, body, isAsync = false, name = null) {
+  return { type: 'FunctionExpression', params, body, isAsync, name }
+}
+
+export function FunctionDeclaration(name, params, body, isAsync = false) {
+  return { type: 'FunctionDeclaration', name, params, body, isAsync }
 }
 
 export function TemplateLiteralExpr(parts) {
@@ -226,6 +303,10 @@ export function ThrowStatement(argument) {
 
 export function WhileStatement(condition, body) {
   return { type: 'WhileStatement', condition, body }
+}
+
+export function DoWhileStatement(body, condition) {
+  return { type: 'DoWhileStatement', body, condition }
 }
 
 // cases: [{ tests: Expression[] | null, body: Statement[] }]

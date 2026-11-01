@@ -45,6 +45,15 @@ export class DatabaseAdapter {
   }
 
   /**
+   * The SQL keyword used for LIKE conditions. Case-insensitive on MySQL and
+   * SQLite already; PostgresAdapter overrides this with "ILIKE" so all SQL
+   * drivers match the same rows.
+   */
+  get likeOperator() {
+    return 'LIKE'
+  }
+
+  /**
    * Runs a structured query descriptor ({ wheres, orders, limitValue,
    * offsetValue }) against `table` and returns matching rows.
    *
@@ -55,7 +64,9 @@ export class DatabaseAdapter {
    * overrides this entirely since it has no SQL layer to delegate to.
    */
   async query(table, descriptor = {}) {
-    const { sql, params } = buildSelectSql(table, descriptor)
+    const { sql, params } = buildSelectSql(table, descriptor, {
+      likeOperator: this.likeOperator,
+    })
     return this.all(sql, params)
   }
 }

@@ -111,6 +111,79 @@ async function loadHeadTags(headFile) {
   return html
 }
 
+// The HTML document around every page. This is what renders when the
+// project has no app/index.html. A project file replaces it entirely and
+// uses the same three placeholders.
+const DEFAULT_SHELL = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>%tylix.title%</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  %tylix.head%
+</head>
+<body>
+  %tylix.body%
+</body>
+</html>`
+
+const REQUIRED_PLACEHOLDERS = ['%tylix.head%', '%tylix.body%']
+
+const shellCache = new Map() // shellFile -> { mtimeMs, html }
+
+// Optional project file (app/index.html): the full HTML document, with
+// its own DOCTYPE, <head> and <body>. It must contain %tylix.head% and
+// %tylix.body%; %tylix.title% is optional. Cached by modified time like
+// head.html. A missing file means the built-in shell above.
+async function loadShell(shellFile) {
+  let stat
+  try {
+    stat = await fs.promises.stat(shellFile)
+  } catch {
+    return DEFAULT_SHELL
+  }
+  if (!stat.isFile()) return DEFAULT_SHELL
+
+  const cached = shellCache.get(shellFile)
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.html
+
+  const html = await fs.promises.readFile(shellFile, 'utf-8')
+  const missing = REQUIRED_PLACEHOLDERS.filter((p) => !html.includes(p))
+  if (missing.length > 0) {
+    throw new Error(
+      `app/index.html is missing ${missing.join(' and ')}. ` +
+        'Put %tylix.head% inside <head> and %tylix.body% inside <body>.',
+    )
+  }
+
+  shellCache.set(shellFile, { mtimeMs: stat.mtimeMs, html })
+  return html
+}
+
+const loadingCache = new Map() // loadingFile -> { mtimeMs, source }
+
+// Optional project file (app/loading.tyx): the loading indicator, written
+// like a layout (<script> and <template>). A missing file returns null and
+// the built-in top bar is used instead. Cached by modified time like
+// head.html and index.html.
+async function loadLoadingPage(loadingFile) {
+  let stat
+  try {
+    stat = await fs.promises.stat(loadingFile)
+  } catch {
+    return null
+  }
+  if (!stat.isFile()) return null
+
+  const cached = loadingCache.get(loadingFile)
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached.source
+
+  const source = await fs.promises.readFile(loadingFile, 'utf-8')
+  loadingCache.set(loadingFile, { mtimeMs: stat.mtimeMs, source })
+  return source
+}
+
 function compileComponentSource(source, fallbackClassName) {
   const isNativeComponent = /^\s*component\s+\w+/.test(source)
 
@@ -189,6 +262,10 @@ export async function renderPageDocument(
     capabilitiesDir = path.join(process.cwd(), 'app', 'capabilities'),
     // Optional file of extra <head> tags (scripts, meta, links).
     headFile = path.join(process.cwd(), 'app', 'head.html'),
+    // Optional full HTML document that wraps every page.
+    shellFile = path.join(process.cwd(), 'app', 'index.html'),
+    // Optional loading indicator page, mounted before the page renders.
+    loadingFile = path.join(process.cwd(), 'app', 'loading.tyx'),
   } = {},
 ) {
   const {
@@ -213,6 +290,41 @@ export async function renderPageDocument(
 
   const capabilityDefinitions = await loadCapabilityDefinitions(capabilitiesDir)
   const headTags = await loadHeadTags(headFile)
+  const shell = await loadShell(shellFile)
+
+  // The loading page is compiled like a layout and mounted before the
+  // page's own data requests start, so the very first request shows it.
+  // It receives the shared loading state (see runtime/loadingIndicator.js)
+  // as its "loading" prop. A failure while mounting it is logged and never
+  // blocks the page.
+  const loadingSource = await loadLoadingPage(loadingFile)
+  let loadingClassSource = ''
+  let loadingMountCode = ''
+  if (loadingSource !== null) {
+    let loadingCompiled
+    try {
+      loadingCompiled = compileComponentSource(loadingSource, '__Loading')
+    } catch (err) {
+      err.message = `In app/loading.tyx: ${err.message}`
+      throw err
+    }
+    loadingClassSource = loadingCompiled.classSource
+    loadingMountCode = `
+    try {
+      const loadingInstance = new ${loadingCompiled.className}({ loading: __tylixLoading });
+      (function (document, instance) {
+${loadingCompiled.code}
+        document.body.appendChild(${loadingCompiled.rootVar});
+      })(document, loadingInstance);
+      if (typeof loadingInstance.__onMount === "function") {
+        Promise.resolve(loadingInstance.__onMount()).catch((err) => {
+          console.error("loading page onMount failed:", err);
+        });
+      }
+    } catch (err) {
+      console.error("loading page failed:", err);
+    }`
+  }
 
   const childNames = Object.keys(childComponents)
   const childClassSources = childNames
@@ -265,6 +377,8 @@ ${layoutCompiled.code}
   // If __ready() rejects (a failed needs/prefetch call), log it and keep
   // going so the page still renders, instead of showing a blank screen.
   const inlineScript = `
+${loadingClassSource ? 'window.__TYLIX_CUSTOM_LOADING__ = true;' : ''}
+
 ${RUNTIME_SOURCE}
 
 ${CAPABILITY_SOURCE}
@@ -287,11 +401,14 @@ ${childClassSources}
 
 ${layoutClassSource}
 
+${loadingClassSource}
+
 document.addEventListener("DOMContentLoaded", () => {
   const instance = new ${pageName}(${JSON.stringify(props)});
   const components = {};
 ${childRegistrations}
   (async function (document, instance, components) {
+${loadingMountCode}
     if (typeof instance.__ready === "function") {
       try {
         await instance.__ready();
@@ -330,6 +447,7 @@ ${layoutMountCode}
     { name: 'page class', code: classSource },
     { name: 'child components', code: childClassSources },
     { name: 'layout', code: layoutClassSource },
+    { name: 'loading page', code: loadingClassSource },
   ]
 
   for (const segment of scriptSegments) {
@@ -355,13 +473,7 @@ ${layoutMountCode}
     throw genErr
   }
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  ${channelsPortScript}
-  <script>
+  const themeScript = `<script>
     (function () {
       var stored = localStorage.getItem("theme");
       var prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -369,16 +481,18 @@ ${layoutMountCode}
         document.documentElement.classList.add("dark");
       }
     })();
-  </script>
-  <title>${pageNode.title ?? pageName}</title>
-  <link rel="icon" type="image/png" href="/favicon.png">
-  ${styleLinks}
-${headTags}
-${styleTag}
-</head>
-<body>
-  <div id="app"></div>
-  <script>${inlineScript}</script>
-</body>
-</html>`
+  </script>`
+
+  const values = {
+    title: String(pageNode.title ?? pageName),
+    head: [channelsPortScript, themeScript, styleLinks, headTags, styleTag]
+      .filter((part) => part && part.length > 0)
+      .join('\n  '),
+    body: `<div id="app"></div>\n  <script>${inlineScript}</script>`,
+  }
+
+  // One pass with a function replacer, so a "$&" or a placeholder-looking
+  // string inside the generated script is never treated as a pattern or
+  // substituted a second time.
+  return shell.replace(/%tylix\.(title|head|body)%/g, (_, key) => values[key])
 }

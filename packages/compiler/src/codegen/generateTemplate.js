@@ -1,7 +1,24 @@
 import { generateTemplateExpression } from './generateTemplateExpression.js'
+import { paramNames } from './jsGlobals.js'
 
-const EVENT_ATTR_PREFIX = /^on(click|input|change|submit)$/i
+// Any attribute named on<event> on a plain HTML element is an event
+// listener: onclick, onkeydown, onblur, onmouseenter, ondblclick,
+// onscroll, onsubmit, oninput, oncontextmenu, ... (case-insensitive,
+// so onClick works too). Capitalized component tags handle their own
+// onXxx callback props separately in compileElement.
+const EVENT_ATTR_PREFIX = /^on[a-z]+$/i
 const COMPONENT_TAG_PATTERN = /^[A-Z]/
+
+// A handler whose expression is one of these node types is a function
+// VALUE that gets called with the event: onclick="{{ save }}",
+// "{{ Auth.logout }}", "{{ e => doIt(e.target.value) }}". Anything
+// else is a STATEMENT run when the event fires: "{{ count++ }}",
+// "{{ save(item) }}", "{{ ok and save() }}", "{{ open ? close() : open() }}".
+const FUNCTION_VALUED = new Set([
+  'Identifier',
+  'MemberExpression',
+  'ArrowFunctionExpression',
+])
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
@@ -66,6 +83,7 @@ function compileNode(node, lines, scope, inSvg = false) {
 
   throw new Error(`generateTemplate: unknown node type "${node.type}"`)
 }
+
 // Renders node.children into a local fragment and returns the lines
 // needed to build it plus the fragment's own variable name, without
 // touching the caller's `lines` array directly (used inside effect
@@ -79,18 +97,46 @@ function compileChildrenIntoFragment(children, scope, fragVar, inSvg = false) {
   return childLines
 }
 
+function emitBranch(lines, children, scope, inSvg, indent) {
+  compileChildrenIntoFragment(children, scope, 'frag', inSvg).forEach((l) =>
+    lines.push(`${indent}${l}`),
+  )
+}
+
 // Conditional rendering with no VDOM: an anchor comment node marks
 // the block's position; on first run (before the anchor is even
 // attached to the real DOM by the caller) content builds into the
 // same fragment that holds the anchor. On every later run (state
 // changed), previous nodes are removed and new ones inserted right
-// after the anchor in the live DOM.
+// after the anchor in the live DOM. `{{#else}}` / `{{#else if}}`
+// branches render into the same slot when the condition is false.
 function compileIf(node, lines, scope, inSvg = false) {
   const anchorVar = nextVar('ifAnchor')
   const containerVar = nextVar('ifContainer')
   const nodesVar = nextVar('ifNodes')
   const initialVar = nextVar('ifInitial')
-  const condExpr = generateTemplateExpression(node.condition, scope)
+
+  // `{{#else if}}` chains (and an {{#else}} holding nothing but one
+  // {{#if}}, which means the same thing) are flattened into a single
+  // if / else if / else so the whole chain is ONE effect. Nesting
+  // them would leave stale effects from replaced branches subscribed
+  // to the same state.
+  const branches = []
+  let current = node
+  let finalElse = null
+  while (true) {
+    branches.push({
+      cond: generateTemplateExpression(current.condition, scope),
+      children: current.children,
+    })
+    const rest = current.elseChildren
+    if (rest && rest.length === 1 && rest[0].type === 'If') {
+      current = rest[0]
+      continue
+    }
+    finalElse = rest
+    break
+  }
 
   lines.push(`const ${anchorVar} = document.createComment("if");`)
   lines.push(`const ${containerVar} = document.createDocumentFragment();`)
@@ -100,19 +146,21 @@ function compileIf(node, lines, scope, inSvg = false) {
   lines.push(`effect(() => {`)
   lines.push(`  for (const n of ${nodesVar}) n.remove();`)
   lines.push(`  ${nodesVar} = [];`)
-  lines.push(`  if (${condExpr}) {`)
-  lines.push(`    const frag = document.createDocumentFragment();`)
-  const childLines = compileChildrenIntoFragment(
-    node.children,
-    scope,
-    'frag',
-    inSvg,
-  )
-  childLines.forEach((l) => lines.push(`    ${l}`))
-  lines.push(`    ${nodesVar} = Array.from(frag.childNodes);`)
+  lines.push(`  const frag = document.createDocumentFragment();`)
+  branches.forEach((b, i) => {
+    lines.push(i === 0 ? `  if (${b.cond}) {` : `  } else if (${b.cond}) {`)
+    emitBranch(lines, b.children, scope, inSvg, '    ')
+  })
+  if (finalElse) {
+    lines.push(`  } else {`)
+    emitBranch(lines, finalElse, scope, inSvg, '    ')
+  }
+  lines.push(`  }`)
+  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`)
+  lines.push(`  if (${nodesVar}.length > 0) {`)
   lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
   lines.push(
-    `    else { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
+    `    else if (${anchorVar}.parentNode) { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
   )
   lines.push(`  }`)
   lines.push(`  ${initialVar} = false;`)
@@ -121,13 +169,23 @@ function compileIf(node, lines, scope, inSvg = false) {
   return containerVar
 }
 
+// {{#each item in items}}, {{#each item, i in items}},
+// {{#each [k, v] in Object.entries(o)}}, {{#each { id } in rows}}.
+// `{{#else}}` renders when the list is empty.
 function compileEach(node, lines, scope, inSvg = false) {
   const anchorVar = nextVar('eachAnchor')
   const containerVar = nextVar('eachContainer')
   const nodesVar = nextVar('eachNodes')
   const initialVar = nextVar('eachInitial')
   const iterableExpr = generateTemplateExpression(node.iterable, scope)
-  const innerScope = new Set([...scope, node.itemName])
+  const innerScope = new Set([
+    ...scope,
+    ...paramNames([node.itemName]),
+    ...(node.indexName ? [node.indexName] : []),
+  ])
+  const hasElse = !!node.elseChildren
+  const listVar = nextVar('eachList')
+  const indexVar = nextVar('eachIndex')
 
   lines.push(`const ${anchorVar} = document.createComment("each");`)
   lines.push(`const ${containerVar} = document.createDocumentFragment();`)
@@ -137,25 +195,36 @@ function compileEach(node, lines, scope, inSvg = false) {
   lines.push(`effect(() => {`)
   lines.push(`  for (const n of ${nodesVar}) n.remove();`)
   lines.push(`  const frag = document.createDocumentFragment();`)
-  lines.push(`  for (const ${node.itemName} of ${iterableExpr}) {`)
-  const childLines = compileChildrenIntoFragment(
-    node.children,
-    innerScope,
-    'frag',
-    inSvg,
-  )
-  childLines.forEach((l) => lines.push(`    ${l}`))
-  lines.push(`  }`)
-  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`)
-  lines.push(`  if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
+  if (hasElse) {
+    lines.push(`  const ${listVar} = Array.from(${iterableExpr} ?? []);`)
+  }
+  if (node.indexName) lines.push(`  let ${indexVar} = 0;`)
   lines.push(
-    `  else { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
+    `  for (const ${node.itemName} of ${hasElse ? listVar : iterableExpr}) {`,
   )
+  if (node.indexName) {
+    lines.push(`    const ${node.indexName} = ${indexVar}++;`)
+  }
+  emitBranch(lines, node.children, innerScope, inSvg, '    ')
+  lines.push(`  }`)
+  if (hasElse) {
+    lines.push(`  if (${listVar}.length === 0) {`)
+    emitBranch(lines, node.elseChildren, scope, inSvg, '    ')
+    lines.push(`  }`)
+  }
+  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`)
+  lines.push(`  if (${nodesVar}.length > 0) {`)
+  lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
+  lines.push(
+    `    else if (${anchorVar}.parentNode) { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
+  )
+  lines.push(`  }`)
   lines.push(`  ${initialVar} = false;`)
   lines.push(`});`)
 
   return containerVar
 }
+
 function isComponentTag(tag) {
   return COMPONENT_TAG_PATTERN.test(tag)
 }
@@ -232,6 +301,7 @@ function compileElement(node, lines, scope, inSvg = false) {
 
   return varName
 }
+
 // Attributes that reflect live user-editable DOM state -- setting
 // them via setAttribute() only seeds the *initial* value; once the
 // user interacts with the control, the live property diverges from
@@ -270,21 +340,21 @@ function compileAttribute(elVar, tag, attr, lines, scope) {
     // bare "event" -- both are treated as the same local so neither
     // gets mistakenly prefixed with "instance.".
     const scopeWithEvent = new Set([...scope, '$event', 'event'])
+    const expr = generateTemplateExpression(attr.value, scopeWithEvent)
 
-    if (
-      attr.value.type === 'CallExpression' ||
-      attr.value.type === 'AssignmentExpression'
-    ) {
-      const expr = generateTemplateExpression(attr.value, scopeWithEvent)
+    if (FUNCTION_VALUED.has(attr.value.type)) {
+      // Function value: call it with the event.
       lines.push(
-        `${elVar}.addEventListener(${JSON.stringify(eventName)}, ($event) => { const event = $event; ${expr}; });`,
+        `${elVar}.addEventListener(${JSON.stringify(eventName)}, ($event) => { const event = $event; ${expr}($event); });`,
       )
       return
     }
 
-    const expr = generateTemplateExpression(attr.value, scopeWithEvent)
+    // Statement: run it when the event fires. Handlers that contain
+    // `await` become async arrows.
+    const asyncPrefix = /\bawait\b/.test(expr) ? 'async ' : ''
     lines.push(
-      `${elVar}.addEventListener(${JSON.stringify(eventName)}, ($event) => { const event = $event; ${expr}($event); });`,
+      `${elVar}.addEventListener(${JSON.stringify(eventName)}, ${asyncPrefix}($event) => { const event = $event; ${expr}; });`,
     )
     return
   }

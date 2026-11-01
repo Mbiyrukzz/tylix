@@ -28,6 +28,7 @@ import { writeMiddleware } from './steps/writeMiddleware.js'
 import { writeComponents } from './steps/writeComponents.js'
 import { writeApiRoutes } from './steps/writeApiRoutes.js'
 import { writeMailConfig } from './steps/writeMailConfig.js'
+import { writeIndexHtml } from './steps/writeIndexHtml.js'
 import { runMigrations } from './steps/runMigrations.js'
 import { writeCapabilities } from './steps/writeCapabilities.js'
 import { initGit } from './steps/initGit.js'
@@ -165,10 +166,10 @@ async function runWizard(initialProjectName, options = {}) {
   const styling = await resolve(options.styling, DEFAULTS.styling, () =>
     select({
       message: 'Styling',
-     choices: [
-  { label: 'Tailwind CSS', value: 'tailwind' },
-  { label: 'Plain CSS', value: 'plain-css' },
-],
+      choices: [
+        { label: 'Tailwind CSS', value: 'tailwind' },
+        { label: 'Plain CSS', value: 'plain-css' },
+      ],
     }),
   )
 
@@ -269,22 +270,23 @@ async function runBuildSteps(config) {
     { label: 'Configuring database', fn: () => writeDatabaseConfig(config) },
     { label: 'Configuring mail', fn: () => writeMailConfig(config) },
     { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
+    { label: 'Creating HTML shell', fn: () => writeIndexHtml(config) },
   )
 
- if (config.authEnabled) {
-  steps.push({
-    label: 'Generating authentication',
-    fn: () => generateAuth(config),
-    optional: !config.installNow,
-    warningMessage: `Authentication was not generated because dependencies weren't installed. Run "cd ${config.projectName} && npm install && npx tylix make:auth && npm run migrate".`,
-  })
-}
+  if (config.authEnabled) {
+    steps.push({
+      label: 'Generating authentication',
+      fn: () => generateAuth(config),
+      optional: !config.installNow,
+      warningMessage: `Authentication was not generated because dependencies weren't installed. Run "cd ${config.projectName} && npm install && npx tylix make:auth && npm run migrate".`,
+    })
+  }
   steps.push({
     label: 'Creating capabilities',
     fn: () => writeCapabilities(config),
   })
 
-   steps.push({
+  steps.push({
     label: 'Creating Home page',
     fn: () => writePage(config, 'Home'),
   })

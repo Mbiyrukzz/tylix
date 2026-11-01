@@ -10,6 +10,8 @@ import {
   TernaryExpr,
   NullishCoalescingExpr,
   ArrowFunctionExpr,
+  FunctionExpr,
+  FunctionDeclaration,
   TemplateLiteralExpr,
   SpreadElement,
   Identifier,
@@ -17,6 +19,7 @@ import {
   Literal,
   ReturnStatement,
   ExpressionStatement,
+  EmptyStatement,
   CallExpr,
   NewExpr,
   AwaitExpr,
@@ -28,6 +31,8 @@ import {
   TryStatement,
   IfStatement,
   ForInStatement,
+  ForKeysStatement,
+  ForStatement,
   ForRangeStatement,
   RepeatStatement,
   BreakStatement,
@@ -37,6 +42,7 @@ import {
   BlockStatement,
   ThrowStatement,
   WhileStatement,
+  DoWhileStatement,
   SwitchStatement,
 } from '../ast/nodes.js'
 import { parseExpressionString } from './parseExpressionString.js'
@@ -47,6 +53,7 @@ const COMPARISON_SYMBOLS = {
   [TokenType.GTE]: '>=',
   [TokenType.LTE]: '<=',
   [TokenType.INSTANCEOF]: 'instanceof',
+  [TokenType.IN]: 'in',
 }
 
 const ADDITIVE_SYMBOLS = {
@@ -67,44 +74,94 @@ const KEYWORD_TOKEN_TYPES = new Set(Object.values(KEYWORDS))
 // `this.count += 1` becomes exactly the same AST as if the dev had
 // written `this.count = this.count + 1`, so no codegen changes are
 // needed at all; generateExpression already knows how to emit both
-// node types.
+// node types. (`||=` / `&&=` / `??=` and the shift forms are handled
+// separately in parseAssignment.)
 const COMPOUND_ASSIGNMENT_OPS = {
   [TokenType.PLUS_EQUALS]: '+',
   [TokenType.MINUS_EQUALS]: '-',
   [TokenType.STAR_EQUALS]: '*',
   [TokenType.SLASH_EQUALS]: '/',
   [TokenType.PERCENT_EQUALS]: '%',
+  [TokenType.STAR_STAR_EQUALS]: '**',
+  [TokenType.AMP_EQUALS]: '&',
+  [TokenType.PIPE_EQUALS]: '|',
+  [TokenType.CARET_EQUALS]: '^',
+}
+
+// Renders a destructuring pattern back to source text. Arrow and
+// function params are stored as plain strings, so `([k, v]) => ...`
+// and `({ id, name }) => ...` are kept as "[k, v]" / "{ id, name }"
+// and emitted verbatim by the codegen.
+function bindingToSource(t) {
+  if (typeof t === 'string') return t
+  if (t.type === 'ObjectPattern') {
+    const parts = t.properties.map((p) => {
+      if (p.defaultValue) {
+        throw new Error(
+          'Default values inside destructured parameters are not supported; use a default on the whole parameter or a const inside the body',
+        )
+      }
+      return typeof p.binding === 'string' && p.binding === p.key
+        ? p.key
+        : `${p.key}: ${bindingToSource(p.binding)}`
+    })
+    if (t.rest) parts.push(`...${t.rest}`)
+    return `{ ${parts.join(', ')} }`
+  }
+  const parts = t.elements.map((el) => {
+    if (el === null) return ''
+    if (el.defaultValue) {
+      throw new Error(
+        'Default values inside destructured parameters are not supported; use a default on the whole parameter or a const inside the body',
+      )
+    }
+    return bindingToSource(el.binding)
+  })
+  if (t.rest) parts.push(`...${t.rest}`)
+  return `[${parts.join(', ')}]`
+}
+
+// True when token `b` starts exactly where token `a` ends -- i.e. the
+// two were written with no whitespace between them.
+function adjacent(a, b) {
+  return !!a && !!b && b.start === a.start + String(a.value).length
 }
 
 /**
  * Parses the token stream from the Lexer into a Page AST.
  *
  * Expressions are parsed with real precedence-climbing, low to high:
- *   arrow function (x => expr, (a, b) => expr, block bodies
- *     x => { ... }, and the async forms of all of these) -- tried
- *     first, with backtracking, since it can start with the same
- *     tokens as a grouped expression or a bare identifier
- *   assignment  (= += -= *= /= %= ??=)
+ *   arrow function (x => expr, (a, b = 1) => expr, destructured and
+ *     rest params, block bodies x => { ... }, and the async forms of
+ *     all of these) -- tried first, with backtracking
+ *   assignment  (= += -= *= /= %= **= ??= ||= &&= &= |= ^= <<= >>= >>>=)
  *   ternary     (?:)
  *   nullish     (??)
- *   logical or  (or)
- *   logical and (and)
- *   equality    (is / is not)
- *   comparison  (> < >= <= instanceof)
+ *   logical or  (or, ||)
+ *   logical and (and, &&)
+ *   bitwise or  (|)
+ *   bitwise xor (^)
+ *   bitwise and (&)
+ *   equality    (is / is not, also ===, !==, ==, !=)
+ *   comparison  (> < >= <= instanceof in)
  *   predicate   (has / exists / missing)
+ *   shift       (<< >> >>>)
  *   additive    (+ -)
  *   multiplicative (* / %)
  *   exponent    (**, right-associative)
- *   unary       (not, -, await, typeof, prefix ++/--)
+ *   unary       (not, !, ~, -, await, typeof, delete, void, prefix ++/--)
  *   postfix     (x++, x--)
  *   member/call (a.b, a(), a?.b, a?.())
- *   primary     (literals, identifiers, grouping, arrays, objects,
- *                template literals)
+ *   primary     (literals, regex, bigint, identifiers, grouping, arrays,
+ *                objects, template literals, function expressions)
  *
  * `x++` / `++x` desugar to `x = x + 1` (same trick as compound
  * assignment), so the expression's value is the NEW value in both
- * forms, unlike JS where postfix yields the old one. Fine for
- * statements and event handlers, which is where it is used.
+ * forms, unlike JS where postfix yields the old one.
+ *
+ * Shifts are recombined from adjacent LT/GT tokens (see
+ * shiftOperatorAt) because the Lexer never emits << or >> as single
+ * tokens -- that keeps `Array<Array<T>>` parseable as a type.
  */
 export class Parser {
   constructor(tokens) {
@@ -376,23 +433,42 @@ export class Parser {
     return { ...StateNode(name, value, typeAnnotation), line: startLine }
   }
 
+  // Parses a parameter list. The opening '(' must already be
+  // consumed; this consumes the closing ')'. Supports types
+  // (`a: number`), defaults (`a = 1`), rest (`...args`) and
+  // destructured params (`{ id, name }`, `[a, b]`).
+  parseParamList() {
+    const params = []
+    while (!this.check(TokenType.RPAREN)) {
+      const rest = this.match(TokenType.SPREAD)
+      let name
+      if (this.check(TokenType.LBRACE) || this.check(TokenType.LBRACKET)) {
+        name = bindingToSource(this.parseBindingTarget())
+      } else {
+        name = this.parseNameToken('Expected parameter name')
+      }
+      let typeAnnotation = null
+      if (this.match(TokenType.COLON)) {
+        typeAnnotation = this.parseTypeExpression()
+      }
+      let defaultValue = null
+      if (this.match(TokenType.EQUALS)) {
+        defaultValue = this.parseAssignment()
+      }
+      params.push({ name, typeAnnotation, defaultValue, rest })
+      this.match(TokenType.COMMA)
+    }
+    this.expect(TokenType.RPAREN, "Expected ')' after parameters")
+    return params
+  }
+
   parseMethod() {
     const startLine = this.peek().line
     const isAsync = this.match(TokenType.ASYNC)
     const name = this.parseNameToken('Expected method name')
     this.expect(TokenType.LPAREN, "Expected '(' after method name")
 
-    const params = []
-    while (!this.check(TokenType.RPAREN)) {
-      const paramName = this.parseNameToken('Expected parameter name')
-      let paramType = null
-      if (this.match(TokenType.COLON)) {
-        paramType = this.parseTypeExpression()
-      }
-      params.push({ name: paramName, typeAnnotation: paramType })
-      this.match(TokenType.COMMA)
-    }
-    this.expect(TokenType.RPAREN, "Expected ')' after parameters")
+    const params = this.parseParamList()
 
     let returnType = null
     if (this.match(TokenType.COLON)) {
@@ -552,8 +628,8 @@ export class Parser {
   }
 
   // `{ stmt stmt ... }` -- shared by the newer statement forms
-  // (while, switch clauses, block-bodied arrows). `what` only feeds
-  // the error messages.
+  // (while, switch clauses, block-bodied arrows, functions, loops).
+  // `what` only feeds the error messages.
   parseBlockStatements(what) {
     this.expect(TokenType.LBRACE, `Expected '{' to start ${what}`)
     const body = []
@@ -564,7 +640,36 @@ export class Parser {
     return body
   }
 
+  // After `function` (and an optional preceding `async`, already
+  // consumed by the caller): `[name] (params) [: ReturnType] { body }`.
+  parseFunctionRest(isAsync) {
+    this.expect(TokenType.FUNCTION, "Expected 'function'")
+    let name = null
+    if (!this.check(TokenType.LPAREN)) {
+      name = this.parseNameToken('Expected a function name')
+    }
+    this.expect(TokenType.LPAREN, "Expected '(' after function name")
+    const params = this.parseParamList()
+    if (this.match(TokenType.COLON)) {
+      this.parseTypeExpression() // return type: checked only in the virtual .ts
+    }
+    const body = this.parseBlockStatements('function body')
+    return { name, params, body, isAsync }
+  }
+
+  isFunctionKeywordAhead() {
+    return (
+      this.check(TokenType.FUNCTION) ||
+      (this.check(TokenType.ASYNC) &&
+        this.tokens[this.pos + 1]?.type === TokenType.FUNCTION)
+    )
+  }
+
   parseStatementInner() {
+    if (this.match(TokenType.SEMICOLON)) {
+      return EmptyStatement()
+    }
+
     if (this.match(TokenType.RETURN)) {
       const hasValue =
         !this.check(TokenType.SEMICOLON) && !this.check(TokenType.RBRACE)
@@ -585,6 +690,10 @@ export class Parser {
 
     if (this.match(TokenType.WHILE)) {
       return this.parseWhileStatement()
+    }
+
+    if (this.match(TokenType.DO)) {
+      return this.parseDoWhileStatement()
     }
 
     if (this.match(TokenType.SWITCH)) {
@@ -613,18 +722,63 @@ export class Parser {
       return ContinueStatement()
     }
 
+    // `function name(...) { }` / `async function name(...) { }` as a
+    // declaration. An anonymous `function (...) { }` falls through to
+    // the expression-statement path below.
+    if (this.isFunctionKeywordAhead()) {
+      const nameIdx = this.pos + (this.check(TokenType.ASYNC) ? 2 : 1)
+      const nameTok = this.tokens[nameIdx]
+      const afterName = this.tokens[nameIdx + 1]
+      if (
+        nameTok &&
+        nameTok.type !== TokenType.LPAREN &&
+        afterName &&
+        afterName.type === TokenType.LPAREN
+      ) {
+        const isAsync = this.match(TokenType.ASYNC)
+        const fn = this.parseFunctionRest(isAsync)
+        return FunctionDeclaration(fn.name, fn.params, fn.body, fn.isAsync)
+      }
+    }
+
     if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
       const kind = this.advance().type === TokenType.CONST ? 'const' : 'let'
-      const target = this.parseBindingTarget()
-      this.expect(TokenType.EQUALS, "Expected '=' in variable declaration")
-      const init = this.parseExpression()
+      const decl = this.parseDeclarators(kind)
       this.match(TokenType.SEMICOLON)
-      return VariableDeclaration(kind, target, init)
+      return decl
     }
 
     const expression = this.parseExpression()
     this.match(TokenType.SEMICOLON)
     return ExpressionStatement(expression)
+  }
+
+  // `target [= init] [, target [= init] ...]` after const/let.
+  // `let x` (no initializer) is allowed; `const x` requires one.
+  parseDeclarators(kind) {
+    const target = this.parseBindingTarget()
+    let init = null
+    if (this.match(TokenType.EQUALS)) {
+      init = this.parseExpression()
+    } else if (kind === 'const') {
+      throw new Error(
+        `Missing initializer in const declaration at line ${this.peek().line}`,
+      )
+    }
+    const more = []
+    while (this.match(TokenType.COMMA)) {
+      const name = this.parseBindingTarget()
+      let moreInit = null
+      if (this.match(TokenType.EQUALS)) {
+        moreInit = this.parseExpression()
+      } else if (kind === 'const') {
+        throw new Error(
+          `Missing initializer in const declaration at line ${this.peek().line}`,
+        )
+      }
+      more.push({ name, init: moreInit })
+    }
+    return VariableDeclaration(kind, target, init, more)
   }
 
   parseIfStatement() {
@@ -665,6 +819,15 @@ export class Parser {
     const condition = this.parseExpression()
     const body = this.parseBlockStatements('while body')
     return WhileStatement(condition, body)
+  }
+
+  // `do { ... } while cond` (parentheses optional, trailing ; optional)
+  parseDoWhileStatement() {
+    const body = this.parseBlockStatements('do body')
+    this.expect(TokenType.WHILE, "Expected 'while' after the do body")
+    const condition = this.parseExpression()
+    this.match(TokenType.SEMICOLON)
+    return DoWhileStatement(body, condition)
   }
 
   // Tylix-style switch: braces for every clause, no fallthrough, and
@@ -709,39 +872,117 @@ export class Parser {
     return SwitchStatement(discriminant, cases)
   }
 
+  // All the `for` forms:
+  //   for x in arr { }                 for x of arr { }
+  //   for [k, v] of Object.entries(o)  for const x of arr { }
+  //   for i from 0 to n { }
+  //   for (const x of arr) { }         for (const k in obj) { }   (keys)
+  //   for (let i = 0, n = a.length; i < n; i++) { }
   parseForStatement() {
-    const varName = this.expect(
-      TokenType.IDENTIFIER,
-      "Expected a loop variable name after 'for'",
-    ).value
+    if (this.check(TokenType.LPAREN)) {
+      return this.parseParenFor()
+    }
 
-    if (this.match(TokenType.IN)) {
+    let declKind = 'const'
+    if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
+      declKind = this.advance().type === TokenType.CONST ? 'const' : 'let'
+    }
+
+    let varName
+    if (this.check(TokenType.LBRACKET) || this.check(TokenType.LBRACE)) {
+      varName = this.parseBindingTarget()
+    } else {
+      varName = this.expect(
+        TokenType.IDENTIFIER,
+        "Expected a loop variable name after 'for'",
+      ).value
+    }
+
+    if (this.match(TokenType.IN) || this.match(TokenType.OF)) {
       const iterable = this.parseExpression()
-      this.expect(TokenType.LBRACE, "Expected '{' to start the loop body")
-      const body = []
-      while (!this.check(TokenType.RBRACE)) {
-        body.push(this.parseStatement())
-      }
-      this.expect(TokenType.RBRACE, "Expected '}' to close the loop body")
-      return ForInStatement(varName, iterable, body)
+      const body = this.parseBlockStatements('loop body')
+      return ForInStatement(varName, iterable, body, declKind)
     }
 
     if (this.match(TokenType.FROM)) {
+      if (typeof varName !== 'string') {
+        throw new Error(
+          `'for ... from ... to' needs a plain loop variable at line ${this.peek().line}`,
+        )
+      }
       const start = this.parseExpression()
       this.expect(TokenType.TO, "Expected 'to' after the loop's starting value")
       const end = this.parseExpression()
-      this.expect(TokenType.LBRACE, "Expected '{' to start the loop body")
-      const body = []
-      while (!this.check(TokenType.RBRACE)) {
-        body.push(this.parseStatement())
-      }
-      this.expect(TokenType.RBRACE, "Expected '}' to close the loop body")
+      const body = this.parseBlockStatements('loop body')
       return ForRangeStatement(varName, start, end, body)
     }
 
     throw new Error(
-      `Expected 'in' or 'from' after 'for ${varName}' at line ${this.peek().line}`,
+      `Expected 'in', 'of' or 'from' after 'for ${typeof varName === 'string' ? varName : '...'}' at line ${this.peek().line}`,
     )
+  }
+
+  parseParenFor() {
+    this.expect(TokenType.LPAREN, "Expected '(' after 'for'")
+
+    let init = null
+    if (this.check(TokenType.SEMICOLON)) {
+      // no init
+    } else if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
+      const kind = this.advance().type === TokenType.CONST ? 'const' : 'let'
+      const target = this.parseBindingTarget()
+
+      if (this.check(TokenType.OF) || this.check(TokenType.IN)) {
+        const isOf = this.advance().type === TokenType.OF
+        const iterable = this.parseExpression()
+        this.expect(TokenType.RPAREN, "Expected ')' after the for header")
+        const body = this.parseBlockStatements('loop body')
+        return isOf
+          ? ForInStatement(target, iterable, body, kind)
+          : ForKeysStatement(target, iterable, body, kind)
+      }
+
+      // C-style declaration: re-enter declarator parsing with the
+      // target we already consumed.
+      let first = null
+      if (this.match(TokenType.EQUALS)) {
+        first = this.parseExpression()
+      } else if (kind === 'const') {
+        throw new Error(
+          `Missing initializer in const declaration at line ${this.peek().line}`,
+        )
+      }
+      const more = []
+      while (this.match(TokenType.COMMA)) {
+        const name = this.parseBindingTarget()
+        let moreInit = null
+        if (this.match(TokenType.EQUALS)) moreInit = this.parseExpression()
+        more.push({ name, init: moreInit })
+      }
+      init = VariableDeclaration(kind, target, first, more)
+    } else {
+      const expressions = [this.parseExpression()]
+      while (this.match(TokenType.COMMA)) {
+        expressions.push(this.parseExpression())
+      }
+      init = { type: 'ExpressionList', expressions }
+    }
+
+    this.expect(TokenType.SEMICOLON, "Expected ';' after the for-loop init")
+    const test = this.check(TokenType.SEMICOLON) ? null : this.parseExpression()
+    this.expect(TokenType.SEMICOLON, "Expected ';' after the for-loop condition")
+
+    const update = []
+    if (!this.check(TokenType.RPAREN)) {
+      update.push(this.parseExpression())
+      while (this.match(TokenType.COMMA)) {
+        update.push(this.parseExpression())
+      }
+    }
+    this.expect(TokenType.RPAREN, "Expected ')' to close the for header")
+
+    const body = this.parseBlockStatements('loop body')
+    return ForStatement(init, test, update, body)
   }
 
   parseRepeatStatement() {
@@ -798,6 +1039,54 @@ export class Parser {
     return this.parseAssignment()
   }
 
+  // `<<=` is LT + LTE, `>>=` is GT + GTE, `>>>=` is GT + GT + GTE, all
+  // written with no whitespace between them. Returns { op, len } (len =
+  // number of tokens) or null.
+  compoundShiftAt() {
+    const a = this.tokens[this.pos]
+    const b = this.tokens[this.pos + 1]
+    const c = this.tokens[this.pos + 2]
+    if (!a || !b) return null
+    if (a.type === TokenType.LT && b.type === TokenType.LTE && adjacent(a, b)) {
+      return { op: '<<', len: 2 }
+    }
+    if (a.type === TokenType.GT && b.type === TokenType.GTE && adjacent(a, b)) {
+      return { op: '>>', len: 2 }
+    }
+    if (
+      a.type === TokenType.GT &&
+      b.type === TokenType.GT &&
+      c &&
+      c.type === TokenType.GTE &&
+      adjacent(a, b) &&
+      adjacent(b, c)
+    ) {
+      return { op: '>>>', len: 3 }
+    }
+    return null
+  }
+
+  // `<<` is LT LT, `>>` is GT GT, `>>>` is GT GT GT, adjacent. Refuses
+  // anything that is really a compound assignment (`>>>=` also starts
+  // with GT GT).
+  shiftOperatorAt() {
+    const a = this.tokens[this.pos]
+    const b = this.tokens[this.pos + 1]
+    const c = this.tokens[this.pos + 2]
+    if (!a || !b) return null
+    if (a.type === TokenType.LT && b.type === TokenType.LT && adjacent(a, b)) {
+      return { op: '<<', len: 2 }
+    }
+    if (a.type === TokenType.GT && b.type === TokenType.GT && adjacent(a, b)) {
+      if (c && c.type === TokenType.GTE && adjacent(b, c)) return null // >>>=
+      if (c && c.type === TokenType.GT && adjacent(b, c)) {
+        return { op: '>>>', len: 3 }
+      }
+      return { op: '>>', len: 2 }
+    }
+    return null
+  }
+
   parseAssignment() {
     const arrow = this.tryParseArrowFunction()
     if (arrow) return arrow
@@ -814,12 +1103,29 @@ export class Parser {
       return AssignmentExpr(left, NullishCoalescingExpr(left, value))
     }
 
+    if (this.match(TokenType.OR_EQUALS)) {
+      const value = this.parseAssignment()
+      return AssignmentExpr(left, BinaryExpr('||', left, value))
+    }
+
+    if (this.match(TokenType.AND_EQUALS)) {
+      const value = this.parseAssignment()
+      return AssignmentExpr(left, BinaryExpr('&&', left, value))
+    }
+
     const compoundOp = COMPOUND_ASSIGNMENT_OPS[this.peek().type]
 
     if (compoundOp) {
       this.advance()
       const value = this.parseAssignment()
       return AssignmentExpr(left, BinaryExpr(compoundOp, left, value))
+    }
+
+    const shiftAssign = this.compoundShiftAt()
+    if (shiftAssign) {
+      this.pos += shiftAssign.len
+      const value = this.parseAssignment()
+      return AssignmentExpr(left, BinaryExpr(shiftAssign.op, left, value))
     }
 
     return left
@@ -839,6 +1145,19 @@ export class Parser {
     }
   }
 
+  // Speculatively parses a destructuring pattern used as an arrow
+  // parameter and returns its source text ("[k, v]", "{ id, name }"),
+  // or null (position restored) if it isn't a valid param pattern.
+  tryParseDestructuredParam() {
+    const savedPos = this.pos
+    try {
+      return bindingToSource(this.parseBindingTarget())
+    } catch {
+      this.pos = savedPos
+      return null
+    }
+  }
+
   // After `=>`: either a block body or a single expression.
   //
   // A `{` after `=>` is a BLOCK (JS semantics), except when the
@@ -846,9 +1165,10 @@ export class Parser {
   // `{ key: value }`, `{ a, b }` -- in which case it's an object
   // literal, so the older `x => { id: x }` style keeps working. A
   // block can't legally start with `name :` (no labels) or `name ,`
-  // (no comma operator), so the lookahead is unambiguous. The two
-  // cases it can't resolve are `{}` and `{ name }`; those are blocks,
-  // exactly as in JS. Write `({})` / `({ name })` for an object.
+  // (no comma operator), so the lookahead is unambiguous. The cases it
+  // can't resolve are `{}`, `{ name }`, `{ [key]: v }` and
+  // `{ method() {} }`; those are blocks, exactly as in JS. Wrap an
+  // object literal in parentheses: `x => ({ ... })`.
   parseArrowBody() {
     if (this.check(TokenType.LBRACE) && !this.looksLikeObjectLiteral()) {
       return BlockStatement(this.parseBlockStatements('arrow function body'))
@@ -863,6 +1183,7 @@ export class Parser {
     if (first.type === TokenType.SPREAD) return true
     const isKey =
       first.type === TokenType.STRING ||
+      first.type === TokenType.NUMBER ||
       first.type === TokenType.IDENTIFIER ||
       KEYWORD_TOKEN_TYPES.has(first.type)
     return (
@@ -910,6 +1231,10 @@ export class Parser {
   // expression. The body is an expression or, via parseArrowBody, a
   // `{ ... }` statement block (script code only -- templates reject
   // BlockStatement in their expression generators).
+  //
+  // Parenthesized params may be plain names, destructuring patterns
+  // ([k, v], { id, name }), rest params (...args), typed (a: number)
+  // and have defaults (a = 1).
   tryParseSyncArrow() {
     // single-param form: x => expr  or  x: Type => expr
     if (
@@ -921,7 +1246,7 @@ export class Parser {
         const param = this.advance().value
         this.advance() // consume '=>'
         const body = this.parseArrowBody()
-        return ArrowFunctionExpr([param], body, [null])
+        return ArrowFunctionExpr([param], body, [null], false, [null])
       }
       if (next && next.type === TokenType.COLON) {
         const savedPos = this.pos
@@ -931,7 +1256,7 @@ export class Parser {
         if (paramType !== null && this.check(TokenType.ARROW)) {
           this.advance()
           const body = this.parseArrowBody()
-          return ArrowFunctionExpr([param], body, [paramType])
+          return ArrowFunctionExpr([param], body, [paramType], false, [null])
         }
         // wasn't actually a typed arrow param (e.g. the `x : y` part
         // of a ternary) -- back out
@@ -940,25 +1265,45 @@ export class Parser {
       return null
     }
 
-    // (a, b) => expr  or  (a: Type, b: Type) => expr
+    // (a, b) => expr  or  (a: Type, b = 1, ...rest) => expr
+    // also ([k, v]) => expr, ({ id }) => expr
     if (this.check(TokenType.LPAREN)) {
       const savedPos = this.pos
       this.pos++
 
       const params = []
       const paramTypes = []
+      const paramDefaults = []
       let isValidParamList = true
 
       if (!this.check(TokenType.RPAREN)) {
         while (true) {
-          if (
-            !this.check(TokenType.IDENTIFIER) &&
-            !KEYWORD_TOKEN_TYPES.has(this.peek().type)
+          let name
+          if (this.match(TokenType.SPREAD)) {
+            if (!this.check(TokenType.IDENTIFIER)) {
+              isValidParamList = false
+              break
+            }
+            name = `...${this.advance().value}`
+          } else if (
+            this.check(TokenType.LBRACKET) ||
+            this.check(TokenType.LBRACE)
           ) {
+            name = this.tryParseDestructuredParam()
+            if (name === null) {
+              isValidParamList = false
+              break
+            }
+          } else if (
+            this.check(TokenType.IDENTIFIER) ||
+            KEYWORD_TOKEN_TYPES.has(this.peek().type)
+          ) {
+            name = this.advance().value
+          } else {
             isValidParamList = false
             break
           }
-          params.push(this.advance().value)
+          params.push(name)
 
           let paramType = null
           if (this.match(TokenType.COLON)) {
@@ -970,6 +1315,17 @@ export class Parser {
           }
           paramTypes.push(paramType)
 
+          let defaultValue = null
+          if (this.match(TokenType.EQUALS)) {
+            try {
+              defaultValue = this.parseAssignment()
+            } catch {
+              isValidParamList = false
+              break
+            }
+          }
+          paramDefaults.push(defaultValue)
+
           if (this.match(TokenType.COMMA)) continue
           break
         }
@@ -980,7 +1336,7 @@ export class Parser {
         if (this.check(TokenType.ARROW)) {
           this.pos++
           const body = this.parseArrowBody()
-          return ArrowFunctionExpr(params, body, paramTypes)
+          return ArrowFunctionExpr(params, body, paramTypes, false, paramDefaults)
         }
       }
 
@@ -1020,10 +1376,37 @@ export class Parser {
   }
 
   parseLogicalAnd() {
-    let left = this.parseEquality()
+    let left = this.parseBitwiseOr()
     while (this.match(TokenType.AND)) {
-      const right = this.parseEquality()
+      const right = this.parseBitwiseOr()
       left = BinaryExpr('&&', left, right)
+    }
+    return left
+  }
+
+  parseBitwiseOr() {
+    let left = this.parseBitwiseXor()
+    while (this.match(TokenType.PIPE)) {
+      const right = this.parseBitwiseXor()
+      left = BinaryExpr('|', left, right)
+    }
+    return left
+  }
+
+  parseBitwiseXor() {
+    let left = this.parseBitwiseAnd()
+    while (this.match(TokenType.CARET)) {
+      const right = this.parseBitwiseAnd()
+      left = BinaryExpr('^', left, right)
+    }
+    return left
+  }
+
+  parseBitwiseAnd() {
+    let left = this.parseEquality()
+    while (this.match(TokenType.AMP)) {
+      const right = this.parseEquality()
+      left = BinaryExpr('&', left, right)
     }
     return left
   }
@@ -1041,7 +1424,9 @@ export class Parser {
 
   parseComparison() {
     let left = this.parsePredicate()
-    while (COMPARISON_SYMBOLS[this.peek().type]) {
+    // `>>=` / `<<=` start with a GT/LT token; those belong to
+    // parseAssignment, not to a comparison.
+    while (COMPARISON_SYMBOLS[this.peek().type] && !this.compoundShiftAt()) {
       const operator = COMPARISON_SYMBOLS[this.advance().type]
       const right = this.parsePredicate()
       left = BinaryExpr(operator, left, right)
@@ -1050,7 +1435,7 @@ export class Parser {
   }
 
   parsePredicate() {
-    const left = this.parseAdditive()
+    const left = this.parseShift()
 
     if (this.match(TokenType.EXISTS)) {
       return BinaryExpr('!=', left, Literal(null))
@@ -1059,10 +1444,21 @@ export class Parser {
       return BinaryExpr('==', left, Literal(null))
     }
     if (this.match(TokenType.HAS)) {
-      const right = this.parseAdditive()
+      const right = this.parseShift()
       return CallExpr(MemberExpr(left, 'includes'), [right])
     }
 
+    return left
+  }
+
+  parseShift() {
+    let left = this.parseAdditive()
+    let shift
+    while ((shift = this.shiftOperatorAt())) {
+      this.pos += shift.len
+      const right = this.parseAdditive()
+      left = BinaryExpr(shift.op, left, right)
+    }
     return left
   }
 
@@ -1105,11 +1501,20 @@ export class Parser {
     if (this.match(TokenType.NOT)) {
       return UnaryExpr('!', this.parseUnary())
     }
+    if (this.match(TokenType.TILDE)) {
+      return UnaryExpr('~', this.parseUnary())
+    }
     if (this.match(TokenType.MINUS)) {
       return UnaryExpr('-', this.parseUnary())
     }
     if (this.match(TokenType.TYPEOF)) {
       return UnaryExpr('typeof', this.parseUnary())
+    }
+    if (this.match(TokenType.DELETE)) {
+      return UnaryExpr('delete', this.parseUnary())
+    }
+    if (this.match(TokenType.VOID)) {
+      return UnaryExpr('void', this.parseUnary())
     }
     if (this.match(TokenType.PLUS_PLUS)) {
       const target = this.parseUnary()
@@ -1209,6 +1614,34 @@ export class Parser {
       return NewExpr(callee, args)
     }
 
+    // function (a, b) { ... } / async function name(a) { ... }
+    if (this.isFunctionKeywordAhead()) {
+      const isAsync = this.match(TokenType.ASYNC)
+      const fn = this.parseFunctionRest(isAsync)
+      return FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name)
+    }
+
+    // Regex literal. String(regex) yields "/pattern/flags", which
+    // every generator already emits for Literal nodes, so no codegen
+    // changes are needed.
+    if (this.check(TokenType.REGEX)) {
+      const tok = this.advance()
+      try {
+        return Literal(new RegExp(tok.value.pattern, tok.value.flags))
+      } catch (err) {
+        throw new Error(
+          `Invalid regular expression at line ${tok.line}: ${err.message}`,
+        )
+      }
+    }
+
+    // 10n -> BigInt("10"), so every generator handles it as a normal
+    // call to the BigInt global.
+    if (this.check(TokenType.BIGINT)) {
+      const text = this.advance().value
+      return CallExpr(Identifier('BigInt'), [Literal(text)])
+    }
+
     if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
       return Literal(this.advance().value)
     }
@@ -1232,11 +1665,7 @@ export class Parser {
       // tokens (there's no separate keyword TokenType for them), but
       // they're JS keyword literals, not variable/state references.
       // Emitting them as Literal here -- instead of Identifier -- means
-      // every downstream consumer (generateExpression,
-      // generateTemplateExpression, and anything added later) treats
-      // them correctly by construction, rather than each one needing its
-      // own special-case list of magic strings to avoid prefixing them
-      // with "instance.".
+      // every downstream consumer treats them correctly by construction.
       if (name === 'null') return Literal(null)
       if (name === 'undefined') return Literal(undefined)
       if (name === 'true') return Literal(true)
@@ -1350,12 +1779,18 @@ export class Parser {
     return ArrayExpr(elements)
   }
 
+  // Object literal after the opening '{'. Supports:
+  //   { a: 1, "b-c": 2, 3: 'x' }      plain / string / number keys
+  //   { name }                        shorthand
+  //   { ...base }                     spread
+  //   { [expr]: value }               computed keys
+  //   { save(x) { ... } }             method shorthand
+  //   { async load() { ... } }        async method shorthand
   parseObjectLiteral() {
     const properties = []
     while (!this.check(TokenType.RBRACE)) {
-      // Object spread: { ...base, extra: 1 }. Represented as a
-      // property with `spread: true` and no key, so codegen must check
-      // `p.spread` before reading `p.key`.
+      // Object spread: represented as a property with `spread: true`
+      // and no key, so codegen must check `p.spread` first.
       if (this.match(TokenType.SPREAD)) {
         properties.push({
           key: null,
@@ -1366,16 +1801,73 @@ export class Parser {
         continue
       }
 
-      const isString = this.check(TokenType.STRING)
-      const isKeywordKey =
-        !isString && KEYWORD_TOKEN_TYPES.has(this.peek().type)
-      const key = isString
-        ? this.advance().value
-        : isKeywordKey
-          ? this.advance().value
-          : this.expect(TokenType.IDENTIFIER, 'Expected an object key').value
+      // `async name(...) { }` -- but `async: x`, `async,` and `async()`
+      // are ordinary keys/methods named "async".
+      let isAsync = false
+      if (this.check(TokenType.ASYNC)) {
+        const n = this.tokens[this.pos + 1]
+        if (
+          n &&
+          n.type !== TokenType.COLON &&
+          n.type !== TokenType.COMMA &&
+          n.type !== TokenType.RBRACE &&
+          n.type !== TokenType.LPAREN
+        ) {
+          this.advance()
+          isAsync = true
+        }
+      }
 
-      if (!isString && !this.check(TokenType.COLON)) {
+      let key = null
+      let keyExpr = null
+      let keyKind = 'name'
+      if (this.match(TokenType.LBRACKET)) {
+        keyExpr = this.parseExpression()
+        this.expect(
+          TokenType.RBRACKET,
+          "Expected ']' to close a computed object key",
+        )
+        keyKind = 'computed'
+      } else if (this.check(TokenType.STRING)) {
+        key = this.advance().value
+        keyKind = 'string'
+      } else if (this.check(TokenType.NUMBER)) {
+        key = String(this.advance().value)
+        keyKind = 'number'
+      } else if (
+        this.check(TokenType.IDENTIFIER) ||
+        KEYWORD_TOKEN_TYPES.has(this.peek().type)
+      ) {
+        key = this.advance().value
+      } else {
+        throw new Error(
+          `Expected an object key at line ${this.peek().line}, got ${this.peek().type}`,
+        )
+      }
+
+      // Method shorthand
+      if (this.check(TokenType.LPAREN)) {
+        this.advance()
+        const params = this.parseParamList()
+        if (this.match(TokenType.COLON)) this.parseTypeExpression()
+        const body = this.parseBlockStatements('method body')
+        properties.push({
+          key,
+          keyExpr,
+          method: true,
+          value: FunctionExpr(params, body, isAsync),
+        })
+        this.match(TokenType.COMMA)
+        continue
+      }
+
+      if (isAsync) {
+        throw new Error(
+          `Expected '(' after async method name at line ${this.peek().line}`,
+        )
+      }
+
+      if (keyKind === 'name' && !this.check(TokenType.COLON)) {
         // Shorthand: { name } means { name: name }
         properties.push({ key, value: Identifier(key) })
         this.match(TokenType.COMMA)
@@ -1384,7 +1876,7 @@ export class Parser {
 
       this.expect(TokenType.COLON, "Expected ':' after object key")
       const value = this.parseExpression()
-      properties.push({ key, value })
+      properties.push({ key, keyExpr, value })
       this.match(TokenType.COMMA)
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close object literal")
