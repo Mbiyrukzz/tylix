@@ -1,8 +1,36 @@
 import { generateMethod } from './generateMethod.js'
 import { generateExpression } from './generateExpression.js'
+import { generateStatement } from './generateStatement.js'
+
+function statementSource(stmt) {
+  return generateStatement(stmt)
+}
+
+// A prop, state field, computed, action or capability that share a
+// name all become members of the same class, so the later definition
+// silently wins (or the constructor throws). Catch it at compile time.
+function assertUniqueMembers(pageNode, className, capabilityNames) {
+  const seen = new Map()
+  const claim = (name, kind) => {
+    if (seen.has(name)) {
+      throw new Error(
+        `${className}: "${name}" is declared as both ${seen.get(name)} and ${kind}; names must be unique within a page`,
+      )
+    }
+    seen.set(name, kind)
+  }
+  for (const p of pageNode.props ?? []) claim(p.name, 'a prop')
+  for (const s of pageNode.state ?? []) claim(s.name, 'a state field')
+  for (const c of pageNode.computed ?? []) claim(c.name, 'a computed')
+  for (const a of pageNode.actions ?? []) claim(a.name, 'an action')
+  for (const n of capabilityNames) claim(n, 'a capability')
+}
 
 /**
  * Compiles a full PageNode into JS source defining a component class.
+ * - props are lazy getters over `this.__props`, so a parent that
+ *   passes `{ get value() { return count } }` stays live. Assigning
+ *   to a prop stores a local (reactive) override.
  * - state entries become reactive-backed getter/setter pairs, so
  *   `this.count` reads/writes go through the reactive() proxy and
  *   correctly trigger dependent effects (template re-renders, computed
@@ -20,9 +48,43 @@ import { generateExpression } from './generateExpression.js'
  * @tylix/compiler's runtime).
  */
 export function generatePage(pageNode, className = 'Page', target = 'client') {
-  const propAssignments = pageNode.props
-    .map((p) => `    this.${p.name} = props.${p.name};`)
-    .join('\n')
+  // pageNode.uses/needs/background may each name capabilities the page
+  // reads from directly (Auth.user, Theme.mode, etc.) --
+  // substituteCapabilityRefs already treats all three as the same
+  // "capability name" pool when rewriting bare references to
+  // `this.<Name>`, so the getters generated here must cover the same
+  // pool, not just `uses` alone.
+  const capabilityRefs = [
+    ...(pageNode.uses ?? []),
+    ...(pageNode.needs ?? []),
+    ...(pageNode.background ?? []),
+  ]
+  const seenCapabilities = new Set()
+  const uniqueCapabilityRefs = capabilityRefs.filter((c) => {
+    if (seenCapabilities.has(c.name)) return false
+    seenCapabilities.add(c.name)
+    return true
+  })
+
+  assertUniqueMembers(pageNode, className, seenCapabilities)
+
+  const hasProps = pageNode.props.length > 0
+  const propInit = hasProps
+    ? `    this.__props = props;\n    this.__propOverrides = reactive({});\n`
+    : ''
+
+  const propAccessors = pageNode.props
+    .map(
+      (p) => `  get ${p.name}() {
+    const overrides = this.__propOverrides;
+    const local = overrides.${p.name};
+    return Object.prototype.hasOwnProperty.call(overrides, ${JSON.stringify(p.name)}) ? local : this.__props.${p.name};
+  }
+  set ${p.name}(value) {
+    this.__propOverrides.${p.name} = value;
+  }`,
+    )
+    .join('\n\n')
 
   const stateInit = pageNode.state
     .map((s) => `      ${s.name}: ${generateExpression(s.value)},`)
@@ -38,28 +100,6 @@ export function generatePage(pageNode, className = 'Page', target = 'client') {
   }`,
     )
     .join('\n\n')
-
-  // pageNode.uses may be absent on older/pre-capability ASTs (e.g.
-  // anything compiled before this field existed), so default to []
-  // rather than assuming every caller has been updated.
-  // pageNode.uses/needs/background may each name capabilities the page
-  // reads from directly (Auth.user, Theme.mode, etc.) -- substituteCapabilityRefs
-  // already treats all three as the same "capability name" pool when
-  // rewriting bare references to `this.<Name>`, so the getters generated
-  // here must cover the same pool, not just `uses` alone, or a
-  // needs-only or background-only capability resolves to undefined at
-  // runtime with no compile-time signal that anything's wrong.
-  const capabilityRefs = [
-    ...(pageNode.uses ?? []),
-    ...(pageNode.needs ?? []),
-    ...(pageNode.background ?? []),
-  ]
-  const seenCapabilities = new Set()
-  const uniqueCapabilityRefs = capabilityRefs.filter((c) => {
-    if (seenCapabilities.has(c.name)) return false
-    seenCapabilities.add(c.name)
-    return true
-  })
 
   const usesAccessors = uniqueCapabilityRefs
     .map(
@@ -112,14 +152,12 @@ export function generatePage(pageNode, className = 'Page', target = 'client') {
   // contains the onMount call OR its method body -- there's no
   // runtime guard to rely on, because the code simply isn't there.
   //
-  // IMPORTANT: onMount is no longer invoked from inside the
-  // constructor. Pages that declare `needs` capabilities must have
-  // those capabilities' async init() fully resolved (via __ready())
-  // before onMount runs, or onMount's own logic (e.g. redirecting
-  // based on Auth.user) races against that resolution and reads
-  // stale/uninitialized capability state. The caller (renderPageDocument.js)
-  // is responsible for awaiting __ready() and then calling __onMount()
-  // explicitly, in that order.
+  // onMount is not invoked from inside the constructor: pages that
+  // declare `needs` capabilities must have those capabilities' async
+  // init() fully resolved (via __ready()) before onMount runs. The
+  // caller (renderPageDocument.js) awaits __ready() and then calls
+  // __onMount() explicitly, in that order -- for pages, layouts and
+  // child components alike.
   const onMountMethod =
     pageNode.onMount && target === 'client'
       ? (() => {
@@ -133,19 +171,11 @@ export function generatePage(pageNode, className = 'Page', target = 'client') {
 
   return `class ${className} {
   constructor(props = {}) {
-${propAssignments ? propAssignments + '\n' : ''}    this.__state = reactive({
+${propInit}    this.__state = reactive({
 ${stateInit}
     });
 ${backgroundResolution ? backgroundResolution + '\n' : ''}  }
 
-${[stateAccessors, usesAccessors, computedGetters, actionMethods, readyMethod, onMountMethod].filter(Boolean).join('\n\n')}
+${[propAccessors, stateAccessors, usesAccessors, computedGetters, actionMethods, readyMethod, onMountMethod].filter(Boolean).join('\n\n')}
 }`
-}
-
-// Local import kept separate from generateMethod's own statement
-// formatting so computed getters and state accessors can share the
-// same statement codegen without generateMethod's parameter handling.
-import { generateStatement } from './generateStatement.js'
-function statementSource(stmt) {
-  return generateStatement(stmt)
 }

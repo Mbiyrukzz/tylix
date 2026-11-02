@@ -151,7 +151,6 @@ const TRUST_PROXY_ENV_LINES = [
   `TRUST_PROXY=false`,
 ]
 
-
 function buildDebugEnvLines(value) {
   return [
     `# Shows real error details (SQL, stack traces, request data) in the browser`,
@@ -172,6 +171,26 @@ function buildMailEnvLines(config) {
   ]
 }
 
+// loadEnv (in @tylix/shared) trims every value and strips exactly one pair
+// of matching outer quotes, with no escape handling. Most values are
+// written as they are, so the file stays readable and other tools can read
+// it too. A value that would not survive that round trip -- leading or
+// trailing spaces, or one that itself starts and ends with the same quote
+// character -- is wrapped in double quotes, which loadEnv removes again.
+function formatEnvValue(value) {
+  const text = String(value ?? '')
+
+  if (/[\r\n]/.test(text)) {
+    throw new Error('Values written to .env cannot contain a line break.')
+  }
+
+  const wrappedInQuotes =
+    (text.startsWith('"') && text.endsWith('"')) ||
+    (text.startsWith("'") && text.endsWith("'"))
+
+  return text !== text.trim() || wrappedInQuotes ? `"${text}"` : text
+}
+
 // YYYYMMDDHHMMSS, the same scheme the auth and feature migrations use.
 // The offset (in seconds) keeps migrations created in one run distinct
 // and in a stable order.
@@ -185,7 +204,7 @@ function migrationTimestamp(baseMs, offsetSeconds = 0) {
 function buildDatabaseEnvLines(config) {
   const projectSlug = config.projectName
   const driver = config.database
-  const dbPassword = config.databasePassword ?? ''
+  const dbPassword = formatEnvValue(config.databasePassword ?? '')
 
   switch (driver) {
     case 'sqlite':
@@ -195,7 +214,7 @@ function buildDatabaseEnvLines(config) {
         `DATABASE_DRIVER=postgres`,
         `DATABASE_HOST=127.0.0.1`,
         `DATABASE_PORT=5432`,
-        `DATABASE_USER=${config.databaseUser || 'postgres'}`,
+        `DATABASE_USER=${formatEnvValue(config.databaseUser || 'postgres')}`,
         `DATABASE_PASSWORD=${dbPassword}`,
         `DATABASE_NAME=${projectSlug}`,
       ]
@@ -204,7 +223,7 @@ function buildDatabaseEnvLines(config) {
         `DATABASE_DRIVER=mysql`,
         `DATABASE_HOST=127.0.0.1`,
         `DATABASE_PORT=3306`,
-        `DATABASE_USER=${config.databaseUser || 'root'}`,
+        `DATABASE_USER=${formatEnvValue(config.databaseUser || 'root')}`,
         `DATABASE_PASSWORD=${dbPassword}`,
         `DATABASE_NAME=${projectSlug}`,
       ]
@@ -256,7 +275,7 @@ export async function createProjectStructure(config) {
       // Without this, every generated .ts file that calls useApi() fails
       // with "Cannot find name 'useApi'" (TS2304).
       await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
-            await fs.writeFile(
+      await fs.writeFile(
         path.join(targetDir, 'app', 'types', 'globals.d.ts'),
         `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n\ndeclare function reactive<T extends object>(state: T): T\n\ndeclare function notFound(): void\n`,
       )
@@ -313,7 +332,9 @@ export async function createProjectStructure(config) {
     )
     const dbEnvLines = buildDatabaseEnvLines(config)
 
-       await fs.writeFile(
+    // .env holds the database password and AUTH_SECRET, so only the owner
+    // can read it (Windows ignores the mode).
+    await fs.writeFile(
       path.join(targetDir, '.env'),
       [
         `PORT=3000`,
@@ -330,6 +351,7 @@ export async function createProjectStructure(config) {
         `# Set to true only if you're developing @tylix/compiler itself`,
         `TYLIX_HOT_RELOAD_COMPILER=false`,
       ].join('\n') + '\n',
+      { mode: 0o600 },
     )
     await fs.writeFile(
       path.join(targetDir, '.env.example'),
@@ -521,7 +543,7 @@ export async function createProjectStructure(config) {
       path.join(targetDir, 'public', 'logo-full.png'),
     )
 
-        // Favicon: browsers request /favicon.ico on their own even without a
+    // Favicon: browsers request /favicon.ico on their own even without a
     // <link> tag, so ship both names. Both are copies of the logo mark.
     await fs.copyFile(
       path.join(PACKAGE_ROOT, 'assets', 'logo-mark.png'),

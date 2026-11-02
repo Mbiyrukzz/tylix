@@ -234,25 +234,26 @@ function compileElement(node, lines, scope, inSvg = false) {
     const varName = nextVar('component')
     const tagLiteral = JSON.stringify(node.tag)
 
-    const propEntries = node.attributes.map((attr) => {
-      let expr
-      if (attr.dynamic) {
-        expr = generateTemplateExpression(attr.value, scope)
-        // Callback props (onXxx="{{ methodName }}") pass a bare
-        // instance-method reference. `generateTemplateExpression`
-        // turns `methodName` into `instance.methodName`, but handing
-        // that off as a plain value loses its `this` binding the
-        // moment the child calls it. Bind it here, while we still
-        // have `instance` in scope.
-        if (/^on[A-Z]/.test(attr.name) && attr.value.type === 'Identifier') {
-          expr = `(${expr}).bind(instance)`
-        }
-      } else {
-        expr = JSON.stringify(attr.value)
-      }
-      return `${JSON.stringify(attr.name)}: ${expr}`
-    })
-    const propsExpr = `{ ${propEntries.join(', ')} }`
+   const propEntries = node.attributes.map((attr) => {
+  const key = JSON.stringify(attr.name)
+  if (!attr.dynamic) return `${key}: ${JSON.stringify(attr.value)}`
+
+  let expr = generateTemplateExpression(attr.value, scope)
+
+  // Callback props (onXxx="{{ methodName }}") are plain values. A bare
+  // instance-method reference loses its `this` the moment the child
+  // calls it, so bind it here while `instance` is still in scope.
+  if (/^on[A-Z]/.test(attr.name)) {
+    if (attr.value.type === 'Identifier') expr = `(${expr}).bind(instance)`
+    return `${key}: ${expr}`
+  }
+
+  // Everything else is a lazy getter: the child reads it inside its
+  // own effects, so `<Child value="{{ count }}">` stays live instead
+  // of being a snapshot taken at mount().
+  return `get ${key}() { return ${expr}; }`
+})
+const propsExpr = `{ ${propEntries.join(', ')} }`
 
     lines.push(`let ${varName};`)
     lines.push(`if (components[${tagLiteral}]) {`)

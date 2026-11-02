@@ -13,7 +13,7 @@ import { MailLog } from '@tylix/mail'
 import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
-import { renderErrorPage,  } from '../utils/error-page.js'
+import { renderErrorPage } from '../utils/error-page.js'
 import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
@@ -220,7 +220,7 @@ async function walkPagesDir(dir) {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       files.push(...(await walkPagesDir(fullPath)))
-       } else if (
+    } else if (
       entry.name.endsWith('.tyx') &&
       entry.name !== '_layout.tyx' &&
       entry.name !== NOT_FOUND_FILE
@@ -270,50 +270,176 @@ function bySpecificity(a, b) {
 // compose/nest, so a page under app/pages/admin/ uses only
 // app/pages/admin/_layout.tyx if present, never both that and the
 // root app/pages/_layout.tyx together.
+//
+// Returns { source, imports, file }. `file` is the layout's own path:
+// relative imports inside a layout resolve against ITS folder, not the
+// page's.
 async function findLayoutForFile(pagesDir, filePath, extractImports) {
   let dir = path.dirname(filePath)
   while (true) {
     const layoutPath = path.join(dir, '_layout.tyx')
     if (await pathExists(layoutPath)) {
       const raw = await fs.readFile(layoutPath, 'utf-8')
-      return extractImports(raw)
+      const { imports, source } = extractImports(raw)
+      return { source, imports, file: layoutPath }
     }
     if (dir === pagesDir) return null
     dir = path.dirname(dir)
   }
 }
 
-async function loadComponents(pagesDir, extractImports) {
+// Adds "In <label>: " to an error message once, so a failure inside a
+// component or layout says which file it came from.
+function labelError(err, label) {
+  if (err && typeof err.message === 'string' && !err.message.startsWith('In ')) {
+    err.message = `In ${label}: ${err.message}`
+  }
+  return err
+}
+
+// Merges component sources into `target`. The registry is flat per
+// page, so one name can only mean one component: the same name backed
+// by different source text is a hard error, not a silent overwrite.
+function mergeComponents(target, owners, incoming, from) {
+  for (const [name, text] of Object.entries(incoming)) {
+    if (Object.hasOwn(target, name) && target[name] !== text) {
+      throw new Error(
+        `Component "${name}" is imported differently by ${owners[name]} and ${from}; give one of them another name ("import X as Y" for packages, a different local name for files)`,
+      )
+    }
+    target[name] = text
+    owners[name] = from
+  }
+}
+
+const warnedOnce = new Set()
+function warnOnce(message) {
+  if (warnedOnce.has(message)) return
+  warnedOnce.add(message)
+  console.warn(message)
+}
+
+// "admin-panel" / "admin_panel" -> "AdminPanel"
+function pascalSegment(segment) {
+  return segment
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join('')
+}
+
+// Everything under app/pages/components/, at any depth.
+//
+// Tag names: a file's name is its tag (Card.tyx -> <Card>). When two
+// files share a name in different folders:
+//   - the shallowest one keeps the bare name, if it is unambiguous;
+//   - at equal depth NEITHER gets the bare name (a silent winner is how
+//     the wrong card ends up on a page) and a warning says so;
+//   - every file in the clashing group is also registered under a
+//     folder-qualified name: a/Card.tyx -> <ACard>, admin/forms/Input.tyx
+//     -> <AdminFormsInput>.
+// Names that are not clashing get no alias, because every registered
+// component is compiled into every page.
+//
+// Each component file's own imports (packages, relative files) are
+// resolved against that file's folder. Returns
+//   { components, imported }
+// where `imported` holds what those imports pulled in.
+async function loadComponents(
+  pagesDir,
+  { baseDir, extractImports, resolveImportedComponents },
+) {
   const componentsDir = path.join(pagesDir, 'components')
-  if (!(await pathExists(componentsDir))) return { components: {}, imports: [] }
+  if (!(await pathExists(componentsDir))) {
+    return { components: {}, imported: {} }
+  }
 
-  const components = {}
-  const imports = []
-
-  async function walk(dir) {
-    const entries = await fs.readdir(dir, { withFileTypes: true })
+  const files = []
+  async function walk(dir, segments) {
+    const entries = (await fs.readdir(dir, { withFileTypes: true })).sort(
+      (a, b) => a.name.localeCompare(b.name),
+    )
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        await walk(fullPath)
+        await walk(fullPath, [...segments, entry.name])
       } else if (entry.name.endsWith('.tyx')) {
-        const name = entry.name.replace(/\.tyx$/, '')
-        const raw = await fs.readFile(fullPath, 'utf-8')
-        // Components can import package components (icons, etc.) the
-        // same way a page can -- strip those import lines here,
-        // before the raw text ever reaches compileComponentSource's
-        // Parser, and collect them so their targets get resolved
-        // into the shared components map alongside this component.
-        const { imports: componentImports, source: cleaned } =
-          extractImports(raw)
-        components[name] = cleaned
-        imports.push(...componentImports)
+        files.push({
+          fullPath,
+          segments,
+          base: entry.name.replace(/\.tyx$/, ''),
+          rel: path.relative(baseDir, fullPath),
+          source: '',
+        })
       }
     }
   }
+  await walk(componentsDir, [])
 
-  await walk(componentsDir)
-  return { components, imports }
+  const imported = {}
+  const importedFrom = {}
+
+  for (const f of files) {
+    const raw = await fs.readFile(f.fullPath, 'utf-8')
+    try {
+      // Import lines are blanked out (keeping line numbers) before the
+      // text ever reaches the Lexer/Parser.
+      const { imports, source } = extractImports(raw)
+      f.source = source
+      if (imports.length > 0) {
+        const resolved = await resolveImportedComponents(imports, {
+          baseDir,
+          fromFile: f.fullPath,
+        })
+        mergeComponents(imported, importedFrom, resolved, f.rel)
+      }
+    } catch (err) {
+      throw labelError(err, f.rel)
+    }
+  }
+
+  const byBase = new Map()
+  for (const f of files) {
+    if (!byBase.has(f.base)) byBase.set(f.base, [])
+    byBase.get(f.base).push(f)
+  }
+
+  const components = {}
+  for (const [base, group] of byBase) {
+    group.sort(
+      (a, b) =>
+        a.segments.length - b.segments.length ||
+        a.fullPath.localeCompare(b.fullPath),
+    )
+    const best = group[0]
+    const tied =
+      group.length > 1 && group[1].segments.length === best.segments.length
+
+    if (!tied) components[base] = best.source
+
+    if (group.length > 1) {
+      const aliases = group.map(
+        (f) => f.segments.map(pascalSegment).join('') + f.base,
+      )
+      warnOnce(
+        tied
+          ? `[tylix] Several components are named "${base}" (${group.map((f) => f.rel).join(', ')}). ` +
+              `"<${base}>" is not registered because it is ambiguous; use ${aliases.map((a) => `<${a}>`).join(' / ')} or import one explicitly.`
+          : `[tylix] "<${base}>" resolves to ${best.rel}; the other "${base}" components are available as ${aliases
+              .slice(1)
+              .map((a) => `<${a}>`)
+              .join(', ')}.`,
+      )
+      group.forEach((f, i) => {
+        const qualified = aliases[i]
+        if (f.segments.length > 0 && !Object.hasOwn(components, qualified)) {
+          components[qualified] = f.source
+        }
+      })
+    }
+  }
+
+  return { components, imported }
 }
 
 function renderProductionErrorPage() {
@@ -332,7 +458,6 @@ function renderProductionErrorPage() {
 </body>
 </html>`
 }
-
 
 async function collectNotFoundFiles(dir, segments = [], found = []) {
   const entries = await fs
@@ -371,8 +496,12 @@ function pickNotFound(found, urlPath) {
   for (const item of found) {
     const { segments } = item
     if (segments.length > parts.length) continue
-    const matches = segments.every((seg, i) => seg.startsWith(':') || seg === parts[i])
-    if (matches && (!best || segments.length > best.segments.length)) best = item
+    const matches = segments.every(
+      (seg, i) => seg.startsWith(':') || seg === parts[i],
+    )
+    if (matches && (!best || segments.length > best.segments.length)) {
+      best = item
+    }
   }
   return best ? best.file : null
 }
@@ -380,7 +509,7 @@ function pickNotFound(found, urlPath) {
 async function registerPageRoutes(
   router,
   baseDir,
-  { hotReloadCompiler, production },
+  { hotReloadCompiler, production, compilerOptions },
 ) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   if (!(await pathExists(pagesDir))) {
@@ -407,22 +536,36 @@ async function registerPageRoutes(
       typecheckPage,
       transpileTsToJs,
       extractImports,
-      resolvePackageComponents,
+      resolveImportedComponents,
     } = hotReloadCompiler
       ? await import(`${compilerEntryUrl}?t=${Date.now()}`)
       : staticCompiler
 
+    const pageLabel = path.relative(baseDir, filePath)
+
     const rawSource = await fs.readFile(filePath, 'utf-8')
-    const { imports: pageImports, source } = extractImports(rawSource)
+    ctx.source = rawSource // so an import error still gets a code frame
+
+    let pageImports
+    let source
+    try {
+      ;({ imports: pageImports, source } = extractImports(rawSource))
+    } catch (err) {
+      throw labelError(err, pageLabel)
+    }
     ctx.source = source
 
     // Production skips this: `tylix build` already typechecked every
     // page, and running the TypeScript checker is expensive.
     if (!production) {
-      const language = await detectLanguage(baseDir)
-      if (language === 'typescript') {
+      const projectLanguage = await detectLanguage(baseDir)
+      if (projectLanguage === 'typescript') {
         const apiHelpersSource = await loadApiHelpersForTypecheck(baseDir)
-        const diagnostics = typecheckPage(source, apiHelpersSource)
+        const diagnostics = typecheckPage(
+          source,
+          apiHelpersSource,
+          compilerOptions,
+        )
         if (diagnostics.length > 0) {
           const message = diagnostics
             .map((d) => `Line ${d.line}: ${d.message}`)
@@ -432,27 +575,66 @@ async function registerPageRoutes(
       }
     }
 
-    const layoutResult = await findLayoutForFile(
-      pagesDir,
-      filePath,
-      extractImports,
-    )
+    let layoutResult
+    try {
+      layoutResult = await findLayoutForFile(pagesDir, filePath, extractImports)
+    } catch (err) {
+      throw labelError(err, `the layout for ${pageLabel}`)
+    }
     const layout = layoutResult ? layoutResult.source : null
-    const layoutImports = layoutResult ? layoutResult.imports : []
 
-    const { components: localComponents, imports: componentImports } =
-      await loadComponents(pagesDir, extractImports)
+    // Imports are resolved PER FILE: a relative path like "./a/Card"
+    // only means something relative to the file that wrote it.
+    const explicit = {}
+    const explicitFrom = {}
+    try {
+      mergeComponents(
+        explicit,
+        explicitFrom,
+        await resolveImportedComponents(pageImports, {
+          baseDir,
+          fromFile: filePath,
+        }),
+        pageLabel,
+      )
+    } catch (err) {
+      throw labelError(err, pageLabel)
+    }
+    if (layoutResult) {
+      const layoutLabel = path.relative(baseDir, layoutResult.file)
+      try {
+        mergeComponents(
+          explicit,
+          explicitFrom,
+          await resolveImportedComponents(layoutResult.imports, {
+            baseDir,
+            fromFile: layoutResult.file,
+          }),
+          layoutLabel,
+        )
+      } catch (err) {
+        throw labelError(err, layoutLabel)
+      }
+    }
 
-    const allImports = [...pageImports, ...layoutImports, ...componentImports]
-    const packageComponents =
-      allImports.length > 0
-        ? await resolvePackageComponents(allImports, baseDir)
-        : {}
+    const { components: localComponents, imported: componentImported } =
+      await loadComponents(pagesDir, {
+        baseDir,
+        extractImports,
+        resolveImportedComponents,
+      })
 
-    // Local components win on a name collision -- a project can
-    // always override a package-provided component just by adding
-    // its own file under app/pages/components/.
-    const components = { ...packageComponents, ...localComponents }
+    // Precedence, lowest to highest:
+    //   1. things components import (packages / relative files)
+    //   2. components discovered under app/pages/components/
+    //      (a project can always override a package component by adding
+    //      its own file)
+    //   3. what the page or its layout imports explicitly
+    const components = {
+      ...componentImported,
+      ...localComponents,
+      ...explicit,
+    }
 
     const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
     const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
@@ -502,6 +684,7 @@ async function registerPageRoutes(
           apiHelpers: prepared.apiHelpers,
           channelsPort: prepared.channelsPort,
           stylesheets: prepared.stylesheets,
+          language: compilerOptions,
         },
       )
       return { html: production ? html : injectHmrScript(html), ok: true }
@@ -599,6 +782,11 @@ export async function createApp(
   const config = await loadConfig(baseDir, language)
   if (production) assertProductionConfig(config)
 
+  // Compiler switches from the project config, e.g. { not: 'loose' }.
+  // Omitted means legacy behaviour. Not to be confused with `language`
+  // above, which is 'typescript' | 'javascript'.
+  const compilerOptions = config.compiler ?? {}
+
   await bootstrapDatabase()
 
   const features = await discoverFeatures(baseDir)
@@ -658,11 +846,11 @@ export async function createApp(
     config.auth,
     config.mail,
   )
-  
-   const { routes: pageRoutes, renderNotFound } = await registerPageRoutes(
+
+  const { routes: pageRoutes, renderNotFound } = await registerPageRoutes(
     router,
     baseDir,
-    { hotReloadCompiler, production },
+    { hotReloadCompiler, production, compilerOptions },
   )
 
   if (pageRoutes.length === 0 && features.length === 0) {
@@ -694,7 +882,7 @@ export async function createApp(
     features,
     pageRoutes,
     authEnabled,
-        notFoundHandler: async (req, res) => {
+    notFoundHandler: async (req, res) => {
       if (await serveStaticAsset(req, res, baseDir, { production })) return true
 
       // Browser navigations only. /api/* and fetch calls keep the JSON 404.
@@ -717,4 +905,5 @@ export async function createApp(
       }
       return false
     },
-}}
+  }
+}

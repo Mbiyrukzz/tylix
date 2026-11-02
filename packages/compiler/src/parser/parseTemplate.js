@@ -5,12 +5,17 @@ import {
   InterpolationNode,
   IfNode,
   EachNode,
+  TemplateLiteralExpr,
 } from '../ast/nodes.js'
 import { parseExpressionString } from './parseExpressionString.js'
 
 const TAG_NAME_RE = /^[a-zA-Z][a-zA-Z0-9-]*/
 const ATTR_NAME_RE = /^[a-zA-Z][a-zA-Z0-9-]*/
-const INTERP_ATTR_RE = /^\{\{\s*([\s\S]*?)\s*\}\}$/
+
+// HTML whitespace only -- NOT \s, which also matches U+00A0 and would
+// swallow a literal non-breaking space.
+const WS_ONLY_RE = /^[ \t\r\n\f]*$/
+const WS_RUN_RE = /[ \t\r\n\f]+/g
 
 // {{#each item in items}}            {{#each item of items}}
 // {{#each item, i in items}}         {{#each [k, v] in Object.entries(o)}}
@@ -60,8 +65,40 @@ function decodeHtmlEntities(text) {
   })
 }
 
-export function parseTemplate(source) {
-  const parser = new TemplateParser(source)
+// Finds the "}}" that closes a {{ ... }} whose content starts at
+// `from` in `source`. Skips nested braces and string/template
+// literals, so {{ fn({a:{b:1}}) }} and {{ "}}" }} work, where a plain
+// indexOf('}}') would cut the expression short. A free function so
+// attribute values can be scanned the same way as template text.
+function findInterpEnd(source, from) {
+  let depth = 0
+  let quote = null
+  for (let i = from; i < source.length; i++) {
+    const c = source[i]
+    if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = null
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      quote = c
+      continue
+    }
+    if (c === '{') depth++
+    else if (c === '}') {
+      if (depth === 0 && source[i + 1] === '}') return i
+      if (depth > 0) depth--
+    }
+  }
+  return -1
+}
+
+// `options` are the project's language options (see
+// parser/languageOptions.js), e.g. { not: 'loose' }. They are passed
+// to every expression parsed out of the template, so `{{ not a has b }}`
+// follows the same `not` mode as script code.
+export function parseTemplate(source, options = {}) {
+  const parser = new TemplateParser(source, options)
   const nodes = parser.parseNodes(null)
   if (parser.pos < parser.source.length) {
     throw new Error(
@@ -72,7 +109,8 @@ export function parseTemplate(source) {
 }
 
 class TemplateParser {
-  constructor(source) {
+  constructor(source, options = {}) {
+    this.options = options
     this.source = source
     this.pos = 0
     // Set by parseNodes: which marker it stopped at (the stopMarker,
@@ -108,31 +146,8 @@ class TemplateParser {
     return lo + 1
   }
 
-  // Finds the "}}" that closes a {{ ... }} whose content starts at
-  // `from`. Skips nested braces and string/template literals, so
-  // {{ fn({a:{b:1}}) }} and {{ "}}" }} work, where a plain
-  // indexOf('}}') would cut the expression short.
   findInterpEnd(from) {
-    let depth = 0
-    let quote = null
-    for (let i = from; i < this.source.length; i++) {
-      const c = this.source[i]
-      if (quote) {
-        if (c === '\\') i++
-        else if (c === quote) quote = null
-        continue
-      }
-      if (c === '"' || c === "'" || c === '`') {
-        quote = c
-        continue
-      }
-      if (c === '{') depth++
-      else if (c === '}') {
-        if (depth === 0 && this.source[i + 1] === '}') return i
-        if (depth > 0) depth--
-      }
-    }
-    return -1
+    return findInterpEnd(this.source, from)
   }
 
   // Parses sibling nodes. `stopTag` (an HTML tag name) or `stopMarker`
@@ -185,9 +200,15 @@ class TemplateParser {
       }
 
       const text = this.parseText()
-      const collapsed = decodeHtmlEntities(text.replace(/\s+/g, ' '))
-      if (collapsed.trim().length > 0) {
-        nodes.push(TextNode(collapsed))
+      if (WS_ONLY_RE.test(text)) {
+        // JSX rule: whitespace-only runs containing a newline are
+        // formatting and get dropped; a run on a single line sits
+        // BETWEEN inline content (`{{ first }} {{ last }}`,
+        // `<b>a</b> <i>b</i>`) and collapses to one real space.
+        if (!text.includes('\n')) nodes.push(TextNode(' '))
+      } else {
+        // Collapse first, decode after, so `&nbsp;` survives.
+        nodes.push(TextNode(decodeHtmlEntities(text.replace(WS_RUN_RE, ' '))))
       }
     }
 
@@ -229,7 +250,10 @@ class TemplateParser {
       )
     }
     this.pos = end + 2
-    return { ...InterpolationNode(parseExpressionString(exprSource)), line }
+    return {
+      ...InterpolationNode(parseExpressionString(exprSource, this.options)),
+      line,
+    }
   }
 
   parseIfBlock() {
@@ -277,7 +301,11 @@ class TemplateParser {
     }
 
     return {
-      ...IfNode(parseExpressionString(conditionSource), children, elseChildren),
+      ...IfNode(
+        parseExpressionString(conditionSource, this.options),
+        children,
+        elseChildren,
+      ),
       line,
     }
   }
@@ -327,7 +355,7 @@ class TemplateParser {
     return {
       ...EachNode(
         itemName,
-        parseExpressionString(iterableSource),
+        parseExpressionString(iterableSource, this.options),
         children,
         indexName,
         elseChildren,
@@ -452,14 +480,52 @@ class TemplateParser {
     const rawValue = this.source.slice(valueStart, this.pos)
     this.pos++
 
-    const interpMatch = INTERP_ATTR_RE.exec(rawValue)
-    if (interpMatch) {
-      return {
-        ...AttributeNode(name, parseExpressionString(interpMatch[1]), true),
-        line,
+    return { ...this.buildAttribute(name, rawValue, line), line }
+  }
+
+  // Splits an attribute value into literal text and {{ }} parts.
+  //   "plain"                      -> static string
+  //   "{{ expr }}"                 -> the expression itself (type kept:
+  //                                   numbers stay numbers, etc.)
+  //   "btn {{ a }} x-{{ b }}"      -> a template literal
+  buildAttribute(name, rawValue, line) {
+    if (!rawValue.includes('{{')) {
+      return AttributeNode(name, rawValue, false)
+    }
+
+    const parts = []
+    let text = ''
+    let i = 0
+    while (i < rawValue.length) {
+      if (rawValue.startsWith('{{', i)) {
+        const end = findInterpEnd(rawValue, i + 2)
+        if (end === -1) {
+          throw new Error(
+            `Unterminated '{{' in attribute '${name}' at line ${line}`,
+          )
+        }
+        if (text) {
+          parts.push({ type: 'text', value: text })
+          text = ''
+        }
+        parts.push({
+          type: 'expr',
+          expression: parseExpressionString(
+            rawValue.slice(i + 2, end).trim(),
+            this.options,
+          ),
+        })
+        i = end + 2
+      } else {
+        text += rawValue[i++]
       }
     }
-    return { ...AttributeNode(name, rawValue, false), line }
+    if (text) parts.push({ type: 'text', value: text })
+
+    if (parts.length === 1 && parts[0].type === 'expr') {
+      return AttributeNode(name, parts[0].expression, true)
+    }
+    return AttributeNode(name, TemplateLiteralExpr(parts), true)
   }
 
   skipWhitespace() {

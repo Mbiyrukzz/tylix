@@ -45,6 +45,10 @@ function statementsInline(body, typed) {
  * translation, so the two outputs can never structurally drift from
  * each other. `typed` only changes whether parameters get `: Type`
  * annotations. Everything else emits identically either way.
+ *
+ * `await` and assignment are always parenthesized: `(await f()).x`
+ * and `ok && (count = count + 1)` are only valid JS with the parens,
+ * and the extra pair is harmless at statement level.
  */
 export function generateExpression(node, typed = false) {
   switch (node.type) {
@@ -132,7 +136,7 @@ export function generateExpression(node, typed = false) {
     }
 
     case 'AssignmentExpression':
-      return `${generateExpression(node.target, typed)} = ${generateExpression(node.value, typed)}`
+      return `(${generateExpression(node.target, typed)} = ${generateExpression(node.value, typed)})`
 
     case 'CallExpression': {
       const args = node.args
@@ -142,7 +146,7 @@ export function generateExpression(node, typed = false) {
     }
 
     case 'AwaitExpression':
-      return `await ${generateExpression(node.argument, typed)}`
+      return `(await ${generateExpression(node.argument, typed)})`
 
     case 'SpreadElement':
       return `...${generateExpression(node.argument, typed)}`

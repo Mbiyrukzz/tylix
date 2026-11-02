@@ -9,6 +9,37 @@ import { cache, discoverFeatures } from '@tylix/core'
 import { ConnectionManager } from '@tylix/orm'
 import { migrate } from './migrate.js'
 
+const MASK = '••••••••'
+
+// Special files under app/pages. createApp never serves these as routes.
+const LAYOUT_FILE = '_layout.tyx'
+const NOT_FOUND_FILE = '_not-found.tyx'
+
+// Names whose values are never printed: AUTH_SECRET, DATABASE_PASSWORD,
+// "secret", "password", "apiKey", "STRIPE_KEY", "accessToken", ...
+const SECRET_KEY =
+  /secret|passw(or)?d|api[_-]?key|private[_-]?key|(^|_)key$|token$/i
+
+// user:password@ inside a URL, e.g. mongodb://user:pass@host
+const URL_CREDENTIALS = /(\/\/[^:@/\s]+:)[^@/\s]+@/g
+
+function maskValue(key, value) {
+  if (typeof value !== 'string' || value === '') return value
+  if (SECRET_KEY.test(key)) return MASK
+  return value.replace(URL_CREDENTIALS, `$1${MASK}@`)
+}
+
+// Deep copy of a config object with every secret masked.
+function maskConfig(node, key = '') {
+  if (Array.isArray(node)) return node.map((item) => maskConfig(item, key))
+  if (node && typeof node === 'object') {
+    return Object.fromEntries(
+      Object.entries(node).map(([k, v]) => [k, maskConfig(v, k)]),
+    )
+  }
+  return maskValue(key, node)
+}
+
 async function pathExists(p) {
   return fs
     .access(p)
@@ -29,6 +60,29 @@ async function listFiles(dir, ext) {
     }
   }
   return results
+}
+
+// Same rules as createApp: layouts, not-found pages and anything inside a
+// "components" folder are not routes.
+function isRoutablePage(file) {
+  const name = path.basename(file)
+  if (name === LAYOUT_FILE || name === NOT_FOUND_FILE) return false
+  return !file.split(path.sep).slice(0, -1).includes('components')
+}
+
+// posts/[id].tyx -> /posts/:id, posts/Index.tyx -> /posts,
+// users/[id]/Profile.tyx -> /users/:id/profile
+function pageRoute(file) {
+  const segments = file.replace(/\.tyx$/, '').split(path.sep)
+  const parts = segments
+    .map((segment, i) => {
+      if (i === segments.length - 1 && segment === 'Index') return null
+      const dynamic = /^\[(.+)\]$/.exec(segment)
+      if (dynamic) return `:${dynamic[1]}`
+      return segment.toLowerCase()
+    })
+    .filter((part) => part !== null)
+  return '/' + parts.join('/')
 }
 
 // Import every model in app/models into `target`.
@@ -182,15 +236,17 @@ export async function tinker() {
     console.log(`Reloaded: ${loaded.join(', ') || '(no models found)'}`)
   }
 
+  // The resolved config (defaults, tylix.config and .env combined), with
+  // passwords, secrets and URL credentials masked.
   context.config = async () => {
-    console.log(await loadConfig(baseDir))
+    console.log(maskConfig(await loadConfig(baseDir, language)))
   }
 
   context.env = () => {
     const safe = {}
     for (const [key, value] of Object.entries(process.env)) {
       if (!key.startsWith('npm_') && !key.startsWith('_')) {
-        safe[key] = /SECRET|PASSWORD|KEY/i.test(key) ? '••••••••' : value
+        safe[key] = maskValue(key, value)
       }
     }
     console.log(safe)
@@ -229,16 +285,10 @@ export async function tinker() {
       path.join(baseDir, 'app', 'pages'),
       '.tyx',
     )
-    const pageRoutes = pageFiles
-      .filter(
-        (f) => f !== '_layout.tyx' && !f.includes(`components${path.sep}`),
-      )
-      .map((f) => {
-        const withoutExt = f.replace(/\.tyx$/, '')
-        const segments = withoutExt.split(path.sep).map((s) => s.toLowerCase())
-        if (segments[segments.length - 1] === 'index') segments.pop()
-        return '/' + segments.join('/')
-      })
+    const routable = pageFiles.filter(isRoutablePage)
+    const pageRoutes = routable.map(pageRoute).sort()
+    // Home.tyx is served at both /home and /
+    if (routable.includes('Home.tyx')) pageRoutes.unshift('/')
 
     console.log('Page routes:')
     console.log(pageRoutes)
@@ -275,11 +325,22 @@ export async function tinker() {
     }
 
     console.log(
-      '\nNote: custom routes registered in app/routes/web.js are not shown here.',
+      '\nNote: custom routes registered under app/routes/ are not shown here.',
     )
   }
 
   context.mail = async () => {
+    const { mail } = await loadConfig(baseDir, language)
+    console.log(
+      `Driver: ${mail.driver}${mail.driver === 'log' ? ' (messages are logged, not sent)' : ''}`,
+    )
+    console.log(`From:   ${mail.from}`)
+    if (mail.host) {
+      console.log(
+        `SMTP:   ${mail.host}:${mail.port}${mail.secure ? ' (secure)' : ''}`,
+      )
+    }
+
     const mailerPath = path.join(baseDir, 'app', 'mail', `mailer.${ext}`)
     if (!(await pathExists(mailerPath))) {
       console.log(`No Mailer file found at app/mail/mailer.${ext}.`)
@@ -292,13 +353,12 @@ export async function tinker() {
     ].filter((fn) => typeof mod[fn] === 'function')
     console.log(`Mailer: app/mail/mailer.${ext}`)
     console.log(`Functions: ${available.join(', ') || '(none found)'}`)
-    console.log(
-      `Currently console.log-only (dev stub) — swap in a real provider before production.`,
-    )
-    if (mod.sendVerificationEmail)
-      context.sendVerificationEmail = mod.sendVerificationEmail
-    if (mod.sendPasswordResetEmail)
-      context.sendPasswordResetEmail = mod.sendPasswordResetEmail
+
+    // The REPL got a copy of `context` at startup, so new names have to be
+    // added to the REPL's own context to be callable.
+    for (const fn of available) {
+      replServer.context[fn] = mod[fn]
+    }
   }
 
   context.help = () => {
@@ -364,9 +424,9 @@ Project
   features()            print each feature's feature.json
   pages()               list page files under app/pages
   routes()              page and feature routes (custom routes not shown)
-  config()              print loaded tylix.config
+  config()              print the resolved config (secrets masked)
   env()                 print environment variables (secrets masked)
-  mail()                load mailer functions into scope, if present
+  mail()                show the mail driver and load mailer functions
   cacheEntries()        list current cache table rows
   cache                 cache.get/set/has/forget/clear
 

@@ -62,8 +62,10 @@ export function generateTemplateExpression(node, scope = new Set()) {
     return `(await ${generateTemplateExpression(node.argument, scope)})`
   }
 
+  // Parenthesized so `ok and count++` -> `(ok && (count = ...))` is
+  // valid JS rather than an assignment on the right of `&&`.
   if (node.type === 'AssignmentExpression') {
-    return `${generateTemplateExpression(node.target, scope)} = ${generateTemplateExpression(node.value, scope)}`
+    return `(${generateTemplateExpression(node.target, scope)} = ${generateTemplateExpression(node.value, scope)})`
   }
 
   if (node.type === 'CallExpression') {

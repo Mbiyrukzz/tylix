@@ -3,9 +3,7 @@
 // usesAccessors, which call resolveCapability(name) as a getter).
 // One instance per capability name, shared across every page in the
 // app -- resolveCapability memoizes on first resolution rather than
-// re-running the def, the same "resolve once, reuse forever" shape
-// createResource's .load() gives resources, just app-scoped instead
-// of per-page.
+// re-running the def.
 //
 // A capability def has the shape:
 //   {
@@ -21,7 +19,12 @@
 const registry = new Map()
 
 export function defineCapability(name, def) {
-  registry.set(name, { def, instance: null, initPromise: null })
+  registry.set(name, {
+    def,
+    instance: null,
+    initStarted: false,
+    initPromise: null,
+  })
 }
 
 export function bindActions(actions, instance) {
@@ -41,21 +44,33 @@ export function resolveCapability(name) {
   }
 
   if (!entry.instance) {
-    entry.instance = reactive({ ...entry.def.state })
-    Object.assign(
-      entry.instance,
-      bindActions(entry.def.actions, entry.instance),
-    )
+    const instance = reactive({ ...entry.def.state })
+    Object.assign(instance, bindActions(entry.def.actions, instance))
+    // Exposed so pages can `await Auth.ready()` before making a
+    // redirect decision. Defined once, here, so resolving does not
+    // keep writing to reactive state.
+    instance.ready = () => entry.initPromise ?? Promise.resolve()
+    entry.instance = instance
   }
 
-  if (!entry.initPromise && entry.def.init) {
-    entry.initPromise = entry.def.init.call(entry.instance)
+  // init() runs exactly once, whether it is async or not.
+  if (!entry.initStarted) {
+    entry.initStarted = true
+    if (entry.def.init) {
+      try {
+        entry.initPromise = Promise.resolve(
+          entry.def.init.call(entry.instance),
+        )
+      } catch (err) {
+        entry.initPromise = Promise.reject(err)
+      }
+      // Log here so a failed init is never an unhandled rejection;
+      // ready() still rejects for anyone awaiting it.
+      entry.initPromise.catch((err) => {
+        console.error(`Capability "${name}" init failed:`, err)
+      })
+    }
   }
-
-  // Exposed so pages can `await Auth.ready()` before making a
-  // redirect decision, instead of racing the reactive `loading` flag
-  // with their own onMount timing.
-  entry.instance.ready = () => entry.initPromise ?? Promise.resolve()
 
   return entry.instance
 }

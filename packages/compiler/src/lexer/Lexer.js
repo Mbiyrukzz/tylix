@@ -77,7 +77,7 @@ const SINGLE_CHAR_TOKENS = new Map([
   ['&', [T.AMP, '&']],
   ['^', [T.CARET, '^']],
   ['~', [T.TILDE, '~']],
-  ['!', [T.NOT, 'not']],
+  ['!', [T.NOT, '!']],
 ])
 
 // Tokens after which a "/" starts a regex literal (or a "." starts a

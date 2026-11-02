@@ -7,6 +7,7 @@ import { parseComponentFile } from './parser/parseComponentFile.js'
 import { parseTemplate } from './parser/parseTemplate.js'
 import { Lexer } from './lexer/Lexer.js'
 import { Parser } from './parser/Parser.js'
+import { normalizeLanguageOptions } from './parser/languageOptions.js'
 import { generatePage } from './codegen/generatePage.js'
 import { generateTemplate } from './codegen/generateTemplate.js'
 import { generateCapability } from './codegen/generateCapability.js'
@@ -37,9 +38,17 @@ const NOT_FOUND_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'notFound.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
-const capabilityCache = new Map() // capabilitiesDir -> { signature, code }
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
 
-async function loadCapabilityDefinitions(capabilitiesDir) {
+const capabilityCache = new Map() // `${dir}|not=${mode}` -> { signature, code }
+
+async function loadCapabilityDefinitions(capabilitiesDir, language) {
   const exists = await fs.promises
     .access(capabilitiesDir)
     .then(() => true)
@@ -59,7 +68,10 @@ async function loadCapabilityDefinitions(capabilitiesDir) {
     .sort()
     .join('|')
 
-  const cached = capabilityCache.get(capabilitiesDir)
+  // The same directory compiles differently under different language
+  // options, so the options are part of the cache key.
+  const cacheKey = `${capabilitiesDir}|not=${language.not}`
+  const cached = capabilityCache.get(cacheKey)
   if (cached && cached.signature === signature) {
     return cached.code
   }
@@ -74,6 +86,7 @@ async function loadCapabilityDefinitions(capabilitiesDir) {
         try {
           const capabilityNode = new Parser(
             new Lexer(source).tokenize(),
+            language,
           ).parseCapability()
           return generateCapability(capabilityNode)
         } catch (err) {
@@ -84,7 +97,7 @@ async function loadCapabilityDefinitions(capabilitiesDir) {
     )
   ).join('\n\n')
 
-  capabilityCache.set(capabilitiesDir, { signature, code: definitions })
+  capabilityCache.set(cacheKey, { signature, code: definitions })
   return definitions
 }
 
@@ -184,34 +197,48 @@ async function loadLoadingPage(loadingFile) {
   return source
 }
 
-function compileComponentSource(source, fallbackClassName) {
+const EMPTY_PAGE = { props: [], state: [], computed: [], actions: [], uses: [] }
+
+// Turns a registry key (a tag name such as "AdminCard" or "my-card")
+// into a class name that is always a valid, unique identifier. The
+// index guarantees uniqueness even if two sanitized names coincide,
+// and the prefix keeps a component called Map or Error from shadowing
+// the global of the same name inside the shared inline script.
+function childClassName(name, index) {
+  return `__C${index}_${String(name).replace(/[^A-Za-z0-9_$]/g, '_')}`
+}
+
+// `fallbackClassName` ALWAYS decides the class name -- for native
+// `component Card` files too -- so two files that both declare Card
+// can live in one page.
+function compileComponentSource(source, fallbackClassName, language) {
   const isNativeComponent = /^\s*component\s+\w+/.test(source)
 
   if (isNativeComponent) {
-    const { componentName, script, template } = parseComponentFile(source)
+    const { script, template } = parseComponentFile(source)
     const pageNode = substituteCapabilityRefs(
       script.trim().length > 0
-        ? new Parser(new Lexer(script).tokenize()).parse()
-        : { props: [], state: [], computed: [], actions: [], uses: [] },
+        ? new Parser(new Lexer(script).tokenize(), language).parse()
+        : EMPTY_PAGE,
     )
 
-    const classSource = generatePage(pageNode, componentName)
-    const templateNodes = parseTemplate(template)
+    const classSource = generatePage(pageNode, fallbackClassName)
+    const templateNodes = parseTemplate(template, language)
     const { code, rootVar } = generateTemplate(templateNodes)
 
-    return { classSource, code, rootVar, className: componentName }
+    return { classSource, code, rootVar, className: fallbackClassName }
   }
 
   const { script, template } = parseComponent(source)
 
   const pageNode = substituteCapabilityRefs(
     script.trim().length > 0
-      ? new Parser(new Lexer(script).tokenize()).parse()
-      : { props: [], state: [], computed: [], actions: [], uses: [] },
+      ? new Parser(new Lexer(script).tokenize(), language).parse()
+      : EMPTY_PAGE,
   )
 
   const classSource = generatePage(pageNode, fallbackClassName)
-  const templateNodes = parseTemplate(template)
+  const templateNodes = parseTemplate(template, language)
   const { code, rootVar } = generateTemplate(templateNodes)
 
   return { classSource, code, rootVar, className: fallbackClassName }
@@ -231,17 +258,17 @@ function applyLineOffset(err, offset) {
   return err
 }
 
-function parseScriptWithLineOffset(script, offset) {
+function parseScriptWithLineOffset(script, offset, language) {
   try {
-    return new Parser(new Lexer(script).tokenize()).parse()
+    return new Parser(new Lexer(script).tokenize(), language).parse()
   } catch (err) {
     throw applyLineOffset(err, offset)
   }
 }
 
-function parseTemplateWithLineOffset(template, offset) {
+function parseTemplateWithLineOffset(template, offset, language) {
   try {
-    return parseTemplate(template)
+    return parseTemplate(template, language)
   } catch (err) {
     throw applyLineOffset(err, offset)
   }
@@ -266,8 +293,22 @@ export async function renderPageDocument(
     shellFile = path.join(process.cwd(), 'app', 'index.html'),
     // Optional loading indicator page, mounted before the page renders.
     loadingFile = path.join(process.cwd(), 'app', 'loading.tyx'),
+    // Compiler language switches, e.g. { not: 'loose' }. Omitted means
+    // legacy behaviour, so existing callers compile unchanged.
+    language: languageOption = {},
   } = {},
 ) {
+  // createApp already has a variable called `language` that holds
+  // 'typescript' | 'javascript'. Passing that here would silently fall
+  // back to the defaults, so refuse it loudly instead.
+  if (languageOption !== null && typeof languageOption !== 'object') {
+    throw new Error(
+      `renderPageDocument: the "language" option must be an object like { not: 'loose' }, got ${typeof languageOption} "${languageOption}". ` +
+        'The project language ("typescript"/"javascript") is a different setting.',
+    )
+  }
+  const language = normalizeLanguageOptions(languageOption ?? {})
+
   const {
     pageName,
     script,
@@ -279,16 +320,23 @@ export async function renderPageDocument(
 
   const pageNode = substituteCapabilityRefs(
     script.trim().length > 0
-      ? parseScriptWithLineOffset(script, scriptStartLine)
-      : { props: [], state: [], computed: [], actions: [], uses: [] },
+      ? parseScriptWithLineOffset(script, scriptStartLine, language)
+      : EMPTY_PAGE,
   )
 
   const classSource = generatePage(pageNode, pageName)
 
-  const templateNodes = parseTemplateWithLineOffset(template, templateStartLine)
+  const templateNodes = parseTemplateWithLineOffset(
+    template,
+    templateStartLine,
+    language,
+  )
   const { code, rootVar } = generateTemplate(templateNodes)
 
-  const capabilityDefinitions = await loadCapabilityDefinitions(capabilitiesDir)
+  const capabilityDefinitions = await loadCapabilityDefinitions(
+    capabilitiesDir,
+    language,
+  )
   const headTags = await loadHeadTags(headFile)
   const shell = await loadShell(shellFile)
 
@@ -303,7 +351,11 @@ export async function renderPageDocument(
   if (loadingSource !== null) {
     let loadingCompiled
     try {
-      loadingCompiled = compileComponentSource(loadingSource, '__Loading')
+      loadingCompiled = compileComponentSource(
+        loadingSource,
+        '__Loading',
+        language,
+      )
     } catch (err) {
       err.message = `In app/loading.tyx: ${err.message}`
       throw err
@@ -326,24 +378,45 @@ ${loadingCompiled.code}
     }`
   }
 
+  // Each child is compiled exactly once, under a unique class name
+  // derived from its registry key (the tag name the page uses), not
+  // from whatever `component X` line the file declares.
   const childNames = Object.keys(childComponents)
-  const childClassSources = childNames
-    .map(
-      (name) => compileComponentSource(childComponents[name], name).classSource,
-    )
+  const compiledChildren = childNames.map((name, i) => {
+    try {
+      return compileComponentSource(
+        childComponents[name],
+        childClassName(name, i),
+        language,
+      )
+    } catch (err) {
+      err.message = `In component <${name}>: ${err.message}`
+      throw err
+    }
+  })
+  const childClassSources = compiledChildren
+    .map((c) => c.classSource)
     .join('\n\n')
 
-  const childRegistrations = childNames
-    .map((name) => {
-      const compiled = compileComponentSource(childComponents[name], name)
+  const childRegistrations = compiledChildren
+    .map((compiled, i) => {
+      const name = childNames[i]
+      const label = JSON.stringify(name)
       const { code: childCode, rootVar: childRootVar, className } = compiled
-      return `  components[${JSON.stringify(name)}] = {
+      return `  components[${label}] = {
     mount(document, props = {}) {
       const instance = new ${className}(props);
       const node = (function (document, instance) {
 ${childCode}
         return ${childRootVar};
       })(document, instance);
+      // needs/prefetch first, then onMount, same order as pages.
+      // Runs a microtask later, after the caller has attached the node.
+      Promise.resolve()
+        .then(() => (typeof instance.__ready === "function" ? instance.__ready() : null))
+        .catch((err) => console.error("component ready failed (" + ${label} + "):", err))
+        .then(() => (typeof instance.__onMount === "function" ? instance.__onMount() : null))
+        .catch((err) => console.error("component onMount failed (" + ${label} + "):", err));
       return { node, instance };
     },
   };`
@@ -354,10 +427,23 @@ ${childCode}
   let layoutMountCode = `document.getElementById("app").appendChild(${rootVar});`
 
   if (layout !== null) {
-    const layoutCompiled = compileComponentSource(layout, '__Layout')
+    let layoutCompiled
+    try {
+      layoutCompiled = compileComponentSource(layout, '__Layout', language)
+    } catch (err) {
+      err.message = `In _layout.tyx: ${err.message}`
+      throw err
+    }
     layoutClassSource = layoutCompiled.classSource
     layoutMountCode = `
     const layoutInstance = new ${layoutCompiled.className}();
+    if (typeof layoutInstance.__ready === "function") {
+      try {
+        await layoutInstance.__ready();
+      } catch (err) {
+        console.error("layout ready failed:", err);
+      }
+    }
     (function (document, instance, pageRoot) {
 ${layoutCompiled.code}
       const slot = ${layoutCompiled.rootVar}.querySelector("[data-tylix-slot]");
@@ -366,7 +452,14 @@ ${layoutCompiled.code}
       }
       slot.appendChild(pageRoot);
       document.getElementById("app").appendChild(${layoutCompiled.rootVar});
-    })(document, layoutInstance, ${rootVar});`
+    })(document, layoutInstance, ${rootVar});
+    if (typeof layoutInstance.__onMount === "function") {
+      try {
+        await layoutInstance.__onMount();
+      } catch (err) {
+        console.error("layout onMount failed:", err);
+      }
+    }`
   }
 
   const channelsPortScript =
@@ -473,6 +566,15 @@ ${layoutMountCode}
     throw genErr
   }
 
+  // A "</script" anywhere in the generated code (a <pre> sample, a
+  // route prop, a string) would end the script element early, and
+  // "<!--" can start an HTML comment inside it. Both replacements mean
+  // the same thing to the JS engine. Done AFTER the validation above,
+  // which must see the unescaped source.
+  const safeScript = inlineScript
+    .replace(/<\/(script)/gi, '<\\/$1')
+    .replace(/<!--/g, '<\\!--')
+
   const themeScript = `<script>
     (function () {
       var stored = localStorage.getItem("theme");
@@ -484,11 +586,11 @@ ${layoutMountCode}
   </script>`
 
   const values = {
-    title: String(pageNode.title ?? pageName),
+    title: escapeHtml(pageNode.title ?? pageName),
     head: [channelsPortScript, themeScript, styleLinks, headTags, styleTag]
       .filter((part) => part && part.length > 0)
       .join('\n  '),
-    body: `<div id="app"></div>\n  <script>${inlineScript}</script>`,
+    body: `<div id="app"></div>\n  <script>${safeScript}</script>`,
   }
 
   // One pass with a function replacer, so a "$&" or a placeholder-looking

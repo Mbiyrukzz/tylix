@@ -27,7 +27,6 @@ import { writePage, writeLayout } from './steps/writePage.js'
 import { writeMiddleware } from './steps/writeMiddleware.js'
 import { writeComponents } from './steps/writeComponents.js'
 import { writeApiRoutes } from './steps/writeApiRoutes.js'
-import { writeMailConfig } from './steps/writeMailConfig.js'
 import { writeIndexHtml } from './steps/writeIndexHtml.js'
 import { runMigrations } from './steps/runMigrations.js'
 import { writeCapabilities } from './steps/writeCapabilities.js'
@@ -264,11 +263,12 @@ async function runBuildSteps(config) {
       fn: () => installPackages(config),
     })
   }
+  // Connection details and mail settings live in .env (written by
+  // createProjectStructure); tylix.config only holds project options.
   steps.push(
     { label: 'Configuring compiler', fn: () => writeCompilerConfig(config) },
     { label: 'Configuring ORM', fn: () => writeOrmConfig(config) },
-    { label: 'Configuring database', fn: () => writeDatabaseConfig(config) },
-    { label: 'Configuring mail', fn: () => writeMailConfig(config) },
+    { label: 'Writing project config', fn: () => writeDatabaseConfig(config) },
     { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
     { label: 'Creating HTML shell', fn: () => writeIndexHtml(config) },
   )
@@ -352,7 +352,12 @@ async function runBuildSteps(config) {
     try {
       await step.fn()
     } catch (err) {
-      if (!step.optional) throw err
+      if (!step.optional) {
+        // Start on a fresh line so the message isn't glued to the progress bar.
+        console.log()
+        console.log(red(`✖ ${step.label} failed`))
+        throw err
+      }
       warnings.push(
         step.warningMessage ?? `Skipped "${step.label}": ${err.message}`,
       )
@@ -417,9 +422,10 @@ function printSuccessScreen(config) {
   }
   printHeavyDivider()
 
+  // Commands you type are cyan; names and links you open stay cyanBright.
   console.log(bold('Next Steps'))
-  console.log(cyanBright(`cd ${config.projectName}`))
-  console.log(cyanBright(`${config.packageManager} run dev`))
+  console.log(cyan(`cd ${config.projectName}`))
+  console.log(cyan(`${config.packageManager} run dev`))
   printHeavyDivider()
 
   console.log(bold('Development Server'))

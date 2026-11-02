@@ -164,10 +164,12 @@ function adjacent(a, b) {
  * tokens -- that keeps `Array<Array<T>>` parseable as a type.
  */
 export class Parser {
-  constructor(tokens) {
-    this.tokens = tokens
-    this.pos = 0
-  }
+  constructor(tokens, options = {}) {
+  this.tokens = tokens
+  this.pos = 0
+  this.options = options
+  this.looseNot = options.not === 'loose'
+}
 
   parse() {
     const page = {
@@ -782,36 +784,34 @@ export class Parser {
   }
 
   parseIfStatement() {
-    const hasParen = this.match(TokenType.LPAREN)
-    const condition = this.parseExpression()
-    if (hasParen) {
-      this.expect(TokenType.RPAREN, "Expected ')' after if condition")
-    }
-    this.expect(TokenType.LBRACE, "Expected '{' to start if body")
-    const consequent = []
-    while (!this.check(TokenType.RBRACE)) {
-      consequent.push(this.parseStatement())
-    }
-    this.expect(TokenType.RBRACE, "Expected '}' to close if body")
+  const condition = this.parseExpression()
+  this.expect(TokenType.LBRACE, "Expected '{' to start if body")
+  const consequent = []
+  while (!this.check(TokenType.RBRACE)) {
+    consequent.push(this.parseStatement())
+  }
+  this.expect(TokenType.RBRACE, "Expected '}' to close if body")
 
-    let alternate = null
-    if (this.match(TokenType.ELSE)) {
-      if (this.check(TokenType.IF)) {
-        this.advance()
-        alternate = [this.parseIfStatement()]
-      } else {
-        this.expect(TokenType.LBRACE, "Expected '{' to start else body")
-        alternate = []
-        while (!this.check(TokenType.RBRACE)) {
-          alternate.push(this.parseStatement())
-        }
-        this.expect(TokenType.RBRACE, "Expected '}' to close else body")
+  let alternate = null
+  if (this.match(TokenType.ELSE)) {
+    if (this.check(TokenType.IF)) {
+      const startLine = this.peek().line
+      this.advance()
+      const nested = this.parseIfStatement()
+      nested.line = nested.line ?? startLine
+      alternate = [nested]
+    } else {
+      this.expect(TokenType.LBRACE, "Expected '{' to start else body")
+      alternate = []
+      while (!this.check(TokenType.RBRACE)) {
+        alternate.push(this.parseStatement())
       }
+      this.expect(TokenType.RBRACE, "Expected '}' to close else body")
     }
-
-    return IfStatement(condition, consequent, alternate)
   }
 
+  return IfStatement(condition, consequent, alternate)
+}
   // `while cond { ... }` or `while (cond) { ... }`. Parentheses need no
   // special handling: `(cond)` already parses as a grouped expression,
   // which also keeps `while (a) and (b) { ... }` working.
@@ -1375,14 +1375,29 @@ export class Parser {
     return left
   }
 
-  parseLogicalAnd() {
-    let left = this.parseBitwiseOr()
-    while (this.match(TokenType.AND)) {
-      const right = this.parseBitwiseOr()
-      left = BinaryExpr('&&', left, right)
-    }
-    return left
+parseLogicalAnd() {
+  let left = this.parseNotOperand()
+  while (this.match(TokenType.AND)) {
+    const right = this.parseNotOperand()
+    left = BinaryExpr('&&', left, right)
   }
+  return left
+}
+
+// Loose mode only: the WORD `not` (value 'not') sits above is/has/
+// exists. In tight mode, or for the symbol `!`, this falls straight
+// through and parseUnary handles it as before.
+parseNotOperand() {
+  if (
+    this.looseNot &&
+    this.check(TokenType.NOT) &&
+    this.peek().value === 'not'
+  ) {
+    this.advance()
+    return UnaryExpr('!', this.parseNotOperand())
+  }
+  return this.parseBitwiseOr()
+}
 
   parseBitwiseOr() {
     let left = this.parseBitwiseXor()
@@ -1597,101 +1612,105 @@ export class Parser {
     return args
   }
 
-  parsePrimary() {
-    if (this.match(TokenType.NEW)) {
-      let callee = this.parsePrimary()
-      while (this.match(TokenType.DOT)) {
-        const property = this.expect(
-          TokenType.IDENTIFIER,
-          "Expected a property name after '.'",
-        ).value
-        callee = MemberExpr(callee, property)
-      }
-      let args = []
-      if (this.check(TokenType.LPAREN)) {
-        args = this.parseCallArguments()
-      }
-      return NewExpr(callee, args)
+parsePrimary() {
+  if (this.match(TokenType.NEW)) {
+    let callee = this.parsePrimary()
+    while (this.match(TokenType.DOT)) {
+      const property = this.expect(
+        TokenType.IDENTIFIER,
+        "Expected a property name after '.'",
+      ).value
+      callee = MemberExpr(callee, property)
     }
-
-    // function (a, b) { ... } / async function name(a) { ... }
-    if (this.isFunctionKeywordAhead()) {
-      const isAsync = this.match(TokenType.ASYNC)
-      const fn = this.parseFunctionRest(isAsync)
-      return FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name)
+    let args = []
+    if (this.check(TokenType.LPAREN)) {
+      args = this.parseCallArguments()
     }
-
-    // Regex literal. String(regex) yields "/pattern/flags", which
-    // every generator already emits for Literal nodes, so no codegen
-    // changes are needed.
-    if (this.check(TokenType.REGEX)) {
-      const tok = this.advance()
-      try {
-        return Literal(new RegExp(tok.value.pattern, tok.value.flags))
-      } catch (err) {
-        throw new Error(
-          `Invalid regular expression at line ${tok.line}: ${err.message}`,
-        )
-      }
-    }
-
-    // 10n -> BigInt("10"), so every generator handles it as a normal
-    // call to the BigInt global.
-    if (this.check(TokenType.BIGINT)) {
-      const text = this.advance().value
-      return CallExpr(Identifier('BigInt'), [Literal(text)])
-    }
-
-    if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
-      return Literal(this.advance().value)
-    }
-
-    if (this.check(TokenType.TEMPLATE_LITERAL)) {
-      const rawParts = this.advance().value
-      const parts = rawParts.map((p) =>
-        p.type === 'text'
-          ? p
-          : { type: 'expr', expression: parseExpressionString(p.source) },
-      )
-      return TemplateLiteralExpr(parts)
-    }
-
-    if (
-      this.check(TokenType.IDENTIFIER) ||
-      KEYWORD_TOKEN_TYPES.has(this.peek().type)
-    ) {
-      const name = this.advance().value
-      // "null"/"true"/"false"/"undefined" are lexed as plain identifier
-      // tokens (there's no separate keyword TokenType for them), but
-      // they're JS keyword literals, not variable/state references.
-      // Emitting them as Literal here -- instead of Identifier -- means
-      // every downstream consumer treats them correctly by construction.
-      if (name === 'null') return Literal(null)
-      if (name === 'undefined') return Literal(undefined)
-      if (name === 'true') return Literal(true)
-      if (name === 'false') return Literal(false)
-      return Identifier(name)
-    }
-
-    if (this.match(TokenType.LPAREN)) {
-      const expr = this.parseExpression()
-      this.expect(
-        TokenType.RPAREN,
-        "Expected ')' to close a grouped expression",
-      )
-      return expr
-    }
-    if (this.match(TokenType.LBRACE)) {
-      return this.parseObjectLiteral()
-    }
-    if (this.match(TokenType.LBRACKET)) {
-      return this.parseArrayLiteral()
-    }
-    throw new Error(
-      `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
-    )
+    return NewExpr(callee, args)
   }
 
+  // function (a, b) { ... } / async function name(a) { ... }
+  if (this.isFunctionKeywordAhead()) {
+    const isAsync = this.match(TokenType.ASYNC)
+    const fn = this.parseFunctionRest(isAsync)
+    return FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name)
+  }
+
+  // Regex literal. String(regex) yields "/pattern/flags", which
+  // every generator already emits for Literal nodes, so no codegen
+  // changes are needed.
+  if (this.check(TokenType.REGEX)) {
+    const tok = this.advance()
+    try {
+      return Literal(new RegExp(tok.value.pattern, tok.value.flags))
+    } catch (err) {
+      throw new Error(
+        `Invalid regular expression at line ${tok.line}: ${err.message}`,
+      )
+    }
+  }
+
+  // 10n -> BigInt("10"), so every generator handles it as a normal
+  // call to the BigInt global.
+  if (this.check(TokenType.BIGINT)) {
+    const text = this.advance().value
+    return CallExpr(Identifier('BigInt'), [Literal(text)])
+  }
+
+  if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
+    return Literal(this.advance().value)
+  }
+
+  if (this.check(TokenType.TEMPLATE_LITERAL)) {
+    const rawParts = this.advance().value
+    const parts = rawParts.map((p) =>
+      p.type === 'text'
+        ? p
+        : {
+            type: 'expr',
+            // Same language options as the enclosing parser, so
+            // `${ not items has x }` follows the project's `not` mode.
+            expression: parseExpressionString(p.source, this.options),
+          },
+    )
+    return TemplateLiteralExpr(parts)
+  }
+
+  if (
+    this.check(TokenType.IDENTIFIER) ||
+    KEYWORD_TOKEN_TYPES.has(this.peek().type)
+  ) {
+    const name = this.advance().value
+    // "null"/"true"/"false"/"undefined" are lexed as plain identifier
+    // tokens (there's no separate keyword TokenType for them), but
+    // they're JS keyword literals, not variable/state references.
+    // Emitting them as Literal here -- instead of Identifier -- means
+    // every downstream consumer treats them correctly by construction.
+    if (name === 'null') return Literal(null)
+    if (name === 'undefined') return Literal(undefined)
+    if (name === 'true') return Literal(true)
+    if (name === 'false') return Literal(false)
+    return Identifier(name)
+  }
+
+  if (this.match(TokenType.LPAREN)) {
+    const expr = this.parseExpression()
+    this.expect(
+      TokenType.RPAREN,
+      "Expected ')' to close a grouped expression",
+    )
+    return expr
+  }
+  if (this.match(TokenType.LBRACE)) {
+    return this.parseObjectLiteral()
+  }
+  if (this.match(TokenType.LBRACKET)) {
+    return this.parseArrayLiteral()
+  }
+  throw new Error(
+    `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
+  )
+}
   // Type expressions are captured as plain strings, not a full type
   // AST -- Tylix's own codegen never interprets them, it only needs
   // the exact TS source text to paste into the virtual .ts file handed

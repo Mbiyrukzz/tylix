@@ -51,9 +51,9 @@ export function typedTemplateExpr(node, scope) {
     return `(${typedTemplateExpr(node.left, scope)} ?? ${typedTemplateExpr(node.right, scope)})`
   }
 
-  if (node.type === 'AssignmentExpression') {
-    return `${typedTemplateExpr(node.target, scope)} = ${typedTemplateExpr(node.value, scope)}`
-  }
+ if (node.type === 'AssignmentExpression') {
+  return `(${typedTemplateExpr(node.target, scope)} = ${typedTemplateExpr(node.value, scope)})`
+}
   if (node.type === 'CallExpression') {
     const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
     return `${typedTemplateExpr(node.callee, scope)}${node.optional ? '?.' : ''}(${args})`
