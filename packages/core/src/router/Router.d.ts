@@ -2,7 +2,7 @@ export type Handler = (
   req: any,
   res: any,
   next: () => Promise<void>,
-) => void | Promise<void>
+) => unknown
 
 interface Route {
   method: string
@@ -21,6 +21,7 @@ export declare class Router {
   get(pattern: string, ...handlers: Handler[]): this
   post(pattern: string, ...handlers: Handler[]): this
   put(pattern: string, ...handlers: Handler[]): this
+  patch(pattern: string, ...handlers: Handler[]): this
   delete(pattern: string, ...handlers: Handler[]): this
   match(
     method: string,

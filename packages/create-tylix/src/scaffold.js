@@ -429,8 +429,9 @@ function printSuccessScreen(config) {
       console.log('POST   /api/posts')
       console.log('GET    /api/posts/:id')
       console.log('DELETE /api/posts/:id')
-            console.log('GET    /api/public/posts')
+      console.log('GET    /api/public/posts')
       console.log('GET    /api/public/posts/:id')
+      console.log('POST   /api/uploads')
     }
     console.log('GET    /dashboard')
   }

@@ -305,8 +305,8 @@ export async function createProjectStructure(config) {
     await fs.writeFile(
       path.join(targetDir, 'app', 'routes', `web.${ext}`),
       isTs
-        ? `import type { Router } from '@tylix/core'\n\nexport async function routes(router: Router) {\n  // router.use(someMiddleware)\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n`
-        : `export async function routes(router) {\n  // router.use(someMiddleware)\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n`,
+        ? `import type { Router } from '@tylix/core'\n\n// Open to everyone.\nexport async function publicRoutes(router: Router) {\n  // router.use(someMiddleware) // global: runs before every route\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n\n// Every route here requires a logged-in user. The framework adds the check.\nexport async function protectedRoutes(router: Router) {\n  // router.get('/api/reports', (req, res) => reports.index(req, res))\n}\n`
+        : `// Open to everyone.\nexport async function publicRoutes(router) {\n  // router.use(someMiddleware) // global: runs before every route\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n\n// Every route here requires a logged-in user. The framework adds the check.\nexport async function protectedRoutes(router) {\n  // router.get('/api/reports', (req, res) => reports.index(req, res))\n}\n`,
     )
 
     await fs.mkdir(path.join(targetDir, 'app', 'useApi'), { recursive: true })

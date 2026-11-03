@@ -72,6 +72,10 @@ export class Router {
     return this.register('PUT', pattern, ...handlers)
   }
 
+  patch(pattern, ...handlers) {
+    return this.register('PATCH', pattern, ...handlers)
+  }
+
   delete(pattern, ...handlers) {
     return this.register('DELETE', pattern, ...handlers)
   }

@@ -795,7 +795,11 @@ export async function createApp(
   const features = await discoverFeatures(baseDir)
   const router = new Router()
 
-  await loadCustomRoutes(router, baseDir)
+  await loadCustomRoutes(router, baseDir, {
+    secret: config.auth?.secret,
+    hydrate: config.auth?.hydrate,
+  })
+  
   await registerRouteFiles(router, baseDir, {
     secret: config.auth?.secret,
     hydrate: config.auth?.hydrate,
