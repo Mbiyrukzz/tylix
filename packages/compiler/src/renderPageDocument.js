@@ -296,6 +296,9 @@ export async function renderPageDocument(
     // Compiler language switches, e.g. { not: 'loose' }. Omitted means
     // legacy behaviour, so existing callers compile unchanged.
     language: languageOption = {},
+    // false turns off the built-in top loading bar. A project loading page
+    // (app/loading.tyx) also replaces it.
+    loadingBar = true,
   } = {},
 ) {
   // createApp already has a variable called `language` that holds
@@ -470,7 +473,7 @@ ${layoutCompiled.code}
   // If __ready() rejects (a failed needs/prefetch call), log it and keep
   // going so the page still renders, instead of showing a blank screen.
   const inlineScript = `
-${loadingClassSource ? 'window.__TYLIX_CUSTOM_LOADING__ = true;' : ''}
+${loadingClassSource || !loadingBar ? 'window.__TYLIX_CUSTOM_LOADING__ = true;' : ''}
 
 ${RUNTIME_SOURCE}
 

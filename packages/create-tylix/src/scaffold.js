@@ -27,6 +27,7 @@ import { writePage, writeLayout } from './steps/writePage.js'
 import { writeMiddleware } from './steps/writeMiddleware.js'
 import { writeComponents } from './steps/writeComponents.js'
 import { writeApiRoutes } from './steps/writeApiRoutes.js'
+import { writePublicPostRoutes } from './steps/writePublicPostRoutes.js'
 import { writeIndexHtml } from './steps/writeIndexHtml.js'
 import { runMigrations } from './steps/runMigrations.js'
 import { writeCapabilities } from './steps/writeCapabilities.js'
@@ -319,11 +320,22 @@ async function runBuildSteps(config) {
     { label: 'Creating components', fn: () => writeComponents(config) },
     { label: 'Creating API routes', fn: () => writeApiRoutes(config) },
   )
-  if (config.starter === 'starter' && config.authEnabled) {
-    steps.push({
-      label: 'Creating Post feature',
-      fn: () => generatePostBoilerplate(config),
-    })
+ 
+    if (config.starter === 'starter' && config.authEnabled) {
+    steps.push(
+      {
+        label: 'Creating Post feature',
+        fn: () => generatePostBoilerplate(config),
+      },
+      {
+        label: 'Creating public Posts pages',
+        fn: async () => {
+          await writePage(config, 'posts/Index')
+          await writePage(config, 'posts/[id]')
+          await writePublicPostRoutes(config)
+        },
+      },
+    )
   }
   // Marked optional: a bad password or an unreachable database server
   // shouldn't abort the whole scaffold. The project is still fully
@@ -417,6 +429,8 @@ function printSuccessScreen(config) {
       console.log('POST   /api/posts')
       console.log('GET    /api/posts/:id')
       console.log('DELETE /api/posts/:id')
+            console.log('GET    /api/public/posts')
+      console.log('GET    /api/public/posts/:id')
     }
     console.log('GET    /dashboard')
   }

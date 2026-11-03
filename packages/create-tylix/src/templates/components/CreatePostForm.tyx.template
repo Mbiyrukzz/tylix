@@ -9,6 +9,8 @@ state
   showModal: false
   title: ""
   body: ""
+  coverImage: ""
+  uploading: false
   creating: false
   error: ""
 
@@ -22,11 +24,57 @@ action
     this.showModal = false
     this.title = ""
     this.body = ""
+    this.coverImage = ""
     this.error = ""
   }
 
+  removeImage() {
+    this.coverImage = ""
+  }
+
+  async pickImage(event) {
+    const file = event.target.files[0]
+    if not file {
+      return null
+    }
+    if not ["image/png", "image/jpeg", "image/webp", "image/gif"].includes(file.type) {
+      this.error = "Use a PNG, JPEG, WebP or GIF image."
+      return null
+    }
+    if file.size > 2 * 1024 * 1024 {
+      this.error = "Image must be 2 MB or smaller."
+      return null
+    }
+
+    this.uploading = true
+    this.error = ""
+
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(reader.error)
+        reader.readAsDataURL(file)
+      })
+
+      const result = await postApi("uploads", { data: dataUrl })
+
+      if result.ok {
+        this.coverImage = result.data.url
+      } else if result.status is 401 {
+        window.location.href = "/login"
+      } else {
+        this.error = result.error or "Couldn't upload that image."
+      }
+    } catch (err) {
+      this.error = "Couldn't read that image."
+    } finally {
+      this.uploading = false
+    }
+  }
+
   async submit() {
-    if this.creating {
+    if this.creating or this.uploading {
       return null
     }
 
@@ -38,7 +86,11 @@ action
     this.creating = true
     this.error = ""
 
-    const result = await postApi("posts", { title: this.title, body: this.body })
+    const result = await postApi("posts", {
+      title: this.title,
+      body: this.body,
+      cover_image: this.coverImage or null
+    })
 
     if result.ok {
       this.onCreated(result.data)
@@ -52,59 +104,71 @@ action
   }
 
 template
-  <button onclick="{{ open() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-white dark:text-slate-950 font-semibold rounded-full px-4 py-2 shadow-sm hover:bg-emerald-400 hover:shadow transition-all">
+  <button onclick="{{ open() }}" class="inline-flex items-center gap-1.5 text-sm font-semibold rounded-md px-4 py-2 bg-emerald-500 text-white dark:text-zinc-950 hover:bg-emerald-400 transition-colors">
     <IconPlus class="w-4 h-4" /> New Post
   </button>
 
 {{#if showModal}}
-  <div role="dialog" aria-modal="true" aria-labelledby="create-post-title" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-6">
-    <div class="w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-200 dark:bg-slate-900 shadow-xl p-6">
+  <div role="dialog" aria-modal="true" aria-labelledby="create-post-title" class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm px-6">
+    <div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl p-6">
       <div class="flex items-center justify-between mb-5">
-        <h3 id="create-post-title" class="text-slate-900 dark:text-slate-200 font-medium">New Post</h3>
-        <button onclick="{{ close() }}" aria-label="Close" class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+        <h3 id="create-post-title" class="font-semibold tracking-tight">New Post</h3>
+        <button onclick="{{ close() }}" aria-label="Close" class="w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
           <IconX class="w-4 h-4" />
         </button>
       </div>
 
-      <label for="new-post-title" class="block text-slate-500 text-xs mb-1.5">Title</label>
+      <label for="new-post-title" class="block text-zinc-500 text-xs font-medium mb-1.5">Title</label>
       <input
         id="new-post-title"
         type="text"
         autofocus
         value="{{ title }}"
         oninput="{{ title = $event.target.value }}"
-        class="w-full mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-900 dark:text-slate-200 text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-colors"
+        class="w-full mb-4 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
         placeholder="e.g. Launch week recap"
       />
 
-      <label for="new-post-body" class="block text-slate-500 text-xs mb-1.5">Body</label>
+      <label for="new-post-body" class="block text-zinc-500 text-xs font-medium mb-1.5">Body</label>
       <textarea
         id="new-post-body"
         rows="4"
         value="{{ body }}"
         oninput="{{ body = $event.target.value }}"
-        class="w-full mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-200 dark:bg-slate-950 text-slate-900 dark:text-slate-200 text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none transition-colors"
+        class="w-full mb-4 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none transition"
         placeholder="Write something…"
       ></textarea>
 
+      <p class="block text-zinc-500 text-xs font-medium mb-1.5">Cover image <span class="text-zinc-400">(optional, up to 2 MB)</span></p>
+{{#if coverImage}}
+      <div class="relative mb-4">
+        <img src="{{ coverImage }}" alt="Cover preview" class="w-full aspect-video object-cover rounded-md border border-zinc-200 dark:border-zinc-800" />
+        <button onclick="{{ removeImage() }}" class="absolute top-2 right-2 text-xs font-medium px-2.5 py-1 rounded-md bg-white/90 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-900 transition-colors">Remove</button>
+      </div>
+{{#else}}
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        onchange="{{ pickImage($event) }}"
+        disabled="{{ uploading }}"
+        class="block w-full mb-1 text-sm text-zinc-500 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 dark:file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 dark:file:text-zinc-200 hover:file:bg-zinc-200 dark:hover:file:bg-zinc-700"
+      />
+      <p class="text-xs text-zinc-500 mb-4 h-4">{{ uploading ? 'Uploading…' : '' }}</p>
+{{/if}}
+
 {{#if error}}
-      <p role="alert" class="text-rose-500 text-sm mb-4">{{ error }}</p>
+      <p role="alert" class="text-rose-600 dark:text-rose-400 text-sm mb-4">{{ error }}</p>
 {{/if}}
 
       <div class="flex items-center justify-end gap-3">
-        <button onclick="{{ close() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 px-3 py-2 transition-colors">
-          Cancel
+        <button onclick="{{ close() }}" class="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white px-3 py-2 transition-colors">Cancel</button>
+        <button
+          onclick="{{ submit() }}"
+          disabled="{{ creating or uploading }}"
+          class="text-sm font-semibold rounded-md px-4 py-2 bg-emerald-500 text-white dark:text-zinc-950 hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {{ creating ? 'Creating…' : 'Create Post' }}
         </button>
-{{#if creating}}
-        <button disabled class="text-sm bg-emerald-500 text-white dark:text-slate-950 font-semibold rounded-full px-4 py-2 opacity-50">
-          Creating…
-        </button>
-{{/if}}
-{{#if not creating}}
-        <button onclick="{{ submit() }}" class="inline-flex items-center gap-1.5 text-sm bg-emerald-500 text-white dark:text-slate-950 font-semibold rounded-full px-4 py-2 shadow-sm hover:bg-emerald-400 hover:shadow transition-all">
-          <IconPlus class="w-4 h-4" /> Create Post
-        </button>
-{{/if}}
       </div>
     </div>
   </div>

@@ -15,7 +15,11 @@ import {
   loadEnv,
 } from '@tylix/shared'
 import { Server } from '@tylix/core'
-import { watchDirectoryTree, createHmrChannel } from '../hotReload.js'
+import {
+  watchDirectoryTree,
+  createHmrChannel,
+  createSaveTracker,
+} from '../hotReload.js'
 import { createApp } from '../server/createApp.js'
 import { getTylixVersion } from '../utils/version.js'
 
@@ -165,14 +169,19 @@ function isFrontendChange(baseDir, file) {
 }
 
 // Watches .env and tylix.config.* in the project root (the directory
-// watcher skips dotfiles, so .env needs its own watcher).
-function watchRootFiles(baseDir, onChange) {
+// watcher skips dotfiles, so .env needs its own watcher). Saves are
+// recorded on the shared tracker so they show up in the terminal too.
+function watchRootFiles(baseDir, tracker, onChange) {
   let timer = null
   try {
     const watcher = fsWatch(baseDir, (eventType, filename) => {
       if (!filename || !RESTART_ROOT_FILES.has(filename)) return
       clearTimeout(timer)
-      timer = setTimeout(() => onChange(path.join(baseDir, filename)), 150)
+      timer = setTimeout(() => {
+        const file = path.join(baseDir, filename)
+        tracker.record('saved', file)
+        onChange(file)
+      }, 150)
     })
     return {
       close() {
@@ -189,9 +198,13 @@ function watchRootFiles(baseDir, onChange) {
 // Starts the real server in a child process and restarts it whenever
 // backend files change. Node caches ES modules, so a restart is the only
 // reliable way to pick up edited routes, services, controllers and models.
+//
+// The supervisor owns the save tracker and prints every save, so counts
+// keep growing across child restarts. The child runs with logging off.
 function runSupervisor({ port }) {
   const baseDir = process.cwd()
   const entry = process.argv[1]
+  const tracker = createSaveTracker({ rootDir: baseDir })
 
   let child = null
   let restarting = false
@@ -244,7 +257,7 @@ function runSupervisor({ port }) {
       return
     }
     restarting = true
-    console.log(`\n  ↻ ${reason} changed, restarting...`)
+    console.log(`  ↻ ${reason} changed, restarting...`)
     await stopChild()
     spawnChild(true)
     restarting = false
@@ -256,13 +269,20 @@ function runSupervisor({ port }) {
     }
   }
 
-  const appWatcher = watchDirectoryTree(path.join(baseDir, 'app'), (file) => {
-    if (file && isFrontendChange(baseDir, file)) return
-    if (file && file.endsWith('~')) return // editor backup files
-    restart(file ? path.relative(baseDir, file) : 'a backend file')
-  })
+  // Every save under app/ is logged here. Only a backend file in the batch
+  // triggers a restart (checking all files, not just the last one, so a
+  // controller saved together with a page isn't missed).
+  const appWatcher = watchDirectoryTree(
+    path.join(baseDir, 'app'),
+    (_last, files) => {
+      const backendFile = files.find((f) => !isFrontendChange(baseDir, f))
+      if (!backendFile) return
+      restart(path.relative(baseDir, backendFile))
+    },
+    { tracker },
+  )
 
-  const rootWatcher = watchRootFiles(baseDir, (file) => {
+  const rootWatcher = watchRootFiles(baseDir, tracker, (file) => {
     restart(path.relative(baseDir, file))
   })
 
@@ -272,6 +292,7 @@ function runSupervisor({ port }) {
     appWatcher.close()
     rootWatcher.close()
     await stopChild()
+    tracker.summary()
     process.exit(0)
   }
   process.on('SIGINT', shutdown)
@@ -320,12 +341,30 @@ async function runServer({ port } = {}) {
     watchedDirs.push(await resolveCompilerSrcDir(baseDir))
   }
 
-  watchedDirs.forEach((dir) =>
-    watchDirectoryTree(dir, async () => {
-      await buildTailwindCss(baseDir)
-      hmr.notify()
-    }),
+  // Under the supervisor, the supervisor already prints every save, so stay
+  // silent here. Standalone, all watchers share one tracker so the running
+  // total is correct across folders.
+  const tracker = createSaveTracker({ rootDir: baseDir, log: !underSupervisor })
+
+  const watchers = watchedDirs.map((dir) =>
+    watchDirectoryTree(
+      dir,
+      async (_last, files) => {
+        await buildTailwindCss(baseDir)
+        hmr.notify(files.map((f) => path.relative(baseDir, f)))
+      },
+      { tracker },
+    ),
   )
+
+  if (!underSupervisor) {
+    process.on('SIGINT', () => {
+      watchers.forEach((w) => w.close())
+      hmr.close()
+      tracker.summary()
+      process.exit(0)
+    })
+  }
 
   const server = new Server(app.router, {
     notFoundHandler: app.notFoundHandler,

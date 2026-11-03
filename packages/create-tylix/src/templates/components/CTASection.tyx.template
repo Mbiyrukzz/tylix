@@ -4,27 +4,32 @@ import { IconArrowRight } from "tylix-icons"
 
 props
   loggedIn: boolean
+  hasAuth: boolean
 
 template
-  <section class="px-6 py-28 text-center bg-slate-200 dark:bg-slate-950 transition-colors">
-{{#if not loggedIn}}
-    <h2 class="text-4xl font-semibold text-slate-900 dark:text-slate-200 mb-4 tracking-tight">Ready to build something real?</h2>
-    <p class="text-slate-500 mb-10 max-w-md mx-auto">
-      Scaffold a full project — auth, database, and styling included — in under a minute.
-    </p>
-    <a href="/register" class="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-emerald-500 text-white dark:text-slate-950 font-semibold shadow-sm hover:bg-emerald-400 hover:shadow transition-all">
-      Get Started for Free
-      <IconArrowRight class="w-4 h-4" />
-    </a>
-{{/if}}
+  <section class="border-t border-zinc-200 dark:border-zinc-800">
+    <div class="max-w-3xl mx-auto px-6 py-24 text-center">
 {{#if loggedIn}}
-    <h2 class="text-4xl font-semibold text-slate-900 dark:text-slate-200 mb-4 tracking-tight">Keep building</h2>
-    <p class="text-slate-500 mb-10 max-w-md mx-auto">
-      Jump back into your dashboard to manage your data and features.
-    </p>
-    <a href="/dashboard" class="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-emerald-500 text-white dark:text-slate-950 font-semibold shadow-sm hover:bg-emerald-400 hover:shadow transition-all">
-      Go to Dashboard
-      <IconArrowRight class="w-4 h-4" />
-    </a>
+      <h2 class="text-4xl font-semibold tracking-tight mb-4">Keep building</h2>
+      <p class="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">Jump back into your dashboard to manage your posts and features.</p>
+      <a href="/dashboard" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">
+        Go to Dashboard
+        <IconArrowRight class="w-4 h-4" />
+      </a>
+{{#else if hasAuth}}
+      <h2 class="text-4xl font-semibold tracking-tight mb-4">Ready to build something real?</h2>
+      <p class="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">Auth, database and styling included, in under a minute.</p>
+      <a href="/register" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">
+        Get started for free
+        <IconArrowRight class="w-4 h-4" />
+      </a>
+{{#else}}
+      <h2 class="text-4xl font-semibold tracking-tight mb-4">Ready to build something real?</h2>
+      <p class="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">Open the docs and add your first page.</p>
+      <a href="https://tylix.dev/docs" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">
+        Read the docs
+        <IconArrowRight class="w-4 h-4" />
+      </a>
 {{/if}}
+    </div>
   </section>

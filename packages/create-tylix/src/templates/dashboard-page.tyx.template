@@ -1,6 +1,7 @@
 page Dashboard
 
-import { IconHome, IconDocument, IconFolder, IconArrowLeft, IconUser, IconDatabase, IconSun, IconMoon } from "tylix-icons"
+import CreatePostForm from "./components/CreatePostForm"
+import { IconUser, IconDocument, IconDatabase, IconFolder } from "tylix-icons"
 
 title "Dashboard"
 
@@ -8,13 +9,8 @@ needs
   Auth
 
 uses
-  Theme
-  Posts
   Mail
   Analytics
-
-prefetch
-  Posts.latest
 
 background
   Analytics
@@ -25,12 +21,13 @@ permissions
 
 meta
   transition "fade"
-  keepAlive true
-  cache 5m
 
 state
   checkedAuth: false
   features: []
+  posts: []
+  loadingPosts: true
+  postError: ""
 
 computed
   greeting() {
@@ -44,23 +41,34 @@ computed
     return "Good evening"
   }
 
-  initial() {
-    return Auth.user.email[0].toUpperCase()
-  }
-
   postCountLabel() {
-    const count = Posts.data.length
+    const count = this.posts.length
     return `${count} ${count is 1 ? "post" : "posts"}`
   }
 
 action
-  addPost(post) {
-    Posts.add(post)
+  formatDate(value) {
+    if not value {
+      return ""
+    }
+    return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
   }
 
-  async logout() {
-    await Auth.logout()
-    window.location.href = "/"
+  addPost(post) {
+    this.posts = [post, ...this.posts]
+  }
+
+  async removePost(post) {
+    if not confirm("Delete this post?") {
+      return null
+    }
+    this.postError = ""
+    const result = await deleteApi("posts", post.id)
+    if result.ok {
+      this.posts = this.posts.filter(p => p.id is not post.id)
+    } else {
+      this.postError = result.error ?? "Couldn't delete that post."
+    }
   }
 
 onMount
@@ -70,163 +78,109 @@ onMount
       return null
     }
 
-    const { ok, data } = await useApi("/api/_tylix/features")
-    if ok {
-      this.features = data.data.filter(f => f.table is not "posts")
+    const featureResult = await useApi("/api/_tylix/features")
+    if featureResult.ok {
+      this.features = featureResult.data.data.filter(f => f.table is not "posts")
     }
+
+    const postResult = await getApi("posts")
+    if postResult.ok {
+      this.posts = postResult.data
+    } else {
+      this.postError = postResult.error ?? "Couldn't load your posts."
+    }
+    this.loadingPosts = false
 
     this.checkedAuth = true
   }
 
 template
 {{#if checkedAuth}}
-  <div class="min-h-[calc(100vh-4rem)] grid grid-cols-1 lg:grid-cols-[260px_1fr] bg-slate-200 dark:bg-slate-950 transition-colors">
+  <div class="max-w-6xl mx-auto px-6 py-12">
+    <div class="mb-10">
+      <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">{{ greeting }}</p>
+      <h1 class="text-3xl font-semibold tracking-tight">{{ Auth.user.name }}</h1>
+    </div>
 
-    <aside class="hidden lg:flex flex-col border-r border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-950 p-5">
-      <div class="flex items-center gap-2.5 mb-8 px-1">
-        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-sm dark:shadow-emerald-500/30">
-          <IconHome class="w-4 h-4 text-white" />
-        </div>
-        <span class="text-slate-800 dark:text-slate-200 font-semibold text-sm">Dashboard</span>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <IconUser class="w-4 h-4 text-emerald-500 mb-3" />
+        <p class="text-xs text-zinc-500 mb-1">Signed in as</p>
+        <p class="text-sm font-semibold truncate">{{ Auth.user.email }}</p>
       </div>
 
-      <a href="/dashboard" aria-current="page" class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500/15 to-transparent text-emerald-700 dark:text-emerald-400 text-sm font-medium mb-1">
-        <IconHome class="w-4 h-4" />
-        Overview
-      </a>
-
-      <p class="px-3 pt-6 pb-2 text-slate-500 dark:text-slate-600 text-[11px] font-semibold uppercase tracking-wider">Data</p>
-{{#each f in features}}
-      <a href="{{ `/${f.name.toLowerCase()}dashboard` }}" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-400 text-sm hover:bg-slate-200 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-slate-200 transition-colors">
-        <div class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-700"></div>
-        {{ f.name }}
-      </a>
-{{#else}}
-      <p class="px-3 py-2 text-slate-400 dark:text-slate-600 text-sm italic">
-        No features yet
-      </p>
-{{/each}}
-    </aside>
-
-    <div class="px-6 lg:px-12 py-10">
-      <div class="flex items-center justify-between mb-10">
-        <div>
-          <p class="text-emerald-700 dark:text-emerald-500 text-xs font-semibold uppercase tracking-wider mb-1">{{ greeting }}</p>
-          <h1 class="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-200">{{ Auth.user.name }}</h1>
-        </div>
-        <div class="flex items-center gap-3">
-          <button onclick="{{ Theme.toggle() }}" aria-label="Toggle color theme" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 transition-colors shadow-sm">
-{{#if Theme.mode is "dark"}}
-            <IconSun class="w-4 h-4" />
-{{#else}}
-            <IconMoon class="w-4 h-4" />
-{{/if}}
-          </button>
-          <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-sm font-semibold shadow-sm dark:shadow-emerald-500/30">
-            {{ initial }}
-          </div>
-          <button onclick="{{ Auth.logout() }}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700 rounded-full px-4 py-2.5 hover:bg-slate-200 dark:hover:bg-slate-900 transition-colors">
-            Log out
-          </button>
-        </div>
+      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <IconDatabase class="w-4 h-4 text-emerald-500 mb-3" />
+        <p class="text-xs text-zinc-500 mb-1">Visitors today</p>
+        <p class="text-2xl font-semibold">{{ Analytics.visitorsToday }}</p>
       </div>
 
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        <div class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none">
-          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
-            <IconUser class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
-          </div>
-          <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Signed in as</p>
-          <p class="text-slate-800 dark:text-slate-200 text-sm font-semibold truncate">{{ Auth.user.email }}</p>
-        </div>
-
-        <div class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none">
-          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
-            <IconDatabase class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
-          </div>
-          <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Visitors today</p>
-          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ Analytics.visitorsToday }}</p>
-        </div>
-
-        <div class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none">
-          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
-            <IconDocument class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
-          </div>
-          <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Posts</p>
-          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ Posts.data.length }}</p>
-        </div>
+      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <IconDocument class="w-4 h-4 text-emerald-500 mb-3" />
+        <p class="text-xs text-zinc-500 mb-1">Your posts</p>
+        <p class="text-2xl font-semibold">{{ posts.length }}</p>
+      </div>
 
 {{#if Mail.available}}
-        <a href="/dashboard/mail" class="relative overflow-hidden rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-5 shadow-sm dark:shadow-none hover:border-emerald-500/40 hover:-translate-y-0.5 transition-all">
-          <div class="absolute -right-4 -top-4 w-20 h-20 rounded-full bg-emerald-500/5"></div>
-          <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-3">
-            <IconFolder class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
-          </div>
-          <p class="text-slate-500 dark:text-slate-500 text-xs mb-1">Mail</p>
-          <p class="text-slate-800 dark:text-slate-200 text-2xl font-bold">{{ Mail.unread }}</p>
-        </a>
+      <a href="/dashboard/mail" class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+        <IconFolder class="w-4 h-4 text-emerald-500 mb-3" />
+        <p class="text-xs text-zinc-500 mb-1">Mail</p>
+        <p class="text-2xl font-semibold">{{ Mail.unread }}</p>
+      </a>
 {{/if}}
-      </div>
+    </div>
 
-      <div class="flex items-center justify-between mb-5">
-        <div>
-          <h2 class="text-slate-800 dark:text-slate-200 font-semibold text-lg">Posts</h2>
-          <p class="text-slate-500 dark:text-slate-500 text-sm">{{ postCountLabel }} published</p>
-        </div>
-        <CreatePostForm onCreated="{{ addPost }}" />
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h2 class="text-lg font-semibold tracking-tight">Your posts</h2>
+        <p class="text-sm text-zinc-500">{{ postCountLabel }}</p>
       </div>
+      <CreatePostForm onCreated="{{ addPost }}" />
+    </div>
 
-{{#if Posts.loading}}
-      <p class="text-slate-500 text-sm mb-10">Loading posts…</p>
-{{#else if Posts.data.length is 0}}
-      <div class="rounded-2xl border border-dashed border-slate-400 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-10 text-center mb-10">
-        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 flex items-center justify-center mx-auto mb-4">
-          <IconDocument class="w-6 h-6 text-emerald-700 dark:text-emerald-500" />
-        </div>
-        <h3 class="text-slate-800 dark:text-slate-200 font-medium mb-1.5">No posts yet</h3>
-        <p class="text-slate-500 text-sm max-w-sm mx-auto">
-          Click "New Post" above to create your first one.
-        </p>
-      </div>
+{{#if postError}}
+    <p role="alert" class="text-sm text-rose-600 dark:text-rose-400 mb-4">{{ postError }}</p>
+{{/if}}
+
+{{#if loadingPosts}}
+    <p class="text-sm text-zinc-500 mb-12">Loading posts…</p>
+{{#else if posts.length is 0}}
+    <div class="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-800 p-10 text-center mb-12">
+      <h3 class="font-medium mb-1.5">No posts yet</h3>
+      <p class="text-sm text-zinc-500">Click “New Post” to publish your first one.</p>
+    </div>
 {{#else}}
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-{{#each p, i in Posts.data}}
-        <a href="{{ `/post/post-detail?id=${p.id}` }}" class="group block rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-6 shadow-sm dark:shadow-none hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-lg dark:hover:shadow-emerald-500/5 transition-all">
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-            <span class="text-emerald-700 dark:text-emerald-500 text-[11px] font-semibold uppercase tracking-wider">{{ i is 0 ? 'Latest' : 'Post' }}</span>
-          </div>
-          <h3 class="text-slate-800 dark:text-slate-200 font-semibold mb-1.5 group-hover:text-emerald-700 dark:group-hover:text-emerald-500 transition-colors">{{ p.title }}</h3>
-          <p class="text-slate-500 text-sm line-clamp-2">{{ p.body }}</p>
-        </a>
-{{/each}}
+    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-800 mb-12">
+{{#each p in posts}}
+      <div class="flex items-center gap-4 p-4">
+{{#if p.cover_image}}
+        <img src="{{ p.cover_image }}" alt="" class="w-16 h-12 rounded-md object-cover border border-zinc-200 dark:border-zinc-800 shrink-0" />
+{{#else}}
+        <div class="w-16 h-12 rounded-md bg-zinc-100 dark:bg-zinc-800 shrink-0"></div>
+{{/if}}
+        <div class="min-w-0 flex-1">
+          <a href="{{ `/posts/${p.id}` }}" class="block font-medium truncate hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">{{ p.title }}</a>
+          <p class="text-xs text-zinc-500">{{ formatDate(p.created_at) }}</p>
+        </div>
+        <button onclick="{{ removePost(p) }}" class="text-sm text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 px-2 py-1 transition-colors">Delete</button>
       </div>
+{{/each}}
+    </div>
 {{/if}}
 
 {{#if features.length > 0}}
-      <div class="mb-5">
-        <h2 class="text-slate-800 dark:text-slate-200 font-semibold text-lg">Scaffolded Features</h2>
-        <p class="text-slate-500 dark:text-slate-500 text-sm">Generated with tylix make:feature</p>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-{{#each f in features}}
-        <a href="{{ `/${f.name.toLowerCase()}dashboard` }}" class="group block rounded-2xl border border-slate-300 dark:border-slate-800 bg-slate-200 dark:bg-slate-900 p-6 shadow-sm dark:shadow-none hover:border-emerald-500/40 hover:-translate-y-0.5 hover:shadow-lg dark:hover:shadow-emerald-500/5 transition-all">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 flex items-center justify-center mb-4">
-            <IconFolder class="w-4 h-4 text-emerald-700 dark:text-emerald-500" />
-          </div>
-          <h3 class="text-slate-800 dark:text-slate-200 font-semibold mb-1 group-hover:text-emerald-700 dark:group-hover:text-emerald-500 transition-colors">{{ f.name }}</h3>
-          <p class="text-slate-500 text-sm">Manage {{ f.table }}</p>
-        </a>
-{{/each}}
-      </div>
-{{/if}}
-
-      <a href="/" class="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-500 text-sm hover:underline font-medium">
-        <IconArrowLeft class="w-4 h-4" /> Back to home
-      </a>
+    <div class="mb-5">
+      <h2 class="text-lg font-semibold tracking-tight">Scaffolded features</h2>
+      <p class="text-sm text-zinc-500">Generated with tylix make:feature</p>
     </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+{{#each f in features}}
+      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <h3 class="font-medium mb-1">{{ f.name }}</h3>
+        <code class="text-xs font-mono text-zinc-500">/api/{{ f.table }}</code>
+      </div>
+{{/each}}
+    </div>
+{{/if}}
   </div>
 {{/if}}

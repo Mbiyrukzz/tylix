@@ -39,23 +39,59 @@ async function findPackageDir(pkgName, startDir) {
 // baseDir:  project root (local imports may not escape it).
 // fromFile: absolute path of the importing .tyx file (relative
 //           specifiers resolve against its folder).
-// Returns { [localTagName]: sourceText }.
+// stack:    files currently being resolved, used to catch circular
+//           imports. Internal: callers leave it out.
+//
+// Returns { [localTagName]: sourceText }. Each source has its own
+// import lines already blanked out (line numbers kept), and whatever
+// those imports pulled in (icons, other components) is included in the
+// result under its own tag name, so a component can import other
+// components and the page does not need to know about them.
 export async function resolveImportedComponents(
   imports,
-  { baseDir, fromFile = null },
+  { baseDir, fromFile = null, stack = [] },
 ) {
   const root = path.resolve(baseDir)
   const components = {}
   const owner = {}
 
+  // The same name backed by the same text (two components both importing
+  // IconArrowRight) is fine. Different text under one name is an error.
   const add = (local, text, from) => {
-    if (owner[local] && owner[local] !== from) {
+    if (Object.hasOwn(components, local)) {
+      if (components[local] === text) return
       throw new Error(
         `Component "${local}" is provided by both ${owner[local]} and ${from}`,
       )
     }
     components[local] = text
     owner[local] = from
+  }
+
+  // Strips a component file's own imports, resolves them relative to that
+  // file, adds what they provide to the result, and returns the cleaned
+  // source.
+  const expand = async (text, file, label) => {
+    let extracted
+    try {
+      extracted = extractImports(text)
+    } catch (err) {
+      err.message = `In ${label}: ${err.message}`
+      throw err
+    }
+
+    if (extracted.imports.length > 0) {
+      const nested = await resolveImportedComponents(extracted.imports, {
+        baseDir,
+        fromFile: file,
+        stack: [...stack, file],
+      })
+      for (const [name, nestedText] of Object.entries(nested)) {
+        add(name, nestedText, label)
+      }
+    }
+
+    return extracted.source
   }
 
   for (const imp of imports) {
@@ -72,6 +108,12 @@ export async function resolveImportedComponents(
           `Import "${imp.specifier}" (line ${imp.line}) points outside the project`,
         )
       }
+      if (stack.includes(file)) {
+        throw new Error(
+          `Circular import: ${[...stack, file].map((f) => path.relative(root, f)).join(' -> ')}`,
+        )
+      }
+
       let text
       try {
         text = await readCached(file)
@@ -80,7 +122,9 @@ export async function resolveImportedComponents(
           `Cannot find component file for "${imp.specifier}" imported at line ${imp.line} (looked for ${file})`,
         )
       }
-      add(imp.names[0].local, text, file)
+
+      const source = await expand(text, file, path.relative(root, file))
+      add(imp.names[0].local, source, file)
       continue
     }
 
@@ -119,7 +163,13 @@ export async function resolveImportedComponents(
           `"${imp.specifier}" maps "${imported}" outside its own directory (${manifest[imported]})`,
         )
       }
-      add(local, await readCached(file), `${imp.specifier}:${imported}`)
+      if (stack.includes(file)) {
+        throw new Error(`Circular import: ${[...stack, file].join(' -> ')}`)
+      }
+
+      const label = `${imp.specifier}:${imported}`
+      const source = await expand(await readCached(file), file, label)
+      add(local, source, label)
     }
   }
 

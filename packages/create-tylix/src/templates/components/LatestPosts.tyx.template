@@ -1,0 +1,60 @@
+component LatestPosts
+
+import { IconArrowRight } from "tylix-icons"
+
+state
+  posts: []
+  loading: true
+
+action
+  formatDate(value) {
+    if not value {
+      return ""
+    }
+    return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })
+  }
+
+onMount
+  async {
+    const result = await useApi("/api/public/posts")
+    if result.ok {
+      this.posts = result.data.slice(0, 3)
+    }
+    this.loading = false
+  }
+
+template
+  <section class="border-t border-zinc-200 dark:border-zinc-800">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <div class="flex items-end justify-between mb-10">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2">Blog</p>
+          <h2 class="text-3xl font-semibold tracking-tight">Latest posts</h2>
+        </div>
+        <a href="/posts" class="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 transition-colors">
+          View all <IconArrowRight class="w-4 h-4" />
+        </a>
+      </div>
+
+{{#if loading}}
+      <p class="text-sm text-zinc-500">Loading…</p>
+{{#else if posts.length is 0}}
+      <p class="text-sm text-zinc-500">No posts yet. Sign in and create the first one.</p>
+{{#else}}
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+{{#each p in posts}}
+        <a href="{{ `/posts/${p.id}` }}" class="group flex flex-col overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+{{#if p.cover_image}}
+          <img src="{{ p.cover_image }}" alt="" class="w-full aspect-video object-cover border-b border-zinc-200 dark:border-zinc-800" />
+{{/if}}
+          <div class="p-6">
+            <p class="text-xs text-zinc-500 mb-3">{{ formatDate(p.created_at) }} · {{ p.author }}</p>
+            <h3 class="font-semibold tracking-tight mb-2 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{{ p.title }}</h3>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed line-clamp-2">{{ p.excerpt }}</p>
+          </div>
+        </a>
+{{/each}}
+      </div>
+{{/if}}
+    </div>
+  </section>

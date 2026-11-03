@@ -1,0 +1,77 @@
+component SiteNavbarPublic
+
+import { IconSun, IconMoon, IconMenu, IconX } from "tylix-icons"
+
+uses
+  Theme
+
+state
+  mobileMenuOpen: false
+  links: [
+    { label: "Docs", href: "https://tylix.dev/docs" },
+    { label: "GitHub", href: "https://github.com/tylixjs" },
+    { label: "Discord", href: "https://discord.gg/tylix" }
+  ]
+
+action
+  toggleMobileMenu() {
+    this.mobileMenuOpen = not this.mobileMenuOpen
+  }
+
+  closeMobileMenu() {
+    this.mobileMenuOpen = false
+  }
+
+template
+  <header class="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur">
+    <nav class="max-w-6xl mx-auto h-16 px-6 flex items-center justify-between">
+      <div class="flex items-center gap-8">
+        <a href="/" class="flex items-center gap-2.5">
+          <img src="/logo-mark.png" alt="Tylix" class="w-7 h-7 rounded-md" />
+          <span class="font-semibold tracking-tight">Tylix</span>
+        </a>
+
+        <div class="hidden md:flex items-center gap-1">
+{{#each link in links}}
+          <a href="{{ link.href }}" class="text-sm px-3.5 py-1.5 rounded-md text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors">{{ link.label }}</a>
+{{/each}}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          onclick="{{ Theme.toggle() }}"
+          aria-label="Toggle color theme"
+          class="w-9 h-9 flex items-center justify-center rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+        >
+{{#if Theme.mode is "dark"}}
+          <IconSun class="w-[18px] h-[18px]" />
+{{#else}}
+          <IconMoon class="w-[18px] h-[18px]" />
+{{/if}}
+        </button>
+
+        <button
+          onclick="{{ toggleMobileMenu() }}"
+          aria-label="Toggle menu"
+          aria-expanded="{{ mobileMenuOpen }}"
+          aria-controls="mobile-menu"
+          class="md:hidden w-9 h-9 flex items-center justify-center rounded-md text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+        >
+{{#if mobileMenuOpen}}
+          <IconX class="w-[18px] h-[18px]" />
+{{#else}}
+          <IconMenu class="w-[18px] h-[18px]" />
+{{/if}}
+        </button>
+      </div>
+    </nav>
+
+{{#if mobileMenuOpen}}
+    <div id="mobile-menu" class="md:hidden border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-6 py-4 flex flex-col gap-1">
+{{#each link in links}}
+      <a href="{{ link.href }}" onclick="{{ closeMobileMenu() }}" class="text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-md px-3 py-2.5 transition-colors">{{ link.label }}</a>
+{{/each}}
+    </div>
+{{/if}}
+  </header>

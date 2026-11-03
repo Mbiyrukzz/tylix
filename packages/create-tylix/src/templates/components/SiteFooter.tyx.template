@@ -1,16 +1,76 @@
 component SiteFooter
 
+props
+  showPosts: boolean
+  showAccount: boolean
+
+state
+  year: 2026
+
+computed
+  columns() {
+    const project = []
+    if this.showPosts {
+      project.push({ label: "Posts", href: "/posts" })
+    }
+    if this.showAccount {
+      project.push({ label: "Log in", href: "/login" })
+      project.push({ label: "Create account", href: "/register" })
+    }
+
+    const result = [
+      {
+        title: "Framework",
+        links: [
+          { label: "Documentation", href: "https://tylix.dev/docs" },
+          { label: "CLI reference", href: "https://tylix.dev/docs/cli" },
+          { label: "Changelog", href: "https://tylix.dev/changelog" }
+        ]
+      }
+    ]
+    if project.length > 0 {
+      result.push({ title: "Project", links: project })
+    }
+    result.push({
+      title: "Community",
+      links: [
+        { label: "GitHub", href: "https://github.com/tylixjs" },
+        { label: "Discord", href: "https://discord.gg/tylix" }
+      ]
+    })
+    return result
+  }
+
 template
-  <footer class="px-6 py-10 border-t border-slate-800">
-    <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-      <div class="flex items-center gap-2.5">
-        <img src="/logo-mark.png" alt="Tylix" class="w-5 h-5 rounded" />
-        <span class="text-slate-500 text-sm">© 2026 Tylix</span>
+  <footer class="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
+    <div class="max-w-6xl mx-auto px-6 py-14 grid grid-cols-2 md:grid-cols-4 gap-10">
+      <div class="col-span-2 md:col-span-1">
+        <a href="/" class="flex items-center gap-2.5 mb-4">
+          <img src="/logo-mark.png" alt="Tylix" class="w-6 h-6 rounded" />
+          <span class="font-semibold tracking-tight">Tylix</span>
+        </a>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed max-w-xs">
+          Full-stack JavaScript with a reactive compiler, a generator-first CLI and one ORM.
+        </p>
       </div>
-      <div class="flex items-center gap-6">
-        <a href="https://tylix.dev/docs" class="text-slate-400 text-sm hover:text-slate-200 transition">Docs</a>
-        <a href="https://github.com/tylixjs" class="text-slate-400 text-sm hover:text-slate-200 transition">GitHub</a>
-        <a href="https://discord.gg/tylix" class="text-slate-400 text-sm hover:text-slate-200 transition">Discord</a>
+
+{{#each col in columns}}
+      <div>
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-zinc-900 dark:text-zinc-200 mb-4">{{ col.title }}</h4>
+        <ul class="space-y-2.5">
+{{#each link in col.links}}
+          <li>
+            <a href="{{ link.href }}" class="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors">{{ link.label }}</a>
+          </li>
+{{/each}}
+        </ul>
+      </div>
+{{/each}}
+    </div>
+
+    <div class="border-t border-zinc-200 dark:border-zinc-800">
+      <div class="max-w-6xl mx-auto px-6 py-5 text-xs text-zinc-500">
+        © {{ year }} Tylix. Built with Tylix.
       </div>
     </div>
   </footer>

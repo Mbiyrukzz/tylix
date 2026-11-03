@@ -1,73 +1,28 @@
 component FeatureGrid
 
-import { IconBolt, IconDatabase, IconAdjustments, IconLockClosed, IconFire, IconDocument } from "tylix-icons"
+state
+  features: [
+    { name: "No virtual DOM", body: "Templates compile to targeted effects. State changes update only the text, attribute or list that depends on them." },
+    { name: "One ORM, four drivers", body: "SQLite, PostgreSQL, MySQL or MongoDB. Pick one in the wizard and change it later in .env." },
+    { name: "Generator-first CLI", body: "tylix make:feature scaffolds a model, migration and full CRUD API in one command." },
+    { name: "Auth included", body: "Register, login, refresh tokens, email verification and password reset, scaffolded when you opt in." },
+    { name: "Instant hot reload", body: "Edit a page or component and see it update in the browser without a manual refresh." },
+    { name: "Readable syntax", body: "Word operators like and, or and not, plus plain if / each blocks in templates." }
+  ]
 
 template
-  <section class="px-6 py-24 max-w-5xl mx-auto">
-    <div class="text-center mb-14">
-      <h2 class="text-3xl font-semibold text-slate-200 mb-3 tracking-tight">Everything wired up on day one</h2>
-      <p class="text-slate-500">Auth, database, styling — pick your stack in the wizard, get a working app.</p>
+  <section class="max-w-6xl mx-auto px-6 py-20">
+    <div class="max-w-2xl mb-12">
+      <h2 class="text-3xl font-semibold tracking-tight mb-3">Everything wired up on day one</h2>
+      <p class="text-zinc-500 dark:text-zinc-400">Pick your stack in the wizard and get a working app, not a blank folder.</p>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-          <IconBolt class="w-5 h-5 text-emerald-400" />
-        </div>
-        <h3 class="text-slate-200 font-medium mb-2">No virtual DOM</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Templates compile to targeted effects — state changes update
-          only the text, attribute, or list that depends on them.
-        </p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-px rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+{{#each f, i in features}}
+      <div class="bg-white dark:bg-zinc-950 p-7">
+        <p class="text-xs font-mono text-emerald-500 mb-4">{{ '0' + (i + 1) }}</p>
+        <h3 class="font-semibold tracking-tight mb-2">{{ f.name }}</h3>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">{{ f.body }}</p>
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-          <IconDatabase class="w-5 h-5 text-emerald-400" />
-        </div>
-        <h3 class="text-slate-200 font-medium mb-2">One ORM, four drivers</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          SQLite, PostgreSQL, MySQL, or MongoDB — swap the driver
-          in <code class="text-emerald-400">tylix.config.js</code>.
-        </p>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-          <IconAdjustments class="w-5 h-5 text-emerald-400" />
-        </div>
-        <h3 class="text-slate-200 font-medium mb-2">Generator-first CLI</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          <code class="text-emerald-400">tylix make:feature</code> scaffolds a model,
-          migration, and full CRUD API in one command.
-        </p>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-          <IconLockClosed class="w-5 h-5 text-emerald-400" />
-        </div>
-        <h3 class="text-slate-200 font-medium mb-2">Auth out of the box</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Register, login, and session middleware, scaffolded
-          automatically when you opt in during setup.
-        </p>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-          <IconFire class="w-5 h-5 text-emerald-400" />
-        </div>
-        <h3 class="text-slate-200 font-medium mb-2">Instant hot reload</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Edit a page or component and see it update in the browser
-          without losing state.
-        </p>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900 p-6 hover:border-slate-700 transition">
-        <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-4">
-          <IconDocument class="w-5 h-5 text-emerald-400" />
-        </div>
-        <h3 class="text-slate-200 font-medium mb-2">Readable syntax</h3>
-        <p class="text-slate-400 text-sm leading-relaxed">
-          Word operators like <code class="text-emerald-400">and</code>, <code class="text-emerald-400">or</code>,
-          and <code class="text-emerald-400">not</code> instead of symbols.
-        </p>
-      </div>
+{{/each}}
     </div>
   </section>

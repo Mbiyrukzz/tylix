@@ -1,0 +1,80 @@
+/**
+ * Upload controller (starter, TypeScript)
+ *
+ * Accepts one image as a base64 data URL in a JSON body:
+ *   POST /api/uploads  { "data": "data:image/png;base64,...." }
+ * and saves it to public/uploads/<random>.<ext>, which the framework's
+ * static handler already serves at /uploads/<random>.<ext>.
+ *
+ * Checks: allowed MIME type, size limit, and the file's real signature
+ * (so a renamed .exe or HTML file is refused). SVG is deliberately not
+ * allowed: it can carry scripts.
+ */
+
+import fs from "node:fs/promises";
+import path from "node:path";
+import crypto from "node:crypto";
+import type { TylixRequest, TylixResponse } from "@tylix/core";
+
+const MAX_BYTES = 2 * 1024 * 1024;
+const DATA_URL_RE = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/;
+const EXTENSIONS: Record<string, string> = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+};
+
+function hasImageSignature(mime: string, buf: Buffer): boolean {
+    if (mime === "image/png") {
+        return buf.length > 8 && buf[0] === 0x89 && buf.toString("ascii", 1, 4) === "PNG";
+    }
+    if (mime === "image/jpeg") {
+        return buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    }
+    if (mime === "image/gif") {
+        return buf.length > 6 && buf.toString("ascii", 0, 4) === "GIF8";
+    }
+    if (mime === "image/webp") {
+        return (
+            buf.length > 12 &&
+            buf.toString("ascii", 0, 4) === "RIFF" &&
+            buf.toString("ascii", 8, 12) === "WEBP"
+        );
+    }
+    return false;
+}
+
+export class UploadController {
+    async store(req: TylixRequest, res: TylixResponse) {
+        const match = DATA_URL_RE.exec(String(req.body?.data ?? ""));
+        if (!match) {
+            res.status(422);
+            return res.json({
+                errors: { image: ["Upload a PNG, JPEG, WebP or GIF image."] },
+            });
+        }
+
+        const mime = match[1];
+        const buffer = Buffer.from(match[2], "base64");
+
+        if (buffer.length > MAX_BYTES) {
+            res.status(413);
+            return res.json({ error: "Image must be 2 MB or smaller." });
+        }
+        if (!hasImageSignature(mime, buffer)) {
+            res.status(422);
+            return res.json({
+                errors: { image: ["That file isn't a valid image."] },
+            });
+        }
+
+        const name = `${crypto.randomBytes(16).toString("hex")}.${EXTENSIONS[mime]}`;
+        const dir = path.join(process.cwd(), "public", "uploads");
+        await fs.mkdir(dir, { recursive: true });
+        await fs.writeFile(path.join(dir, name), buffer);
+
+        res.status(201);
+        return res.json({ url: `/uploads/${name}` });
+    }
+}

@@ -104,6 +104,8 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
 }
 
 // Serves static assets from public/ (Tailwind's compiled CSS, logo
@@ -509,7 +511,7 @@ function pickNotFound(found, urlPath) {
 async function registerPageRoutes(
   router,
   baseDir,
-  { hotReloadCompiler, production, compilerOptions },
+  { hotReloadCompiler, production, compilerOptions, loadingBar = true },
 ) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   if (!(await pathExists(pagesDir))) {
@@ -685,6 +687,7 @@ async function registerPageRoutes(
           channelsPort: prepared.channelsPort,
           stylesheets: prepared.stylesheets,
           language: compilerOptions,
+          loadingBar,
         },
       )
       return { html: production ? html : injectHmrScript(html), ok: true }
@@ -850,7 +853,12 @@ export async function createApp(
   const { routes: pageRoutes, renderNotFound } = await registerPageRoutes(
     router,
     baseDir,
-    { hotReloadCompiler, production, compilerOptions },
+    {
+      hotReloadCompiler,
+      production,
+      compilerOptions,
+      loadingBar: config.loadingBar !== false,
+    },
   )
 
   if (pageRoutes.length === 0 && features.length === 0) {

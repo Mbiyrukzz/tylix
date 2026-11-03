@@ -7,6 +7,7 @@ import { buildDebugPayload } from './debug/buildDebugPayload.js'
 import { renderDebugPage } from './debug/renderDebugPage.js'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024 // 1 MB
 
 // Pages inline their scripts, so script-src needs 'unsafe-inline'. The rest
 // still blocks framing, base-tag and form hijacking, plugins, and data being
@@ -90,7 +91,10 @@ function wantsHtml(req) {
 }
 
 export class Server {
-  constructor(router, { notFoundHandler = null, trustProxy, debug } = {}) {
+  constructor(
+    router,
+    { notFoundHandler = null, trustProxy, debug, maxBodyBytes } = {},
+  ) {
     this.router = router
     // Optional fallback called when no route matches, before the
     // default 404 JSON response -- e.g. tylix dev uses this to serve
@@ -105,6 +109,11 @@ export class Server {
     // Show real error details (debug page, SQL, stack) instead of a
     // generic 500. Defaults to the APP_DEBUG=true env var.
     this.debug = debug ?? process.env.APP_DEBUG === 'true'
+    // Largest request body accepted, in bytes. Bigger bodies get a 413.
+    // Defaults to the MAX_BODY_BYTES env var, then 1 MB.
+    this.maxBodyBytes =
+      maxBodyBytes ??
+      (Number(process.env.MAX_BODY_BYTES) || DEFAULT_MAX_BODY_BYTES)
 
     // Origins allowed to make browser write requests from elsewhere
     // (TRUSTED_ORIGINS=https://a.example,https://b.example). APP_URL counts too.
@@ -216,13 +225,17 @@ export class Server {
     req.cookies = parseCookies(req)
 
     try {
-      const { raw, body } = await readBody(req)
+      const { raw, body } = await readBody(req, { maxBytes: this.maxBodyBytes })
       // The exact text the client sent. Webhook signatures are computed
       // over these bytes, so they must not be re-serialised from req.body.
       req.rawBody = raw
       req.body = body
     } catch (err) {
-      res.status(400).json({ error: err.message })
+      const status = err.status ?? 400
+      // After an oversized upload, don't reuse the connection: the rest of
+      // the body may still be on the wire.
+      if (status === 413) res.setHeader('Connection', 'close')
+      res.status(status).json({ error: err.message })
       return
     }
 

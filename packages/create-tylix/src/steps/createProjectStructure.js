@@ -151,6 +151,15 @@ const TRUST_PROXY_ENV_LINES = [
   `TRUST_PROXY=false`,
 ]
 
+
+// Shared by .env and .env.example. Requests with a bigger body get a 413.
+// Uploads (receipts, images) need this raised. Read by Server in @tylix/core.
+const MAX_BODY_ENV_LINES = [
+  `# Largest request body the server accepts, in bytes (1048576 = 1 MB).`,
+  `# Bigger requests get a 413 response. Raise it if your app accepts uploads.`,
+  `MAX_BODY_BYTES=1048576`,
+]
+
 function buildDebugEnvLines(value) {
   return [
     `# Shows real error details (SQL, stack traces, request data) in the browser`,
@@ -348,6 +357,8 @@ export async function createProjectStructure(config) {
         ``,
         ...TRUST_PROXY_ENV_LINES,
         ``,
+        ...MAX_BODY_ENV_LINES,
+        ``,
         `# Set to true only if you're developing @tylix/compiler itself`,
         `TYLIX_HOT_RELOAD_COMPILER=false`,
       ].join('\n') + '\n',
@@ -368,6 +379,8 @@ export async function createProjectStructure(config) {
         ...buildMailEnvLines(config),
         ``,
         ...TRUST_PROXY_ENV_LINES,
+        ``,
+        ...MAX_BODY_ENV_LINES,
         ``,
         `# Set to true only if you're developing @tylix/compiler itself`,
         `TYLIX_HOT_RELOAD_COMPILER=false`,

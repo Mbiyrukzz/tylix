@@ -1,0 +1,25 @@
+component HowItWorks
+
+state
+  steps: [
+    { number: "1", name: "Scaffold", command: "npx create-tylix my-app", body: "Answer a few questions about language, database, auth and styling." },
+    { number: "2", name: "Generate", command: "npx tylix make:feature Product", body: "Get a model, migration and CRUD API without writing boilerplate." },
+    { number: "3", name: "Ship", command: "npm run build && npm start", body: "Typechecked pages and a production server, ready to deploy." }
+  ]
+
+template
+  <section class="border-t border-zinc-200 dark:border-zinc-800">
+    <div class="max-w-6xl mx-auto px-6 py-20">
+      <h2 class="text-3xl font-semibold tracking-tight mb-12">From zero to deployed in three commands</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+{{#each s in steps}}
+        <div>
+          <div class="w-8 h-8 rounded-full border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-sm font-semibold text-emerald-500 mb-4">{{ s.number }}</div>
+          <h3 class="font-semibold tracking-tight mb-2">{{ s.name }}</h3>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">{{ s.body }}</p>
+          <code class="block rounded-md bg-zinc-100 dark:bg-zinc-900 px-3 py-2 text-xs font-mono text-zinc-700 dark:text-zinc-300 overflow-x-auto whitespace-nowrap">{{ s.command }}</code>
+        </div>
+{{/each}}
+      </div>
+    </div>
+  </section>

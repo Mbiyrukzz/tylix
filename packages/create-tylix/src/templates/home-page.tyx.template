@@ -1,15 +1,25 @@
 page Home
 
+import Hero from "./components/Hero"
+import InstallSnippet from "./components/InstallSnippet"
+import Stats from "./components/Stats"
+import FeatureGrid from "./components/FeatureGrid"
+import HowItWorks from "./components/HowItWorks"
+import LatestPosts from "./components/LatestPosts"
+import CTASection from "./components/CTASection"
+
+title "Tylix"
+
 uses
   Auth
 
 template
   <div>
-    <Hero loggedIn="{{ Auth.user }}" />
-    <InstallSnippet />
+    <Hero loggedIn="{{ Auth.user }}" hasAuth="{{ true }}" hasPosts="{{ true }}" />
     <Stats />
     <FeatureGrid />
-    <Testimonials />
-    <CTASection loggedIn="{{ Auth.user }}" />
-    <SiteFooter />
+    <InstallSnippet />
+    <HowItWorks />
+    <LatestPosts />
+    <CTASection loggedIn="{{ Auth.user }}" hasAuth="{{ true }}" />
   </div>
