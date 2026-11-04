@@ -1,0 +1,11 @@
+component IconGitCommit
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M1.05 12L7 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M17.01 12L22.96 12" />
+</svg>

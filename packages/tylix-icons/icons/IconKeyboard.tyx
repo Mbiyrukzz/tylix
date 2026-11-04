@@ -1,0 +1,18 @@
+component IconKeyboard
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<rect stroke-linecap="round" stroke-linejoin="round" x="2" y="4" width="20" height="16" rx="2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 8L6.01 8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 8L10.01 8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14 8L14.01 8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18 8L18.01 8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 12L6.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 12L10.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14 12L14.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18 12L18.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M7 16L17 16" />
+</svg>

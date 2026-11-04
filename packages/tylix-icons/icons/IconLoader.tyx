@@ -1,0 +1,16 @@
+component IconLoader
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 2L12 6" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 18L12 22" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93L7.76 7.76" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16.24 16.24L19.07 19.07" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M2 12L6 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18 12L22 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4.93 19.07L7.76 16.24" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16.24 7.76L19.07 4.93" />
+</svg>

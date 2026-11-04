@@ -1,0 +1,11 @@
+component IconMonitor
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<rect stroke-linecap="round" stroke-linejoin="round" x="2" y="3" width="20" height="14" rx="2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 21L16 21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 17L12 21" />
+</svg>

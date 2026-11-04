@@ -1,0 +1,14 @@
+component IconLifeBuoy
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93L9.17 9.17" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14.83 9.17L19.07 4.93" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14.83 14.83L19.07 19.07" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4.93 19.07L9.17 14.83" />
+</svg>

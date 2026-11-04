@@ -1,0 +1,10 @@
+component IconTablet
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<rect stroke-linecap="round" stroke-linejoin="round" x="4" y="2" width="16" height="20" rx="2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 18L12.01 18" />
+</svg>

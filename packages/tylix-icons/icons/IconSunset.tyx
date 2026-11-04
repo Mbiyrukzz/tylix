@@ -1,0 +1,16 @@
+component IconSunset
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M17 18a5 5 0 0 0-10 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 9L12 2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4.22 10.22L5.64 11.64" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M1 18L3 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M21 18L23 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18.36 11.64L19.78 10.22" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M23 22L1 22" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 5L12 9L8 5" />
+</svg>

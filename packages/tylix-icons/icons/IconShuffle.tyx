@@ -1,0 +1,13 @@
+component IconShuffle
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 3L21 3L21 8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4 20L21 3" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M21 16L21 21L16 21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 15L21 21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M4 4L9 9" />
+</svg>

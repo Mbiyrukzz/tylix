@@ -1,0 +1,12 @@
+component IconGitPullRequest
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 18a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M13 6h3a2 2 0 0 1 2 2v7" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 9L6 21" />
+</svg>

@@ -1,0 +1,11 @@
+component IconUploadCloud
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 16L12 12L8 16" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 12L12 21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+</svg>
