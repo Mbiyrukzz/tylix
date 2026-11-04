@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+
 import {
   printLogo,
   printDivider,
@@ -259,6 +262,7 @@ async function runBuildSteps(config) {
   console.log(`\n${bold('Creating your Tylix application...')}\n`)
 
   const pm = getPackageManager(config)
+  const targetDir = path.join(process.cwd(), config.projectName)
 
   const steps = [
     {
@@ -376,6 +380,17 @@ async function runBuildSteps(config) {
         // Start on a fresh line so the message isn't glued to the progress bar.
         console.log()
         console.log(red(`✖ ${step.label} failed`))
+
+        // Remove the half-built project so a retry starts from zero
+        // instead of hitting "Directory already exists". Step 0 is
+        // skipped on purpose: if it failed because the directory was
+        // already there, that directory is the user's, not ours.
+        // createProjectStructure cleans up after its own failures.
+        if (i > 0) {
+          await fs.rm(targetDir, { recursive: true, force: true }).catch(() => {})
+          console.log(dim(`Removed the incomplete "${config.projectName}" folder.`))
+        }
+
         throw err
       }
       warnings.push(
