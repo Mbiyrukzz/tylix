@@ -1,0 +1,12 @@
+component IconStore
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 9l1-5h16l1 5" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M5 12v8h14v-8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 20v-5h4v5" />
+</svg>

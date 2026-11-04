@@ -1,0 +1,15 @@
+component IconAmbulance
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 10L6 10" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M19 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.68-.95l-1.93-.64a1 1 0 0 1-.58-.5l-1.54-3.08A1 1 0 0 0 16.38 8H14" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 8L8 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 18L15 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M5 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+</svg>

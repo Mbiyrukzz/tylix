@@ -1,0 +1,14 @@
+component IconPallet
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<rect stroke-linecap="round" stroke-linejoin="round" x="4" y="3" width="7" height="7" rx="1" />
+<rect stroke-linecap="round" stroke-linejoin="round" x="13" y="3" width="7" height="7" rx="1" />
+<rect stroke-linecap="round" stroke-linejoin="round" x="2" y="12" width="20" height="3" rx="1" />
+<rect stroke-linecap="round" stroke-linejoin="round" x="4" y="15" width="3" height="4" rx="0" />
+<rect stroke-linecap="round" stroke-linejoin="round" x="10.5" y="15" width="3" height="4" rx="0" />
+<rect stroke-linecap="round" stroke-linejoin="round" x="17" y="15" width="3" height="4" rx="0" />
+</svg>

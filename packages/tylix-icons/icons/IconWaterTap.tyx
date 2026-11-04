@@ -1,0 +1,14 @@
+component IconWaterTap
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 3L16 3" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 3L12 6" />
+<rect stroke-linecap="round" stroke-linejoin="round" x="7" y="6" width="10" height="3" rx="1" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M7 7.5L3 7.5" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M17 7.5h1a2 2 0 0 1 2 2V13" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M20 15.5c-.9 1.2-1.4 1.9-1.4 2.6a1.4 1.4 0 0 0 2.8 0c0-.7-.5-1.4-1.4-2.6z" />
+</svg>

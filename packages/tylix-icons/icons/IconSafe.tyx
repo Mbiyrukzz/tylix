@@ -1,0 +1,12 @@
+component IconSafe
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<rect stroke-linecap="round" stroke-linejoin="round" x="3" y="3" width="18" height="16" rx="2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 11a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M7 19L7 21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M17 19L17 21" />
+</svg>

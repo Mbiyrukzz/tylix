@@ -1,0 +1,13 @@
+component IconDoorOpen
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M13 4h3a2 2 0 0 1 2 2v14" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M2 20L5 20" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M13 20L22 20" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 12L10.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M13 4.56v16.16a1 1 0 0 1-1.24.97L5 20V5.56a2 2 0 0 1 1.52-1.94l4-1A2 2 0 0 1 13 4.56z" />
+</svg>

@@ -1,0 +1,15 @@
+component IconBandage
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<rect stroke-linecap="round" stroke-linejoin="round" x="2" y="6" width="20" height="12" rx="2" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M6 6L6 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18 6L18 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 10L10.01 10" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M10 14L10.01 14" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14 10L14.01 10" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14 14L14.01 14" />
+</svg>

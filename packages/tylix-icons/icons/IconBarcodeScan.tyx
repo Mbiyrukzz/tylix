@@ -1,0 +1,15 @@
+component IconBarcodeScan
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 8V5a2 2 0 0 1 2-2h3" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 3h3a2 2 0 0 1 2 2v3" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M21 16v3a2 2 0 0 1-2 2h-3" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 21H5a2 2 0 0 1-2-2v-3" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 8L8 16" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 8L12 16" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 8L16 16" />
+</svg>

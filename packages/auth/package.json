@@ -1,6 +1,6 @@
 {
   "name": "@tylix/auth",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "type": "module",
   "keywords": [
     "tylix",
@@ -12,9 +12,11 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/core": "^0.5.1",
-    "@tylix/generator": "^0.5.1",
-    "@tylix/orm": "^0.5.1",
-    "@tylix/shared": "^0.5.1"
+    "@tylix/generator": "^0.6.0",
+    "@tylix/orm": "^0.6.0",
+    "@tylix/shared": "^0.6.0"
+  },
+  "peerDependencies": {
+    "@tylix/core": "^0.6.0"
   }
 }

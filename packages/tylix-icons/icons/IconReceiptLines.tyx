@@ -1,0 +1,12 @@
+component IconReceiptLines
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M14 8L8 8" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 12L8 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M13 16L8 16" />
+</svg>

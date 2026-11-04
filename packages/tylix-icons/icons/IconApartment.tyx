@@ -1,0 +1,17 @@
+component IconApartment
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16 9h2a2 2 0 0 1 2 2v10" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M2 21L22 21" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 7L8.01 7" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 7L12.01 7" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 11L8.01 11" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 11L12.01 11" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M8 15L8.01 15" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M12 15L12.01 15" />
+</svg>

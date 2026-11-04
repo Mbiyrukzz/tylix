@@ -1,0 +1,9 @@
+component IconGoogle
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M18.4 6.6A8 8 0 1 0 20 12h-8" />
+</svg>

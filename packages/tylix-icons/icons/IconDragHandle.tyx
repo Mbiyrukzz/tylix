@@ -1,0 +1,14 @@
+component IconDragHandle
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 6L9.01 6" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 6L15.01 6" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 12L9.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 12L15.01 12" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 18L9.01 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 18L15.01 18" />
+</svg>

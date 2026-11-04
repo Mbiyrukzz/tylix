@@ -1,0 +1,13 @@
+component IconCoins
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M2 8a6 6 0 1 0 12 0a6 6 0 1 0 -12 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M7 6h1v4" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M16.71 13.88L17.41 14.59" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M17.41 14.59L14.59 17.41" />
+</svg>

@@ -1,0 +1,11 @@
+component IconRoute
+
+props
+  class?: string
+
+template
+<svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+<path stroke-linecap="round" stroke-linejoin="round" d="M3 19a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15" />
+<path stroke-linecap="round" stroke-linejoin="round" d="M15 5a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+</svg>
