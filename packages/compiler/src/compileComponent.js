@@ -5,7 +5,7 @@ import { Parser } from './parser/Parser.js'
 import { generatePage } from './codegen/generatePage.js'
 import { generateTemplate } from './codegen/generateTemplate.js'
 import { reactive, effect } from './runtime/reactive.js'
-import { useApi } from '../../core/src/runtime/useApi.js'
+import { useApi } from './runtime/useApi.js'
 
 /**
  * Compiles raw .tyx source into a mountable component descriptor.

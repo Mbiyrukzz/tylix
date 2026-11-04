@@ -55,6 +55,8 @@ function __tylixApply() {
 }
 
 function __tylixFinish() {
+  clearTimeout(__tylixHideTimer)
+  clearTimeout(__tylixResetTimer)
   __tylixProgress = 100
   __tylixApply()
   __tylixHideTimer = setTimeout(() => {
@@ -91,5 +93,5 @@ export function __tylixRequestEnd() {
   __tylixActive = Math.max(0, __tylixActive - 1)
   if (__tylixActive > 0) return
   clearTimeout(__tylixWatchdog)
-}
   __tylixFinish()
+}

@@ -15,6 +15,12 @@ import {
 import { detectDatabaseUsers } from './utils/detectDatabaseUsers.js'
 import { createProgressBar } from './utils/progress.js'
 import { select, confirm, text, password } from './utils/prompt.js'
+import {
+  getPackageManager,
+  installCommand,
+  execCommand,
+  runScriptCommand,
+} from './utils/packageManager.js'
 import { createProjectStructure } from './steps/createProjectStructure.js'
 import { installPackages } from './steps/installPackages.js'
 import { writeStylingConfig } from './steps/writeStylingConfig.js'
@@ -252,6 +258,8 @@ async function runWizard(initialProjectName, options = {}) {
 async function runBuildSteps(config) {
   console.log(`\n${bold('Creating your Tylix application...')}\n`)
 
+  const pm = getPackageManager(config)
+
   const steps = [
     {
       label: 'Creating project structure',
@@ -279,7 +287,7 @@ async function runBuildSteps(config) {
       label: 'Generating authentication',
       fn: () => generateAuth(config),
       optional: !config.installNow,
-      warningMessage: `Authentication was not generated because dependencies weren't installed. Run "cd ${config.projectName} && npm install && npx tylix make:auth && npm run migrate".`,
+      warningMessage: `Authentication was not generated because dependencies weren't installed. Run "cd ${config.projectName} && ${installCommand(pm)} && ${execCommand(pm, 'tylix make:auth')} && ${runScriptCommand(pm, 'migrate')}".`,
     })
   }
   steps.push({
@@ -320,8 +328,8 @@ async function runBuildSteps(config) {
     { label: 'Creating components', fn: () => writeComponents(config) },
     { label: 'Creating API routes', fn: () => writeApiRoutes(config) },
   )
- 
-    if (config.starter === 'starter' && config.authEnabled) {
+
+  if (config.starter === 'starter' && config.authEnabled) {
     steps.push(
       {
         label: 'Creating Post feature',
@@ -385,6 +393,8 @@ async function runBuildSteps(config) {
 }
 
 function printSuccessScreen(config) {
+  const pm = getPackageManager(config)
+
   printHeavyDivider()
   console.log(bold(green('🎉  Success!')))
   console.log('Your application has been created.\n')
@@ -440,7 +450,10 @@ function printSuccessScreen(config) {
   // Commands you type are cyan; names and links you open stay cyanBright.
   console.log(bold('Next Steps'))
   console.log(cyan(`cd ${config.projectName}`))
-  console.log(cyan(`${config.packageManager} run dev`))
+  if (!config.installNow) {
+    console.log(cyan(installCommand(pm)))
+  }
+  console.log(cyan(runScriptCommand(pm, 'dev')))
   printHeavyDivider()
 
   console.log(bold('Development Server'))

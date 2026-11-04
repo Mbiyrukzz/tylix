@@ -6,6 +6,8 @@ import { requireAuth } from '../http/requireAuth.js'
 const ROUTE_FILE = /\.(js|ts)$/
 // .d.ts files, _private files, dotfiles, and web.* (already loaded by loadCustomRoutes)
 const SKIP = /(\.d\.ts$|^_|^\.|^web\.(js|ts)$)/
+// Handler files written by make:api. web.* imports them; they export no routes().
+const SKIP_DIRS = new Set(['handlers'])
 
 async function collect(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => [])
@@ -14,8 +16,10 @@ async function collect(dir) {
   for (const entry of entries) {
     if (SKIP.test(entry.name)) continue
     const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) files.push(...(await collect(full)))
-    else if (entry.isFile() && ROUTE_FILE.test(entry.name)) files.push(full)
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name)) continue
+      files.push(...(await collect(full)))
+    } else if (entry.isFile() && ROUTE_FILE.test(entry.name)) files.push(full)
   }
 
   return files.sort()

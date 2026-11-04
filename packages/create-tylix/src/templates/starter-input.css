@@ -1,3 +1,14 @@
 @tailwind base;
+
+@layer base {
+  :root {
+    /* Accent colour as space-separated RGB channels (default: emerald). */
+    --brand-400: 52 211 153;
+    --brand-500: 16 185 129;
+    --brand-600: 5 150 105;
+    --brand-700: 4 120 87;
+  }
+}
+
 @tailwind components;
 @tailwind utilities;

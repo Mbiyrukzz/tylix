@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process'
 import path from 'node:path'
+import { getPackageManager, execCommand } from '../utils/packageManager.js'
 
 const AUTH_ERROR_PATTERNS = [
   /password authentication failed/i, // postgres
@@ -13,9 +14,13 @@ function isAuthError(stderr) {
 export async function runMigrations(config) {
   if (config.database === 'none') return
   const targetDir = path.join(process.cwd(), config.projectName)
+  const pm = getPackageManager(config)
 
   try {
-    execSync('npx tylix migrate', { cwd: targetDir, stdio: 'pipe' })
+    execSync(execCommand(pm, 'tylix migrate'), {
+      cwd: targetDir,
+      stdio: 'pipe',
+    })
   } catch (err) {
     const stderr = err.stderr?.toString() ?? ''
 

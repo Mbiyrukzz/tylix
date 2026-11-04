@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import crypto from 'node:crypto'
+import { getPackageManager } from '../utils/packageManager.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
@@ -250,6 +251,47 @@ function buildDatabaseEnvLines(config) {
   }
 }
 
+// pnpm 11 stopped reading the "pnpm" field in package.json. Its settings
+// now live in pnpm-workspace.yaml, even for a single project. This builds
+// that file's text. JSON.stringify produces valid YAML double-quoted
+// strings, so names like "@tylix/core" and paths survive without extra
+// escaping.
+//
+// The build-script allowlist is written twice on purpose:
+//   allowBuilds           read by pnpm 11+
+//   onlyBuiltDependencies read by pnpm 10.6+
+// Each version ignores the key it does not know.
+function buildPnpmWorkspaceYaml({ buildable, overrides }) {
+  const lines = []
+
+  if (buildable.length) {
+    lines.push(`# Dependencies allowed to run install scripts (native builds).`)
+    lines.push(`allowBuilds:`)
+    for (const name of buildable) {
+      lines.push(`  ${JSON.stringify(name)}: true`)
+    }
+    lines.push(``)
+    lines.push(`# Same list for pnpm 10.6+, which uses the older setting name.`)
+    lines.push(`onlyBuiltDependencies:`)
+    for (const name of buildable) {
+      lines.push(`  - ${JSON.stringify(name)}`)
+    }
+    lines.push(``)
+  }
+
+  if (overrides) {
+    lines.push(`# Local testing only: resolve every @tylix/* package to the`)
+    lines.push(`# local checkout, including transitive ones.`)
+    lines.push(`overrides:`)
+    for (const [name, spec] of Object.entries(overrides)) {
+      lines.push(`  ${JSON.stringify(name)}: ${JSON.stringify(spec)}`)
+    }
+    lines.push(``)
+  }
+
+  return lines.join('\n')
+}
+
 async function pathExists(p) {
   return fs
     .access(p)
@@ -261,6 +303,7 @@ export async function createProjectStructure(config) {
   const targetDir = path.join(process.cwd(), config.projectName)
   const isTs = config.language === 'typescript'
   const ext = isTs ? 'ts' : 'js'
+  const pm = getPackageManager(config)
 
   const exists = await pathExists(targetDir)
   if (exists) {
@@ -527,13 +570,37 @@ export async function createProjectStructure(config) {
     // Local testing only: force every @tylix/* package, including the
     // ones pulled in transitively (the CLI depends on core, core on
     // auth, and so on), to resolve to the local checkout. Without this
-    // npm mixes local copies with registry copies. The override specs
-    // are identical to the direct dependency specs above, which npm
-    // requires, otherwise it throws EOVERRIDE.
-    if (isDevMonorepoContext) {
-      packageJson.overrides = Object.fromEntries(
-        Object.keys(LOCAL_PACKAGE_DIRS).map((name) => [name, filePkg(name)]),
-      )
+    // the package manager mixes local copies with registry copies. The
+    // override specs are identical to the direct dependency specs above,
+    // which npm requires, otherwise it throws EOVERRIDE.
+    const localOverrides = isDevMonorepoContext
+      ? Object.fromEntries(
+          Object.keys(LOCAL_PACKAGE_DIRS).map((name) => [name, filePkg(name)]),
+        )
+      : null
+
+    if (pm === 'pnpm') {
+      // pnpm 11 no longer reads the "pnpm" field in package.json, so its
+      // settings go in pnpm-workspace.yaml instead. Native packages need
+      // their install scripts allowed, or pnpm stops with
+      // ERR_PNPM_IGNORED_BUILDS.
+      const buildable = []
+      if (config.database === 'sqlite') buildable.push('better-sqlite3')
+      if (isTs) buildable.push('esbuild')
+
+      const workspaceYaml = buildPnpmWorkspaceYaml({
+        buildable,
+        overrides: localOverrides,
+      })
+      if (workspaceYaml) {
+        await fs.writeFile(
+          path.join(targetDir, 'pnpm-workspace.yaml'),
+          workspaceYaml,
+        )
+      }
+    } else if (localOverrides) {
+      // npm reads a top-level `overrides` field in package.json.
+      packageJson.overrides = localOverrides
     }
 
     await fs.writeFile(
