@@ -6,6 +6,10 @@ import { requireAuth } from '../http/requireAuth.js'
 
 const VERBS = new Set(['get', 'post', 'put', 'patch', 'delete'])
 
+// Same symbol requireAuth sets on its handlers. authGuard below is not a
+// requireAuth result, so it is marked here by hand.
+const AUTH_MARK = Symbol.for('tylix.requireAuth')
+
 // A view of the router where every route registered through it gets the
 // `guards` middleware placed ahead of its own middleware and handler.
 // Every method returns the scoped view, so chaining stays guarded.
@@ -65,6 +69,7 @@ export async function loadCustomRoutes(router, baseDir, { secret, hydrate } = {}
   // when the token is valid (requireAuth answers 401/500 itself otherwise).
   const authGuard = (req, res, next) =>
     requireAuth(() => next(), secret, { hydrate })(req, res)
+  authGuard[AUTH_MARK] = true
 
   let loaded = false
 

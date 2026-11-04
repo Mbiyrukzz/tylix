@@ -8,6 +8,9 @@ import {
 } from '@tylix/generator'
 import { detectLanguage } from '@tylix/shared'
 
+// First line of every route file written by make:feature.
+const FEATURE_ROUTE_MARKER = '// @tylix-feature'
+
 async function ensurePackageJson(baseDir) {
   const pkgPath = path.join(baseDir, 'package.json')
   const exists = await fs
@@ -43,6 +46,20 @@ function extractPublicFlag(fieldArgs) {
     .map((a) => a.trim())
     .filter(Boolean)
   return { rest, publicAll: false, publicActions }
+}
+
+// True when a route file exists at `filePath` but make:feature did not
+// write it (no marker). Such a file is kept as is, and any route in it
+// on the same method and path as a feature route wins, because the
+// router answers with the first match.
+async function isForeignRouteFile(filePath) {
+  let content
+  try {
+    content = await fs.readFile(filePath, 'utf-8')
+  } catch {
+    return false
+  }
+  return !content.includes(FEATURE_ROUTE_MARKER)
 }
 
 export async function makeFeature(
@@ -123,4 +140,25 @@ export async function makeFeature(
       ? `login required, except: ${blueprint.options.publicActions.join(', ')}`
       : 'login required'
   console.log(`\n  Access:     ${access}\n`)
+
+  // The route file was kept, but make:feature did not write it. Its
+  // routes are mounted first, so anything it already defines on the same
+  // method and path hides the feature's own action.
+  if (!routeFile) {
+    const ext = language === 'typescript' ? 'ts' : 'js'
+    const existing = path.join(
+      baseDir,
+      'app',
+      'routes',
+      `${blueprint.tableName}.${ext}`,
+    )
+    if (await isForeignRouteFile(existing)) {
+      console.log(
+        `⚠ ${path.relative(baseDir, existing)} was not written by make:feature (for example, by make:api).\n` +
+          `  The feature's CRUD routes are still mounted, but any route in that file on the same\n` +
+          `  method and path is reached first, and the feature's action is never called.\n` +
+          `  Delete or rename that file if you want the generated routes.\n`,
+      )
+    }
+  }
 }

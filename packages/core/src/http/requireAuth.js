@@ -1,5 +1,9 @@
 import { verifyToken, ACCESS_TOKEN_COOKIE } from "@tylix/auth";
 
+// Shared across packages (Symbol.for), so `tylix dev` can print a lock next
+// to every guarded route without importing anything from here.
+const AUTH_MARK = Symbol.for("tylix.requireAuth");
+
 /**
  * Wraps a route handler so it only runs if the request carries a valid
  * session. Checks the httpOnly access-token cookie first (what the
@@ -18,7 +22,7 @@ import { verifyToken, ACCESS_TOKEN_COOKIE } from "@tylix/auth";
 export function requireAuth(handler, secret, options = {}) {
     const { hydrate } = options;
 
-    return async (req, res) => {
+    const guarded = async (req, res) => {
         const cookieToken = req.cookies?.[ACCESS_TOKEN_COOKIE];
 
         const authHeader = req.headers?.authorization || "";
@@ -57,4 +61,7 @@ export function requireAuth(handler, secret, options = {}) {
 
         return handler(req, res);
     };
+
+    guarded[AUTH_MARK] = true;
+    return guarded;
 }

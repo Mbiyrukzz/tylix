@@ -15,6 +15,8 @@ import { bootstrapDatabase } from '../bootstrap.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
 import { renderErrorPage } from '../utils/error-page.js'
 import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
+import { createRouteRecorder } from './routeRecorder.js'
+
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
 
@@ -795,17 +797,24 @@ export async function createApp(
   const features = await discoverFeatures(baseDir)
   const router = new Router()
 
-  await loadCustomRoutes(router, baseDir, {
-    secret: config.auth?.secret,
-    hydrate: config.auth?.hydrate,
-  })
-  
-  await registerRouteFiles(router, baseDir, {
+  // Routes registered through `recorded` are logged for the dev banner.
+  // The real `router` is what the server uses.
+  const recorder = createRouteRecorder(router)
+  const recorded = recorder.router
+
+  recorder.setSource('routes')
+  await loadCustomRoutes(recorded, baseDir, {
     secret: config.auth?.secret,
     hydrate: config.auth?.hydrate,
   })
 
-  registerFeatureRoutes(router, features, {
+  await registerRouteFiles(recorded, baseDir, {
+    secret: config.auth?.secret,
+    hydrate: config.auth?.hydrate,
+  })
+
+  recorder.setSource('feature')
+  registerFeatureRoutes(recorded, features, {
     secret: config.auth?.secret,
     hydrate: config.auth?.hydrate,
   })
@@ -847,8 +856,9 @@ export async function createApp(
     })
   }
 
+  recorder.setSource('auth')
   const authEnabled = await registerAuthRoutes(
-    router,
+    recorded,
     baseDir,
     config.auth,
     config.mail,
@@ -893,6 +903,7 @@ export async function createApp(
     config,
     features,
     pageRoutes,
+    routes: recorder.routes,
     authEnabled,
     notFoundHandler: async (req, res) => {
       if (await serveStaticAsset(req, res, baseDir, { production })) return true

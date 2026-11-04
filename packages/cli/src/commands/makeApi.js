@@ -22,6 +22,53 @@ async function pathExists(p) {
     .catch(() => false)
 }
 
+// "/api/authors/:id" and "/api/authors/:authorId" match the same URLs,
+// so they count as the same route.
+function shape(pattern) {
+  return pattern.replace(/:[^/]+/g, ':param')
+}
+
+// Looks for a feature whose generated CRUD routes already cover this
+// method and path. The router answers with the first match, so a second
+// route on the same method and path is either dead code or hides the
+// feature's own action.
+async function findFeatureConflict(baseDir, method, route) {
+  const featuresDir = path.join(baseDir, 'app', 'Features')
+  const entries = await fs
+    .readdir(featuresDir, { withFileTypes: true })
+    .catch(() => [])
+  const wanted = `${method} ${shape(route)}`
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+
+    let manifest
+    try {
+      manifest = JSON.parse(
+        await fs.readFile(
+          path.join(featuresDir, entry.name, 'feature.json'),
+          'utf-8',
+        ),
+      )
+    } catch {
+      continue
+    }
+
+    const base = `/api/${manifest.table}`
+    const covered = [
+      ['get', base],
+      ['post', base],
+      ['get', `${base}/:id`],
+      ['put', `${base}/:id`],
+      ['delete', `${base}/:id`],
+    ].map(([m, p]) => `${m} ${shape(p)}`)
+
+    if (covered.includes(wanted)) return manifest.name
+  }
+
+  return null
+}
+
 export async function makeApi(name, options = {}) {
   if (!name || !NAME_RE.test(name)) {
     throw new Error(
@@ -55,6 +102,16 @@ export async function makeApi(name, options = {}) {
     .map((s) => s.slice(1))
 
   const baseDir = process.cwd()
+
+  const conflict = await findFeatureConflict(baseDir, method, route)
+  if (conflict) {
+    throw new Error(
+      `${method.toUpperCase()} ${route} is already served by the "${conflict}" feature. ` +
+        `A second route on the same method and path would either never be reached or hide the feature's own action. ` +
+        `Pick another name or --path, or edit the feature's controller instead.`,
+    )
+  }
+
   const language = await detectLanguage(baseDir)
   const isTs = language === 'typescript'
   const ext = isTs ? 'ts' : 'js'

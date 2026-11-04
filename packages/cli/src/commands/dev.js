@@ -91,13 +91,23 @@ function getNetworkUrl(port) {
   return null
 }
 
+// Prints one titled group of recorded routes. A lock goes on every
+// guarded route, not just the first of a set.
+function printRouteGroup(title, routes) {
+  if (routes.length === 0) return
+  printGroup(title)
+  for (const route of routes) {
+    printRoute(route.method, route.pattern, route.auth ? '🔒 auth' : '')
+  }
+}
+
 function printBanner({
   version,
   port,
   driver,
   featureCount,
   pageCount,
-  featureRoutes,
+  routes,
   pageRoutes,
   authEnabled,
   readyMs,
@@ -121,28 +131,22 @@ function printBanner({
     for (const route of pageRoutes) printRoute('GET', route)
   }
 
-  if (featureRoutes.length > 0) {
-    printGroup('Features')
-    for (const { table, auth } of featureRoutes) {
-      printRoute('GET', `/api/${table}`, auth ? '🔒 auth' : '')
-      printRoute('POST', `/api/${table}`)
-      printRoute('GET', `/api/${table}/:id`)
-      printRoute('PUT', `/api/${table}/:id`)
-      printRoute('DELETE', `/api/${table}/:id`)
-    }
-  }
-
-  if (authEnabled) {
-    printGroup('Auth')
-    printRoute('POST', '/api/register')
-    printRoute('POST', '/api/login')
-    printRoute('POST', '/api/auth/refresh')
-    printRoute('POST', '/api/auth/logout')
-    printRoute('GET', '/api/auth/verify-email')
-    printRoute('POST', '/api/auth/forgot-password')
-    printRoute('POST', '/api/auth/reset-password')
-    printRoute('GET', '/api/me', '🔒 auth')
-  }
+  // Routes come from what was actually registered:
+  //   feature  CRUD routes mounted from a feature manifest
+  //   routes   app/routes/*.ts, web.ts and make:api files
+  //   auth     the built-in login/register routes
+  printRouteGroup(
+    'Features',
+    routes.filter((r) => r.source === 'feature'),
+  )
+  printRouteGroup(
+    'API',
+    routes.filter((r) => r.source === 'routes'),
+  )
+  printRouteGroup(
+    'Auth',
+    routes.filter((r) => r.source === 'auth'),
+  )
 
   console.log()
   printDivider()
@@ -384,10 +388,7 @@ async function runServer({ port } = {}) {
       driver: app.config.database.driver,
       featureCount: app.features.length,
       pageCount: app.pageRoutes.length,
-      featureRoutes: app.features.map((f) => ({
-        table: f.manifest.table,
-        auth: f.manifest.auth,
-      })),
+      routes: app.routes,
       pageRoutes: app.pageRoutes,
       authEnabled: app.authEnabled,
     })
