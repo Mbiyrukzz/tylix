@@ -1,0 +1,37 @@
+component Donut
+
+import PieChart from "./PieChart"
+
+props
+  data: Array
+  label?: string
+  size?: number
+  inner?: number
+  cornerRadius?: number
+  gap?: number
+  startAngle?: number
+  sort?: string
+  legend?: string
+  centerLabel?: string
+  centerSubLabel?: string
+  showCenter?: boolean
+  formatValue?: Function
+  class?: string
+
+template
+<PieChart
+  data="{{ data }}"
+  label="{{ label or 'Donut chart' }}"
+  size="{{ size }}"
+  inner="{{ inner or 0.62 }}"
+  cornerRadius="{{ cornerRadius }}"
+  gap="{{ gap }}"
+  startAngle="{{ startAngle }}"
+  sort="{{ sort }}"
+  legend="{{ legend }}"
+  centerLabel="{{ centerLabel }}"
+  centerSubLabel="{{ centerSubLabel }}"
+  showCenter="{{ showCenter }}"
+  formatValue="{{ formatValue }}"
+  class="{{ class }}"
+/>

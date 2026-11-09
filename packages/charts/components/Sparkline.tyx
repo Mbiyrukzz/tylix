@@ -1,0 +1,57 @@
+component Sparkline
+
+props
+  data: Array
+  width?: number
+  height?: number
+  curve?: string
+  label?: string
+  class?: string
+
+state
+  ready: false
+
+computed
+  s() {
+    if not this.ready {
+      return null
+    }
+    return window.__tylixCharts.sparkline(this.data ?? [], {
+      width: this.width ?? 120,
+      height: this.height ?? 32,
+      curve: this.curve ?? "smooth",
+    })
+  }
+
+  rootClass() {
+    return `shrink-0 ${this.class ?? "text-emerald-500"}`
+  }
+
+  box() {
+    return `width:${this.width ?? 120}px;height:${this.height ?? 32}px`
+  }
+
+onMount
+  async {
+    const load = window.__tylixChartsLoad ?? (window.__tylixChartsLoad = import("/_tylix/charts/index.js").then(m => { window.__tylixCharts = m }))
+    try {
+      await load
+      this.ready = true
+    } catch (e) {
+      console.error("[tylix/charts] could not load geometry", e)
+      window.__tylixChartsLoad = null
+    }
+  }
+
+template
+{{#if s}}
+<svg class="{{ rootClass }}" width="{{ s.width }}" height="{{ s.height }}" viewBox="{{ `0 0 ${s.width} ${s.height}` }}" role="img" aria-label="{{ label or 'Sparkline' }}">
+  <path d="{{ s.areaPath }}" fill="currentColor" fill-opacity="0.12" stroke="none" />
+  <path d="{{ s.path }}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+{{#if s.last}}
+  <circle cx="{{ s.last.x }}" cy="{{ s.last.y }}" r="2" fill="currentColor" />
+{{/if}}
+</svg>
+{{#else}}
+<span class="inline-block shrink-0" style="{{ box }}"></span>
+{{/if}}

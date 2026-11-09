@@ -1,0 +1,40 @@
+component AreaChart
+
+import LineChart from "./LineChart"
+
+props
+  series: Array
+  id?: string
+  label?: string
+  width?: number
+  height?: number
+  curve?: string
+  stacked?: boolean
+  legend?: boolean
+  crosshair?: boolean
+  yDomain?: Array
+  xTicks?: number
+  yTicks?: number
+  formatX?: Function
+  formatY?: Function
+  class?: string
+
+template
+<LineChart
+  series="{{ series }}"
+  id="{{ id }}"
+  label="{{ label or 'Area chart' }}"
+  width="{{ width }}"
+  height="{{ height }}"
+  curve="{{ curve }}"
+  area="{{ true }}"
+  stacked="{{ stacked }}"
+  legend="{{ legend }}"
+  crosshair="{{ crosshair }}"
+  yDomain="{{ yDomain }}"
+  xTicks="{{ xTicks }}"
+  yTicks="{{ yTicks }}"
+  formatX="{{ formatX }}"
+  formatY="{{ formatY }}"
+  class="{{ class }}"
+/>

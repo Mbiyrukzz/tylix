@@ -1,0 +1,297 @@
+component LineChart
+
+props
+  series: Array
+  id?: string
+  label?: string
+  width?: number
+  height?: number
+  curve?: string
+  area?: boolean
+  stacked?: boolean
+  legend?: boolean
+  crosshair?: boolean
+  yDomain?: Array
+  xTicks?: number
+  yTicks?: number
+  zeroBaseline?: boolean
+  formatX?: Function
+  formatY?: Function
+  class?: string
+
+state
+  hover: null
+  ready: false
+
+computed
+  uid() {
+    return this.id ?? "tylix-chart"
+  }
+
+  rootClass() {
+    return `tylix-chart text-zinc-500 dark:text-zinc-400 [--tylix-chart-bg:#fff] dark:[--tylix-chart-bg:#09090b] ${this.class ?? ""}`
+  }
+
+  ratio() {
+    return `aspect-ratio:${this.width ?? 480} / ${this.height ?? 240}`
+  }
+
+  chart() {
+    if not this.ready {
+      return null
+    }
+    const { lineChart, areaChart } = window.__tylixCharts
+    const options = {
+      width: this.width ?? 480,
+      height: this.height ?? 240,
+      curve: this.curve ?? "smooth",
+      stacked: this.stacked ?? false,
+      yDomain: this.yDomain,
+      xTicks: this.xTicks ?? 6,
+      yTicks: this.yTicks ?? 5,
+      zeroBaseline: this.zeroBaseline,
+      formatX: this.formatX,
+      formatY: this.formatY,
+    }
+    if this.stacked {
+      return areaChart(this.series ?? [], options)
+    }
+    if this.area {
+      return areaChart(this.series ?? [], options)
+    }
+    return lineChart(this.series ?? [], options)
+  }
+
+  layers() {
+    if not this.ready {
+      return []
+    }
+    const stacked = this.stacked ?? false
+    return this.chart.series.map((s, i) => {
+      let last = null
+      s.points.forEach(p => {
+        if p.py is not null {
+          last = p
+        }
+      })
+      const gid = `${this.uid}-g${i}`
+      return {
+        name: s.name,
+        color: s.color,
+        path: s.path,
+        areaPath: s.areaPath,
+        gid: gid,
+        fill: stacked ? s.color : `url(#${gid})`,
+        fillOpacity: stacked ? 0.8 : 1,
+        last: stacked ? null : last,
+      }
+    })
+  }
+
+  showLegend() {
+    if not this.ready {
+      return false
+    }
+    if this.legend is false {
+      return false
+    }
+    return this.chart.series.length > 1
+  }
+
+  tip() {
+    if not this.ready {
+      return null
+    }
+    const h = this.hover
+    if not h {
+      return null
+    }
+    const chart = this.chart
+    const head = this.fx(h.x)
+    const rows = h.rows.map((r, i) => ({
+      y: 32 + i * 16,
+      color: r.color,
+      name: r.name,
+      value: r.value is null ? "–" : this.fy(r.value),
+    }))
+    let chars = String(head).length
+    rows.forEach(r => {
+      chars = Math.max(chars, r.name.length + String(r.value).length + 3)
+    })
+    const w = Math.ceil(chars * 6.2 + 28)
+    let x = h.px + 12
+    if x + w > chart.width - 4 {
+      x = h.px - 12 - w
+    }
+    return {
+      x: Math.max(4, x),
+      y: chart.plot.y + 4,
+      w: w,
+      h: 26 + rows.length * 16,
+      head: head,
+      rows: rows,
+    }
+  }
+
+action
+  fx(v) {
+    if this.formatX {
+      return this.formatX(v)
+    }
+    return String(v)
+  }
+
+  fy(v) {
+    if this.formatY {
+      return this.formatY(v)
+    }
+    return String(v)
+  }
+
+  move(e) {
+    if not this.ready {
+      return null
+    }
+    if this.crosshair is false {
+      return null
+    }
+    const r = e.currentTarget.getBoundingClientRect()
+    if r.width is 0 {
+      return null
+    }
+    const x = (e.clientX - r.left) * this.chart.width / r.width
+    const plot = this.chart.plot
+    if x < plot.x {
+      this.hover = null
+      return null
+    }
+    if x > plot.x + plot.width {
+      this.hover = null
+      return null
+    }
+    this.hover = window.__tylixCharts.nearestPoints(this.chart, x)
+  }
+
+  leave() {
+    this.hover = null
+  }
+
+  key(e) {
+    if not this.ready {
+      return null
+    }
+    if this.crosshair is false {
+      return null
+    }
+    if e.key is "Escape" {
+      this.hover = null
+      return null
+    }
+    const right = e.key is "ArrowRight"
+    const left = e.key is "ArrowLeft"
+    if not right {
+      if not left {
+        return null
+      }
+    }
+    const { nearestPoints, snapPositions } = window.__tylixCharts
+    const xs = snapPositions(this.chart)
+    if xs.length is 0 {
+      return null
+    }
+    e.preventDefault()
+    let i = right ? 0 : xs.length - 1
+    if this.hover {
+      i = this.hover.index + (right ? 1 : -1)
+    }
+    i = Math.min(xs.length - 1, Math.max(0, i))
+    this.hover = nearestPoints(this.chart, xs[i])
+  }
+
+onMount
+  async {
+    const load = window.__tylixChartsLoad ?? (window.__tylixChartsLoad = import("/_tylix/charts/index.js").then(m => { window.__tylixCharts = m }))
+    try {
+      await load
+      this.ready = true
+    } catch (e) {
+      console.error("[tylix/charts] could not load geometry", e)
+      window.__tylixChartsLoad = null
+    }
+  }
+
+template
+<div class="{{ rootClass }}">
+{{#if ready}}
+{{#if showLegend}}
+  <div class="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs text-zinc-600 dark:text-zinc-300">
+{{#each s in layers}}
+    <span class="inline-flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-[3px]" style="{{ `background:${s.color}` }}"></span>{{ s.name }}
+    </span>
+{{/each}}
+  </div>
+{{/if}}
+  <svg
+    viewBox="{{ `0 0 ${chart.width} ${chart.height}` }}"
+    class="w-full h-auto touch-pan-y outline-none"
+    font-size="11"
+    role="img"
+    aria-label="{{ label or 'Chart' }}"
+    tabindex="0"
+    onpointermove="{{ move }}"
+    onpointerdown="{{ move }}"
+    onpointerleave="{{ leave }}"
+    onblur="{{ leave }}"
+    onkeydown="{{ key }}"
+  >
+    <defs>
+{{#each s in layers}}
+      <linearGradient id="{{ s.gid }}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" style="{{ `stop-color:${s.color};stop-opacity:0.32` }}" />
+        <stop offset="1" style="{{ `stop-color:${s.color};stop-opacity:0.02` }}" />
+      </linearGradient>
+{{/each}}
+    </defs>
+
+{{#each t in chart.yTicks}}
+    <line x1="{{ chart.plot.x }}" x2="{{ chart.plot.x + chart.plot.width }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="currentColor" stroke-opacity='{{ t.value is 0 ? 0.3 : 0.1 }}' stroke-dasharray='{{ t.value is 0 ? "none" : "3 4" }}' />
+    <text x="{{ chart.plot.x - 8 }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="currentColor" fill-opacity="0.65">{{ t.label }}</text>
+{{/each}}
+
+{{#each t in chart.xTicks}}
+    <text x="{{ t.x }}" y="{{ chart.plot.y + chart.plot.height + 16 }}" text-anchor="middle" fill="currentColor" fill-opacity="0.65">{{ t.label }}</text>
+{{/each}}
+
+{{#each s in layers}}
+{{#if s.areaPath}}
+    <path d="{{ s.areaPath }}" fill="{{ s.fill }}" fill-opacity="{{ s.fillOpacity }}" stroke="none" />
+{{/if}}
+    <path d="{{ s.path }}" fill="none" stroke="{{ s.color }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+{{#if s.last}}
+    <circle cx="{{ s.last.px }}" cy="{{ s.last.py }}" r="4" fill="{{ s.color }}" stroke="var(--tylix-chart-bg, #fff)" stroke-width="2" />
+{{/if}}
+{{/each}}
+
+{{#if tip}}
+    <g pointer-events="none">
+      <line x1="{{ hover.px }}" x2="{{ hover.px }}" y1="{{ chart.plot.y }}" y2="{{ chart.plot.y + chart.plot.height }}" stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="3 3" />
+{{#each r in hover.rows}}
+      <circle cx="{{ r.px }}" cy="{{ r.py }}" r="4.5" fill="{{ r.color }}" stroke="var(--tylix-chart-bg, #fff)" stroke-width="2" />
+{{/each}}
+      <g transform="{{ `translate(${tip.x},${tip.y})` }}">
+        <rect width="{{ tip.w }}" height="{{ tip.h }}" rx="6" class="fill-white dark:fill-zinc-900 stroke-zinc-200 dark:stroke-zinc-700" />
+        <text x="10" y="16" font-weight="600" class="fill-zinc-900 dark:fill-zinc-100">{{ tip.head }}</text>
+{{#each r in tip.rows}}
+        <circle cx="14" cy="{{ r.y - 4 }}" r="3.5" fill="{{ r.color }}" />
+        <text x="24" y="{{ r.y }}" class="fill-zinc-500 dark:fill-zinc-400">{{ r.name }}</text>
+        <text x="{{ tip.w - 10 }}" y="{{ r.y }}" text-anchor="end" font-weight="600" class="fill-zinc-900 dark:fill-zinc-100">{{ r.value }}</text>
+{{/each}}
+      </g>
+    </g>
+{{/if}}
+  </svg>
+{{#else}}
+  <div class="w-full" style="{{ ratio }}"></div>
+{{/if}}
+</div>

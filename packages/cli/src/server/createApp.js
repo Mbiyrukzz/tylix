@@ -110,24 +110,65 @@ const MIME_TYPES = {
   '.gif': 'image/gif',
 }
 
+// Package files the browser may import directly. Browsers can't resolve
+// bare names like "@tylix/charts", so the framework serves the package's
+// source folder under a fixed /_tylix/ URL. Only the listed folder of the
+// listed package is reachable.
+const PACKAGE_ASSET_ROUTES = [
+  { prefix: '/_tylix/charts/', pkg: ['@tylix', 'charts'], dir: 'src' },
+]
+
+// Maps a URL to a file inside one of PACKAGE_ASSET_ROUTES, or null when
+// the URL is not one of them or tries to leave the served folder.
+async function resolvePackageAssetPath(baseDir, urlPath) {
+  const route = PACKAGE_ASSET_ROUTES.find((r) => urlPath.startsWith(r.prefix))
+  if (!route) return null
+
+  let relative
+  try {
+    relative = decodeURIComponent(urlPath.slice(route.prefix.length))
+  } catch {
+    return null // malformed percent-encoding
+  }
+
+  let pkgDir
+  try {
+    // realpath so a workspace symlink resolves to the real package folder
+    pkgDir = await fs.realpath(
+      path.join(baseDir, 'node_modules', ...route.pkg),
+    )
+  } catch {
+    return null // package not installed
+  }
+
+  const root = path.join(pkgDir, route.dir)
+  const filePath = path.join(root, relative)
+  if (!filePath.startsWith(root + path.sep)) return null
+  return filePath
+}
+
 // Serves static assets from public/ (Tailwind's compiled CSS, logo
-// images, favicons). This is a fallback in the Server's 404 handler
+// images, favicons) and from the package folders listed in
+// PACKAGE_ASSET_ROUTES. This is a fallback in the Server's 404 handler
 // path rather than a router registration, since static filenames
 // aren't known ahead of time the way feature/page routes are.
 async function serveStaticAsset(req, res, baseDir, { production }) {
   const publicDir = path.join(baseDir, 'public')
   const urlPath = req.url.split('?')[0]
 
-  let filePath
-  try {
-    filePath = path.join(publicDir, decodeURIComponent(urlPath))
-  } catch {
-    return false // malformed percent-encoding
-  }
+  let filePath = await resolvePackageAssetPath(baseDir, urlPath)
 
-  // Path traversal guard. The trailing separator matters: a bare
-  // startsWith(publicDir) would also accept a sibling like "public-evil".
-  if (!filePath.startsWith(publicDir + path.sep)) return false
+  if (!filePath) {
+    try {
+      filePath = path.join(publicDir, decodeURIComponent(urlPath))
+    } catch {
+      return false // malformed percent-encoding
+    }
+
+    // Path traversal guard. The trailing separator matters: a bare
+    // startsWith(publicDir) would also accept a sibling like "public-evil".
+    if (!filePath.startsWith(publicDir + path.sep)) return false
+  }
 
   if (!(await pathExists(filePath))) return false
 

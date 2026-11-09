@@ -1,0 +1,118 @@
+component PieChart
+
+props
+  data: Array
+  label?: string
+  size?: number
+  inner?: number
+  cornerRadius?: number
+  gap?: number
+  startAngle?: number
+  sort?: string
+  legend?: string
+  centerLabel?: string
+  centerSubLabel?: string
+  showCenter?: boolean
+  formatValue?: Function
+  class?: string
+
+state
+  ready: false
+
+computed
+  box() {
+    return this.size ?? 220
+  }
+
+  legendMode() {
+    return this.legend ?? "right"
+  }
+
+  rootClass() {
+    const dir = this.legendMode is "bottom" ? "flex-col" : "flex-row"
+    return `tylix-chart text-zinc-500 dark:text-zinc-400 inline-flex ${dir} items-center gap-6 ${this.class ?? ""}`
+  }
+
+  chart() {
+    if not this.ready {
+      return null
+    }
+    return window.__tylixCharts.pieChart(this.data ?? [], {
+      width: this.box,
+      height: this.box,
+      innerRadius: this.inner ?? 0,
+      cornerRadius: this.cornerRadius ?? 4,
+      gap: this.gap ?? 2,
+      startAngle: this.startAngle ?? 0,
+      sort: this.sort ?? "none",
+      formatValue: this.formatValue,
+    })
+  }
+
+  // The center text only fits when the hole is big enough.
+  center() {
+    if not this.ready {
+      return null
+    }
+    const hole = this.chart.innerRadius
+    if hole < 34 {
+      return null
+    }
+    if this.showCenter is false {
+      return null
+    }
+    const total = this.chart.total
+    const big = this.centerLabel ?? (this.formatValue ? this.formatValue(total) : String(total))
+    return {
+      big: big,
+      sub: this.centerSubLabel ?? "Total",
+      size: Math.max(14, Math.min(28, hole * 0.5)),
+    }
+  }
+
+onMount
+  async {
+    const load = window.__tylixChartsLoad ?? (window.__tylixChartsLoad = import("/_tylix/charts/index.js").then(m => { window.__tylixCharts = m }))
+    try {
+      await load
+      this.ready = true
+    } catch (e) {
+      console.error("[tylix/charts] could not load geometry", e)
+      window.__tylixChartsLoad = null
+    }
+  }
+
+template
+<div class="{{ rootClass }}">
+{{#if ready}}
+  <svg viewBox="{{ `0 0 ${box} ${box}` }}" style="{{ `width:${box}px;height:${box}px` }}" class="group shrink-0" role="img" aria-label="{{ label or 'Pie chart' }}" font-size="11">
+{{#each s in chart.slices}}
+{{#if s.path}}
+    <path d="{{ s.path }}" fill="{{ s.color }}" fill-rule="evenodd" class="transition-opacity group-hover:opacity-45 hover:!opacity-100">
+      <title>{{ `${s.label}: ${s.valueLabel} (${s.percentLabel})` }}</title>
+    </path>
+{{/if}}
+{{/each}}
+{{#if center}}
+    <text x="{{ chart.cx }}" y="{{ chart.cy - 2 }}" text-anchor="middle" font-weight="600" font-size="{{ center.size }}" class="fill-zinc-900 dark:fill-zinc-100">{{ center.big }}</text>
+{{#if center.sub}}
+    <text x="{{ chart.cx }}" y="{{ chart.cy + 14 }}" text-anchor="middle" fill="currentColor" fill-opacity="0.65">{{ center.sub }}</text>
+{{/if}}
+{{/if}}
+  </svg>
+
+{{#if legendMode is not "none"}}
+  <ul class="space-y-1.5 text-sm min-w-[10rem]">
+{{#each s in chart.slices}}
+    <li class="flex items-center gap-2">
+      <span class="w-2.5 h-2.5 rounded-[3px] shrink-0" style="{{ `background:${s.color}` }}"></span>
+      <span class="flex-1 text-zinc-700 dark:text-zinc-200 truncate">{{ s.label }}</span>
+      <span class="text-xs tabular-nums text-zinc-500">{{ s.percentLabel }}</span>
+    </li>
+{{/each}}
+  </ul>
+{{/if}}
+{{#else}}
+  <div style="{{ `width:${box}px;height:${box}px` }}"></div>
+{{/if}}
+</div>

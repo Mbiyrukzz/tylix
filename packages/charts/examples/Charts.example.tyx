@@ -1,0 +1,44 @@
+page ChartsExample
+
+import { LineChart, AreaChart, BarChart, Donut, Sparkline } from "@tylix/charts"
+
+title "Charts"
+
+state
+  months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"]
+  revenue: [12, 19, 15, 25, 22, 30, 28]
+  costs: [8, 11, 12, 14, 13, 17, 16]
+
+computed
+  series() {
+    return [
+      { name: "Revenue", data: this.revenue },
+      { name: "Costs", data: this.costs },
+    ]
+  }
+
+  split() {
+    return [
+      { label: "Rent", value: 540 },
+      { label: "Service charge", value: 210 },
+      { label: "Water", value: 120 },
+    ]
+  }
+
+action
+  month(i) {
+    return this.months[i]
+  }
+
+  kes(v) {
+    return `KES ${v}`
+  }
+
+template
+<div class="max-w-3xl mx-auto px-6 py-12 space-y-12">
+  <LineChart series="{{ series }}" formatX="{{ month }}" formatY="{{ kes }}" />
+  <AreaChart series="{{ series }}" stacked="{{ true }}" formatX="{{ month }}" />
+  <BarChart series="{{ series }}" categories="{{ months }}" />
+  <Donut data="{{ split }}" formatValue="{{ kes }}" />
+  <Sparkline data="{{ revenue }}" />
+</div>

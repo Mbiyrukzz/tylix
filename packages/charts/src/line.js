@@ -11,7 +11,7 @@ export const DEFAULT_PALETTE = [
 ]
 
 // Accepts [1, 2, 3] (x = index) or [{ x, y }, ...]
-function normalizeData(data = []) {
+export function normalizeData(data = []) {
   return data.map((d, i) => {
     if (typeof d === 'number') return { x: i, y: d }
     if (d == null) return { x: i, y: null }

@@ -1,0 +1,8 @@
+{
+  "Sparkline": "components/Sparkline.tyx",
+  "LineChart": "components/LineChart.tyx",
+  "AreaChart": "components/AreaChart.tyx",
+  "BarChart": "components/BarChart.tyx",
+  "PieChart": "components/PieChart.tyx",
+  "Donut": "components/Donut.tyx"
+}
