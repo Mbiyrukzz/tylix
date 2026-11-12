@@ -127,6 +127,10 @@ const REGEX_PRECEDERS = new Set([
   T.HAS,
   T.IN,
   T.OF,
+  T.IF,
+  T.WHILE,
+  T.SWITCH,
+  T.INSTANCEOF,
   T.RETURN,
   T.AWAIT,
   T.TYPEOF,
@@ -273,9 +277,18 @@ export class Lexer {
 
   // True when a "/" (or a ".5") at the current position should start a
   // regex literal (or number) based on the previous token.
+   // True when a "/" (or a ".5") at the current position should start a
+  // regex literal (or number) based on the previous token.
   regexAllowed() {
     const prev = this.tokens[this.tokens.length - 1]
-    return !prev || REGEX_PRECEDERS.has(prev.type)
+    if (!prev) return true
+    // A keyword right after "." is a property name (`obj.in / 2`),
+    // so the "/" is division, not the start of a regex.
+    const before = this.tokens[this.tokens.length - 2]
+    if (before && (before.type === T.DOT || before.type === T.QUESTION_DOT)) {
+      return false
+    }
+    return REGEX_PRECEDERS.has(prev.type)
   }
 
   readRegex() {
@@ -399,7 +412,7 @@ export class Lexer {
     this.pushToken(T.STRING, value, startLine)
   }
 
-  // Scans a backtick template literal into a flat list of parts --
+   // Scans a backtick template literal into a flat list of parts --
   // { type: "text", value } for literal text, { type: "expr", source }
   // for each ${...} span -- rather than re-entering full tokenization
   // mid-string. Each expr span's raw source gets parsed later via
@@ -440,19 +453,16 @@ export class Lexer {
         flushText()
         this.pos += 2 // skip "${"
         const exprStart = this.pos
-        let depth = 1
-        while (this.pos < this.source.length && depth > 0) {
-          if (this.source[this.pos] === '{') depth++
-          else if (this.source[this.pos] === '}') depth--
-          if (depth > 0) this.pos++
-        }
-        if (depth !== 0) {
+        const exprEnd = this.findTemplateExprEnd(exprStart)
+        if (exprEnd === -1) {
           throw new Error(
             `Unterminated \${...} in template literal starting at line ${startLine}`,
           )
         }
-        const exprSource = this.source.slice(exprStart, this.pos)
-        this.pos++ // skip closing "}"
+        const exprSource = this.source.slice(exprStart, exprEnd)
+        // Newlines inside the span still count toward line numbers.
+        this.line += (exprSource.match(/\n/g) ?? []).length
+        this.pos = exprEnd + 1 // skip closing "}"
         parts.push({ type: 'expr', source: exprSource })
         continue
       }
@@ -464,6 +474,63 @@ export class Lexer {
 
     flushText()
     this.pushToken(T.TEMPLATE_LITERAL, parts, startLine)
+  }
+
+  // Index of the "}" that closes a ${ ... } span starting at `from`.
+  // Braces inside strings and nested template literals are skipped,
+  // so ${ "}" } and ${ `a${b}` } work.
+  findTemplateExprEnd(from) {
+    const src = this.source
+    let depth = 1
+    let i = from
+    while (i < src.length) {
+      const c = src[i]
+      if (c === '"' || c === "'") {
+        i++
+        while (i < src.length && src[i] !== c) {
+          if (src[i] === '\\') i++
+          i++
+        }
+        i++
+        continue
+      }
+      if (c === '`') {
+        i = this.skipNestedTemplate(i)
+        if (i === -1) return -1
+        continue
+      }
+      if (c === '{') {
+        depth++
+      } else if (c === '}') {
+        depth--
+        if (depth === 0) return i
+      }
+      i++
+    }
+    return -1
+  }
+
+  // `i` points at an opening backtick. Returns the index just past
+  // the matching closing backtick, or -1 if it never closes.
+  skipNestedTemplate(i) {
+    const src = this.source
+    i++
+    while (i < src.length) {
+      const c = src[i]
+      if (c === '\\') {
+        i += 2
+        continue
+      }
+      if (c === '`') return i + 1
+      if (c === '$' && src[i + 1] === '{') {
+        const end = this.findTemplateExprEnd(i + 2)
+        if (end === -1) return -1
+        i = end + 1
+        continue
+      }
+      i++
+    }
+    return -1
   }
 
   // Numbers: 42, 3.14, .5, 1_000, 1e6, 2.5e-3, 0xFF, 0b101, 0o17,

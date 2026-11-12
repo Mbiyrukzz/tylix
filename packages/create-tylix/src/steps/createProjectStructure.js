@@ -98,6 +98,33 @@ export function createResource<T extends { id: number | string }>({ list, create
 }
 `
 
+// Ambient types for the framework-injected globals in TypeScript projects.
+// useApi returns the { ok, status, data, error } wrapper, not the data.
+const GLOBALS_DTS_SOURCE = `interface ApiOptions {
+  headers?: Record<string, string>
+  credentials?: RequestCredentials
+  // Abort after this many milliseconds. 0 or omitted means no timeout.
+  timeout?: number
+  signal?: AbortSignal
+}
+
+interface TylixApiResult<T = any> {
+  ok: boolean
+  status: number
+  data: T
+  error: string | null
+}
+
+declare function useApi<T = any>(
+  url: string,
+  options?: ApiOptions & { method?: string; body?: unknown }
+): Promise<TylixApiResult<T>>
+
+declare function reactive<T extends object>(state: T): T
+
+declare function notFound(): void
+`
+
 // Published version pins, used whenever we're NOT running from inside
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
@@ -152,7 +179,6 @@ const TRUST_PROXY_ENV_LINES = [
   `TRUST_PROXY=false`,
 ]
 
-
 // Shared by .env and .env.example. Requests with a bigger body get a 413.
 // Uploads (receipts, images) need this raised. Read by Server in @tylix/core.
 const MAX_BODY_ENV_LINES = [
@@ -166,6 +192,44 @@ function buildDebugEnvLines(value) {
     `# Shows real error details (SQL, stack traces, request data) in the browser`,
     `# and API responses. Keep false in production: it leaks internals.`,
     `APP_DEBUG=${value}`,
+  ]
+}
+
+// APP_ENV is "local" for a fresh scaffold and "production" in the example
+// file, so a copied .env.example is safe by default. APP_NAME, APP_ENV and
+// LOG_LEVEL are written for your own code to read; the Server in @tylix/core
+// reads APP_URL.
+function buildAppEnvLines(config, env) {
+  return [
+    `# Which environment this app runs in: local, staging or production.`,
+    `APP_ENV=${env}`,
+    `APP_NAME=${formatEnvValue(config.projectName)}`,
+    `# Public URL of the app. Used for links in emails and redirects, and it`,
+    `# counts as a trusted origin for browser write requests.`,
+    `APP_URL=${env === 'local' ? 'http://localhost:3000' : ''}`,
+    `# error, warn, info or debug`,
+    `LOG_LEVEL=${env === 'local' ? 'debug' : 'info'}`,
+  ]
+}
+
+// Settings the Server in @tylix/core reads. AUTO_PORT moves to the next free
+// port when PORT is taken: handy in development, wrong in production where a
+// reverse proxy expects a fixed port.
+function buildServerEnvLines(env) {
+  const local = env === 'local'
+  return [
+    `# Move to the next free port when PORT is already in use.`,
+    `AUTO_PORT=${local ? 'true' : 'false'}`,
+    `# How many following ports to try when AUTO_PORT is on.`,
+    `PORT_ATTEMPTS=10`,
+    ``,
+    `# Extra origins allowed to send browser write requests (POST, PUT, ...),`,
+    `# comma separated. Example: https://admin.example.com,https://app.example.com`,
+    `TRUSTED_ORIGINS=`,
+    ``,
+    `# Content-Security-Policy: off, report-only or enforce. Leave empty for the`,
+    `# default (off in development, report-only in production).`,
+    `CSP_MODE=`,
   ]
 }
 
@@ -323,13 +387,13 @@ export async function createProjectStructure(config) {
         tsconfigTemplate,
       )
 
-      // Ambient declaration for the framework-injected `useApi` global.
+      // Ambient declarations for the framework-injected globals.
       // Without this, every generated .ts file that calls useApi() fails
       // with "Cannot find name 'useApi'" (TS2304).
       await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
       await fs.writeFile(
         path.join(targetDir, 'app', 'types', 'globals.d.ts'),
-        `declare function useApi<T = unknown>(\n  url: string,\n  options?: { method?: string; body?: unknown }\n): Promise<T>\n\ndeclare function reactive<T extends object>(state: T): T\n\ndeclare function notFound(): void\n`,
+        GLOBALS_DTS_SOURCE,
       )
     }
 
@@ -352,30 +416,33 @@ export async function createProjectStructure(config) {
         : `// Open to everyone.\nexport async function publicRoutes(router) {\n  // router.use(someMiddleware) // global: runs before every route\n  // router.get('/health', (req, res) => res.json({ ok: true }))\n}\n\n// Every route here requires a logged-in user. The framework adds the check.\nexport async function protectedRoutes(router) {\n  // router.get('/api/reports', (req, res) => reports.index(req, res))\n}\n`,
     )
 
+    // API helpers. Each takes an optional last `options` argument that is
+    // passed to useApi (headers, credentials, timeout, signal). method and
+    // body are set after the spread, so options cannot override them.
     await fs.mkdir(path.join(targetDir, 'app', 'useApi'), { recursive: true })
     await fs.writeFile(
       path.join(targetDir, 'app', 'useApi', `getApi.${ext}`),
       isTs
-        ? `export const getApi = (table: string) => useApi(\`/api/\${table}\`)\n`
-        : `export const getApi = (table) => useApi(\`/api/\${table}\`)\n`,
+        ? `export const getApi = (table: string, options?: ApiOptions) =>\n  useApi(\`/api/\${table}\`, options)\n`
+        : `export const getApi = (table, options) => useApi(\`/api/\${table}\`, options)\n`,
     )
     await fs.writeFile(
       path.join(targetDir, 'app', 'useApi', `postApi.${ext}`),
       isTs
-        ? `export const postApi = (table: string, data: unknown) =>\n  useApi(\`/api/\${table}\`, { method: 'POST', body: data })\n`
-        : `export const postApi = (table, data) => useApi(\`/api/\${table}\`, { method: 'POST', body: data })\n`,
+        ? `export const postApi = (table: string, data: unknown, options?: ApiOptions) =>\n  useApi(\`/api/\${table}\`, { ...options, method: 'POST', body: data })\n`
+        : `export const postApi = (table, data, options) =>\n  useApi(\`/api/\${table}\`, { ...options, method: 'POST', body: data })\n`,
     )
     await fs.writeFile(
       path.join(targetDir, 'app', 'useApi', `putApi.${ext}`),
       isTs
-        ? `export const putApi = (table: string, id: number | string, data: unknown) =>\n  useApi(\`/api/\${table}/\${id}\`, { method: 'PUT', body: data })\n`
-        : `export const putApi = (table, id, data) => useApi(\`/api/\${table}/\${id}\`, { method: 'PUT', body: data })\n`,
+        ? `export const putApi = (\n  table: string,\n  id: number | string,\n  data: unknown,\n  options?: ApiOptions,\n) => useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'PUT', body: data })\n`
+        : `export const putApi = (table, id, data, options) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'PUT', body: data })\n`,
     )
     await fs.writeFile(
       path.join(targetDir, 'app', 'useApi', `deleteApi.${ext}`),
       isTs
-        ? `export const deleteApi = (table: string, id: number | string) =>\n  useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`
-        : `export const deleteApi = (table, id) => useApi(\`/api/\${table}/\${id}\`, { method: 'DELETE' })\n`,
+        ? `export const deleteApi = (table: string, id: number | string, options?: ApiOptions) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'DELETE' })\n`
+        : `export const deleteApi = (table, id, options) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'DELETE' })\n`,
     )
 
     await fs.writeFile(
@@ -390,6 +457,11 @@ export async function createProjectStructure(config) {
       path.join(targetDir, '.env'),
       [
         `PORT=3000`,
+        ``,
+        ...buildAppEnvLines(config, 'local'),
+        ``,
+        ...buildServerEnvLines('local'),
+        ``,
         `AUTH_SECRET=${crypto.randomBytes(32).toString('hex')}`,
         ``,
         ...buildDebugEnvLines('true'),
@@ -411,6 +483,11 @@ export async function createProjectStructure(config) {
       path.join(targetDir, '.env.example'),
       [
         `PORT=3000`,
+        ``,
+        ...buildAppEnvLines(config, 'production'),
+        ``,
+        ...buildServerEnvLines('production'),
+        ``,
         `AUTH_SECRET=`,
         ``,
         ...buildDebugEnvLines('false'),

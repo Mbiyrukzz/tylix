@@ -15,6 +15,9 @@
 //     async init() { ... },        // optional, runs once; `this`
 //                                  // bound the same way
 //   }
+//
+// `reactive` and `untracked` come from runtime/reactive.js, which is
+// concatenated ahead of this file in the inline script.
 
 const registry = new Map()
 
@@ -58,8 +61,12 @@ export function resolveCapability(name) {
     entry.initStarted = true
     if (entry.def.init) {
       try {
+        // Resolution usually happens inside a template effect (a
+        // `uses` getter read during render). Run init untracked, so
+        // the state it reads before its first `await` does not
+        // subscribe that unrelated effect.
         entry.initPromise = Promise.resolve(
-          entry.def.init.call(entry.instance),
+          untracked(() => entry.def.init.call(entry.instance)),
         )
       } catch (err) {
         entry.initPromise = Promise.reject(err)

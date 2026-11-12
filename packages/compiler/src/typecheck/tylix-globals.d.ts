@@ -1,4 +1,3 @@
-
 // Present on failed requests only when the server runs with APP_DEBUG=true.
 interface TylixDebugInfo {
   status: number
@@ -40,15 +39,25 @@ interface TylixApiResult {
   debug?: TylixDebugInfo | null
 }
 
+interface TylixChannel {
+  send(data: unknown): void
+  // Returns an unsubscribe function.
+  onMessage(fn: (data: any) => void): () => void
+  close(): void
+}
+
 declare function useApi(
   path: string,
   options?: {
     method?: string
     body?: unknown
     headers?: Record<string, string>
+    credentials?: RequestCredentials
+    // Abort after this many milliseconds. 0 or omitted means no timeout.
+    timeout?: number
+    signal?: AbortSignal
   },
 ): Promise<TylixApiResult>
-
 // getApi/postApi/putApi/deleteApi share useApi's response shape --
 // convenience wrappers over the same underlying call.
 declare function getApi(
@@ -73,6 +82,16 @@ declare function deleteApi(
   options?: { headers?: Record<string, string> },
 ): Promise<TylixApiResult>
 
-declare function useChannel(name: string): any
+interface ApiOptions {
+  headers?: Record<string, string>
+  credentials?: RequestCredentials
+  timeout?: number
+  signal?: AbortSignal
+}
+
+declare function useChannel(name: string): TylixChannel
 
 declare function notFound(): void
+
+// Capability names used in page scripts compile to this call.
+declare function resolveCapability(name: string): any

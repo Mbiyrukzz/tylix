@@ -27,6 +27,18 @@ function nextVar(prefix) {
   return `${prefix}${nodeCounter++}`
 }
 
+// Wraps a render-time expression so a throw (for example
+// `post.createdAt.toLocaleDateString()` while `post` is still null)
+// is logged with its template line and replaced by `fallback`, instead
+// of aborting the whole mount. Reads made before the throw are still
+// tracked, so the effect re-runs once the data arrives. Not used for
+// event handlers, which already report errors through the browser.
+function guard(exprSrc, fallback, what, line) {
+  const where = line ? ` at line ${line}` : ''
+  const label = JSON.stringify(`Tylix: error in ${what}${where}:`)
+  return `(() => { try { return ${exprSrc}; } catch (e) { console.error(${label}, e); return ${fallback}; } })()`
+}
+
 /**
  * Compiles a template AST into the BODY of a render(instance,
  * document, components) function as a JS source string. No virtual
@@ -65,7 +77,9 @@ function compileNode(node, lines, scope, inSvg = false) {
     const varName = nextVar('text')
     const expr = generateTemplateExpression(node.expression, scope)
     lines.push(`const ${varName} = document.createTextNode("");`)
-    lines.push(`effect(() => { ${varName}.nodeValue = ${expr}; });`)
+    lines.push(
+      `effect(() => { const v = ${guard(expr, '""', '{{ }} interpolation', node.line)}; ${varName}.nodeValue = v == null ? "" : v; });`,
+    )
     return varName
   }
 
@@ -85,9 +99,9 @@ function compileNode(node, lines, scope, inSvg = false) {
 }
 
 // Renders node.children into a local fragment and returns the lines
-// needed to build it plus the fragment's own variable name, without
-// touching the caller's `lines` array directly (used inside effect
-// callbacks below, which need their own nested block of statements).
+// needed to build it, without touching the caller's `lines` array
+// directly (used inside effect callbacks below, which need their own
+// nested block of statements).
 function compileChildrenIntoFragment(children, scope, fragVar, inSvg = false) {
   const childLines = []
   const childVars = children.map((child) =>
@@ -103,30 +117,53 @@ function emitBranch(lines, children, scope, inSvg, indent) {
   )
 }
 
-// Conditional rendering with no VDOM: an anchor comment node marks
-// the block's position; on first run (before the anchor is even
-// attached to the real DOM by the caller) content builds into the
-// same fragment that holds the anchor. On every later run (state
-// changed), previous nodes are removed and new ones inserted right
-// after the anchor in the live DOM. `{{#else}}` / `{{#else if}}`
+// Every {{#if}} / {{#each}} block owns the DOM range BETWEEN two
+// comment markers (start, end). On every run the whole range is
+// cleared and the new content is inserted before the end marker.
+// Because nested blocks live inside the parent's range, a parent
+// re-run also removes whatever its children inserted later -- the old
+// "remember the nodes from the first run" approach leaked those.
+function emitRangeOpen(lines, startVar, endVar, containerVar, label) {
+  lines.push(`const ${startVar} = document.createComment(${JSON.stringify(label)});`)
+  lines.push(`const ${endVar} = document.createComment(${JSON.stringify('/' + label)});`)
+  lines.push(`const ${containerVar} = document.createDocumentFragment();`)
+  lines.push(`${containerVar}.appendChild(${startVar});`)
+  lines.push(`${containerVar}.appendChild(${endVar});`)
+  lines.push(`effect(() => {`)
+  lines.push(
+    `  while (${startVar}.nextSibling && ${startVar}.nextSibling !== ${endVar}) ${startVar}.nextSibling.remove();`,
+  )
+  lines.push(`  const frag = document.createDocumentFragment();`)
+}
+
+function emitRangeClose(lines, endVar) {
+  lines.push(
+    `  if (${endVar}.parentNode) { ${endVar}.parentNode.insertBefore(frag, ${endVar}); }`,
+  )
+  lines.push(`});`)
+}
+
+// Conditional rendering with no VDOM. `{{#else}}` / `{{#else if}}`
 // branches render into the same slot when the condition is false.
 function compileIf(node, lines, scope, inSvg = false) {
-  const anchorVar = nextVar('ifAnchor')
+  const startVar = nextVar('ifStart')
+  const endVar = nextVar('ifEnd')
   const containerVar = nextVar('ifContainer')
-  const nodesVar = nextVar('ifNodes')
-  const initialVar = nextVar('ifInitial')
 
   // `{{#else if}}` chains (and an {{#else}} holding nothing but one
   // {{#if}}, which means the same thing) are flattened into a single
-  // if / else if / else so the whole chain is ONE effect. Nesting
-  // them would leave stale effects from replaced branches subscribed
-  // to the same state.
+  // if / else if / else so the whole chain is ONE effect.
   const branches = []
   let current = node
   let finalElse = null
   while (true) {
     branches.push({
-      cond: generateTemplateExpression(current.condition, scope),
+      cond: guard(
+        generateTemplateExpression(current.condition, scope),
+        'false',
+        '{{#if}} condition',
+        current.line,
+      ),
       children: current.children,
     })
     const rest = current.elseChildren
@@ -138,15 +175,7 @@ function compileIf(node, lines, scope, inSvg = false) {
     break
   }
 
-  lines.push(`const ${anchorVar} = document.createComment("if");`)
-  lines.push(`const ${containerVar} = document.createDocumentFragment();`)
-  lines.push(`${containerVar}.appendChild(${anchorVar});`)
-  lines.push(`let ${nodesVar} = [];`)
-  lines.push(`let ${initialVar} = true;`)
-  lines.push(`effect(() => {`)
-  lines.push(`  for (const n of ${nodesVar}) n.remove();`)
-  lines.push(`  ${nodesVar} = [];`)
-  lines.push(`  const frag = document.createDocumentFragment();`)
+  emitRangeOpen(lines, startVar, endVar, containerVar, 'if')
   branches.forEach((b, i) => {
     lines.push(i === 0 ? `  if (${b.cond}) {` : `  } else if (${b.cond}) {`)
     emitBranch(lines, b.children, scope, inSvg, '    ')
@@ -156,71 +185,45 @@ function compileIf(node, lines, scope, inSvg = false) {
     emitBranch(lines, finalElse, scope, inSvg, '    ')
   }
   lines.push(`  }`)
-  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`)
-  lines.push(`  if (${nodesVar}.length > 0) {`)
-  lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
-  lines.push(
-    `    else if (${anchorVar}.parentNode) { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
-  )
-  lines.push(`  }`)
-  lines.push(`  ${initialVar} = false;`)
-  lines.push(`});`)
+  emitRangeClose(lines, endVar)
 
   return containerVar
 }
 
 // {{#each item in items}}, {{#each item, i in items}},
 // {{#each [k, v] in Object.entries(o)}}, {{#each { id } in rows}}.
-// `{{#else}}` renders when the list is empty.
+// `{{#else}}` renders when the list is empty. A null/undefined list
+// (or one whose expression throws) renders as empty.
 function compileEach(node, lines, scope, inSvg = false) {
-  const anchorVar = nextVar('eachAnchor')
+  const startVar = nextVar('eachStart')
+  const endVar = nextVar('eachEnd')
   const containerVar = nextVar('eachContainer')
-  const nodesVar = nextVar('eachNodes')
-  const initialVar = nextVar('eachInitial')
+  const listVar = nextVar('eachList')
+  const indexVar = nextVar('eachIndex')
   const iterableExpr = generateTemplateExpression(node.iterable, scope)
   const innerScope = new Set([
     ...scope,
     ...paramNames([node.itemName]),
     ...(node.indexName ? [node.indexName] : []),
   ])
-  const hasElse = !!node.elseChildren
-  const listVar = nextVar('eachList')
-  const indexVar = nextVar('eachIndex')
 
-  lines.push(`const ${anchorVar} = document.createComment("each");`)
-  lines.push(`const ${containerVar} = document.createDocumentFragment();`)
-  lines.push(`${containerVar}.appendChild(${anchorVar});`)
-  lines.push(`let ${nodesVar} = [];`)
-  lines.push(`let ${initialVar} = true;`)
-  lines.push(`effect(() => {`)
-  lines.push(`  for (const n of ${nodesVar}) n.remove();`)
-  lines.push(`  const frag = document.createDocumentFragment();`)
-  if (hasElse) {
-    lines.push(`  const ${listVar} = Array.from(${iterableExpr} ?? []);`)
-  }
-  if (node.indexName) lines.push(`  let ${indexVar} = 0;`)
+  emitRangeOpen(lines, startVar, endVar, containerVar, 'each')
   lines.push(
-    `  for (const ${node.itemName} of ${hasElse ? listVar : iterableExpr}) {`,
+    `  const ${listVar} = Array.from(${guard(iterableExpr, '[]', '{{#each}} list', node.line)} ?? []);`,
   )
+  if (node.indexName) lines.push(`  let ${indexVar} = 0;`)
+  lines.push(`  for (const ${node.itemName} of ${listVar}) {`)
   if (node.indexName) {
     lines.push(`    const ${node.indexName} = ${indexVar}++;`)
   }
   emitBranch(lines, node.children, innerScope, inSvg, '    ')
   lines.push(`  }`)
-  if (hasElse) {
+  if (node.elseChildren) {
     lines.push(`  if (${listVar}.length === 0) {`)
     emitBranch(lines, node.elseChildren, scope, inSvg, '    ')
     lines.push(`  }`)
   }
-  lines.push(`  ${nodesVar} = Array.from(frag.childNodes);`)
-  lines.push(`  if (${nodesVar}.length > 0) {`)
-  lines.push(`    if (${initialVar}) { ${containerVar}.appendChild(frag); }`)
-  lines.push(
-    `    else if (${anchorVar}.parentNode) { ${anchorVar}.parentNode.insertBefore(frag, ${anchorVar}.nextSibling); }`,
-  )
-  lines.push(`  }`)
-  lines.push(`  ${initialVar} = false;`)
-  lines.push(`});`)
+  emitRangeClose(lines, endVar)
 
   return containerVar
 }
@@ -234,26 +237,26 @@ function compileElement(node, lines, scope, inSvg = false) {
     const varName = nextVar('component')
     const tagLiteral = JSON.stringify(node.tag)
 
-   const propEntries = node.attributes.map((attr) => {
-  const key = JSON.stringify(attr.name)
-  if (!attr.dynamic) return `${key}: ${JSON.stringify(attr.value)}`
+    const propEntries = node.attributes.map((attr) => {
+      const key = JSON.stringify(attr.name)
+      if (!attr.dynamic) return `${key}: ${JSON.stringify(attr.value)}`
 
-  let expr = generateTemplateExpression(attr.value, scope)
+      let expr = generateTemplateExpression(attr.value, scope)
 
-  // Callback props (onXxx="{{ methodName }}") are plain values. A bare
-  // instance-method reference loses its `this` the moment the child
-  // calls it, so bind it here while `instance` is still in scope.
-  if (/^on[A-Z]/.test(attr.name)) {
-    if (attr.value.type === 'Identifier') expr = `(${expr}).bind(instance)`
-    return `${key}: ${expr}`
-  }
+      // Callback props (onXxx="{{ methodName }}") are plain values. A bare
+      // instance-method reference loses its `this` the moment the child
+      // calls it, so bind it here while `instance` is still in scope.
+      if (/^on[A-Z]/.test(attr.name)) {
+        if (attr.value.type === 'Identifier') expr = `(${expr}).bind(instance)`
+        return `${key}: ${expr}`
+      }
 
-  // Everything else is a lazy getter: the child reads it inside its
-  // own effects, so `<Child value="{{ count }}">` stays live instead
-  // of being a snapshot taken at mount().
-  return `get ${key}() { return ${expr}; }`
-})
-const propsExpr = `{ ${propEntries.join(', ')} }`
+      // Everything else is a lazy getter: the child reads it inside its
+      // own effects, so `<Child value="{{ count }}">` stays live instead
+      // of being a snapshot taken at mount().
+      return `get ${key}() { return ${guard(expr, 'undefined', `<${node.tag}> prop "${attr.name}"`, attr.line)}; }`
+    })
+    const propsExpr = `{ ${propEntries.join(', ')} }`
 
     lines.push(`let ${varName};`)
     lines.push(`if (components[${tagLiteral}]) {`)
@@ -274,8 +277,7 @@ const propsExpr = `{ ${propEntries.join(', ')} }`
   // Once we're inside an <svg>, every descendant (path, circle, g,
   // etc.) needs the SVG namespace too -- createElement() without a
   // namespace produces a non-rendering element that still LOOKS
-  // correct in the DOM inspector (right tag name, right attributes),
-  // which is exactly what made this bug so hard to spot.
+  // correct in the DOM inspector.
   const isSvgRoot = node.tag === 'svg'
   const nsForThisNode = inSvg || isSvgRoot
   const childInSvg = isSvgRoot ? true : inSvg
@@ -312,10 +314,8 @@ const LIVE_PROPERTY_ATTRS = new Set(['value', 'checked'])
 const LIVE_PROPERTY_TAGS = new Set(['input', 'textarea', 'select'])
 
 // Attributes where HTML only cares whether they're *present*, not
-// their string value -- setAttribute(name, "false") is still
-// truthy to the browser, same as "true" or "". These need
-// add/removeAttribute based on the JS value's truthiness, not a
-// literal setAttribute call with the stringified value.
+// their string value. These need add/removeAttribute based on the JS
+// value's truthiness, not a literal setAttribute call.
 const BOOLEAN_ATTRS = new Set([
   'disabled',
   'checked',
@@ -361,25 +361,36 @@ function compileAttribute(elVar, tag, attr, lines, scope) {
   }
 
   if (attr.dynamic) {
-    const expr = generateTemplateExpression(attr.value, scope)
+    const raw = generateTemplateExpression(attr.value, scope)
+    const expr = guard(raw, 'undefined', `attribute "${attr.name}"`, attr.line)
+    const nameLit = JSON.stringify(attr.name)
     const useProperty =
       LIVE_PROPERTY_ATTRS.has(attr.name) && LIVE_PROPERTY_TAGS.has(tag)
     const useBoolean = BOOLEAN_ATTRS.has(attr.name) && !useProperty
+
     if (useProperty) {
       // Set the live DOM property, not the attribute, so re-renders
-      // after the user has typed (e.g. clearing the form on submit)
-      // actually update what's on screen.
-      lines.push(`effect(() => { ${elVar}.${attr.name} = ${expr}; });`)
+      // after the user has typed actually update what's on screen.
+      // `value` shows null/undefined as empty, `checked` is coerced.
+      if (attr.name === 'value') {
+        lines.push(
+          `effect(() => { const v = ${expr}; ${elVar}.value = v == null ? "" : v; });`,
+        )
+      } else {
+        lines.push(`effect(() => { ${elVar}.${attr.name} = !!(${expr}); });`)
+      }
     } else if (useBoolean) {
       // Boolean attribute: presence, not string value, is what
-      // matters to the browser. Add it (empty string) when truthy,
-      // remove it entirely when falsy.
+      // matters to the browser.
       lines.push(
-        `effect(() => { if (${expr}) { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ""); } else { ${elVar}.removeAttribute(${JSON.stringify(attr.name)}); } });`,
+        `effect(() => { if (${expr}) { ${elVar}.setAttribute(${nameLit}, ""); } else { ${elVar}.removeAttribute(${nameLit}); } });`,
       )
     } else {
+      // null/undefined remove the attribute instead of writing the
+      // string "undefined". false/0/"" are real values and are kept
+      // (aria-expanded="false" must stay).
       lines.push(
-        `effect(() => { ${elVar}.setAttribute(${JSON.stringify(attr.name)}, ${expr}); });`,
+        `effect(() => { const v = ${expr}; if (v == null) { ${elVar}.removeAttribute(${nameLit}); } else { ${elVar}.setAttribute(${nameLit}, v); } });`,
       )
     }
     return

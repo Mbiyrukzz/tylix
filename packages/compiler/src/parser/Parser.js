@@ -421,17 +421,23 @@ export class Parser {
     }
 
     this.expect(TokenType.COLON, "Expected ':' after state name")
-    if (this.match(TokenType.MINUS)) {
-      const num = this.expect(
-        TokenType.NUMBER,
-        "Expected a number after '-'",
-      ).value
-      return {
-        ...StateNode(name, Literal(-num), typeAnnotation),
-        line: startLine,
-      }
+
+    // A full ternary-level expression, so initializers like
+    // `new Date().toLocaleDateString()`, `Date.now()`, `60 * 60`,
+    // `ready ? 1 : 2` and `[...]` / `{...}` all parse. Entries always
+    // start with a name, so no operator can be the start of the next entry.
+    let value = this.parseTernary()
+
+    // Keep `-5` as a plain negative Literal, as before.
+    if (
+      value.type === 'UnaryExpression' &&
+      value.operator === '-' &&
+      value.argument.type === 'Literal' &&
+      typeof value.argument.value === 'number'
+    ) {
+      value = Literal(-value.argument.value)
     }
-    const value = this.parsePrimary()
+
     return { ...StateNode(name, value, typeAnnotation), line: startLine }
   }
 
@@ -1615,11 +1621,8 @@ parseNotOperand() {
 parsePrimary() {
   if (this.match(TokenType.NEW)) {
     let callee = this.parsePrimary()
-    while (this.match(TokenType.DOT)) {
-      const property = this.expect(
-        TokenType.IDENTIFIER,
-        "Expected a property name after '.'",
-      ).value
+        while (this.match(TokenType.DOT)) {
+      const property = this.parsePropertyName("after '.'")
       callee = MemberExpr(callee, property)
     }
     let args = []
@@ -1715,43 +1718,132 @@ parsePrimary() {
   // AST -- Tylix's own codegen never interprets them, it only needs
   // the exact TS source text to paste into the virtual .ts file handed
   // to the TypeScript compiler API.
+  // Type expressions are captured as plain strings, not a full type
+  // AST -- Tylix's own codegen never interprets them, it only needs
+  // the exact TS source text to paste into the virtual .ts file handed
+  // to the TypeScript compiler API.
+  //
+  // Supported: names (Foo, Foo.Bar), generics (Map<string, Post[]>),
+  // unions and intersections, arrays and indexed access (T[], T[K]),
+  // string/number literal types ("asc" | "desc", 1 | 2), tuples
+  // ([string, number]), object types (with index signatures and method
+  // signatures), function types ((id: number) => void), grouped types,
+  // keyof / typeof / readonly prefixes, void/null/undefined.
   parseTypeExpression() {
-    let left = this.parseUnionTypeOperand()
-    while (this.check(TokenType.PIPE)) {
-      this.advance()
-      const right = this.parseUnionTypeOperand()
-      left = `${left} | ${right}`
+    this.match(TokenType.PIPE) // leading "|" of a multi-line union
+    let left = this.parseIntersectionType()
+    while (this.match(TokenType.PIPE)) {
+      left = `${left} | ${this.parseIntersectionType()}`
     }
     return left
   }
 
-  parseUnionTypeOperand() {
-    let type = this.parsePrimaryType()
+  parseIntersectionType() {
+    this.match(TokenType.AMP) // leading "&"
+    let left = this.parseTypeOperand()
+    while (this.match(TokenType.AMP)) {
+      left = `${left} & ${this.parseTypeOperand()}`
+    }
+    return left
+  }
+
+  parseTypeOperand() {
+    const tok = this.peek()
+
+    if (tok.type === TokenType.TYPEOF) {
+      this.advance()
+      let name = this.parseNameToken("Expected a name after 'typeof'")
+      while (this.match(TokenType.DOT)) {
+        name += `.${this.parsePropertyName("after '.'")}`
+      }
+      return this.parseTypeSuffixes(`typeof ${name}`)
+    }
+
+    let prefix = ''
+    if (
+      tok.type === TokenType.IDENTIFIER &&
+      (tok.value === 'keyof' || tok.value === 'readonly')
+    ) {
+      const next = this.tokens[this.pos + 1]
+      if (
+        next &&
+        (next.type === TokenType.IDENTIFIER ||
+          next.type === TokenType.LBRACE ||
+          next.type === TokenType.LPAREN ||
+          next.type === TokenType.LBRACKET ||
+          next.type === TokenType.TYPEOF)
+      ) {
+        this.advance()
+        prefix = `${tok.value} `
+      }
+    }
+
+    return this.parseTypeSuffixes(prefix + this.parsePrimaryType())
+  }
+
+  // `T[]` and indexed access `T[K]`
+  parseTypeSuffixes(type) {
     while (this.check(TokenType.LBRACKET)) {
       this.advance()
-      this.expect(TokenType.RBRACKET, "Expected ']' to close array type")
-      type = `${type}[]`
+      if (this.match(TokenType.RBRACKET)) {
+        type = `${type}[]`
+      } else {
+        const index = this.parseTypeExpression()
+        this.expect(
+          TokenType.RBRACKET,
+          "Expected ']' to close indexed access type",
+        )
+        type = `${type}[${index}]`
+      }
     }
     return type
   }
 
   parsePrimaryType() {
-    if (this.check(TokenType.LBRACE)) {
+    const tok = this.peek()
+
+    if (tok.type === TokenType.STRING) {
+      this.advance()
+      return JSON.stringify(tok.value)
+    }
+    if (tok.type === TokenType.NUMBER) {
+      this.advance()
+      return String(tok.value)
+    }
+    if (
+      tok.type === TokenType.MINUS &&
+      this.tokens[this.pos + 1]?.type === TokenType.NUMBER
+    ) {
+      this.advance()
+      return `-${this.advance().value}`
+    }
+    if (tok.type === TokenType.LBRACE) {
       return this.parseObjectTypeLiteral()
     }
-    if (this.match(TokenType.LPAREN)) {
+    if (tok.type === TokenType.LBRACKET) {
+      return this.parseTupleType()
+    }
+    if (tok.type === TokenType.LPAREN) {
+      // `(a: T) => R` is a function type; anything else in parens is
+      // a grouped type like `(A | B)[]`.
+      const fn = this.tryParseFunctionType()
+      if (fn !== null) return fn
+      this.advance()
       const inner = this.parseTypeExpression()
       this.expect(TokenType.RPAREN, "Expected ')' to close grouped type")
       return `(${inner})`
     }
 
-    let name = this.expect(TokenType.IDENTIFIER, 'Expected a type name').value
+    // `void` is a keyword token but a perfectly good type name.
+    if (tok.type !== TokenType.IDENTIFIER && tok.type !== TokenType.VOID) {
+      throw new Error(
+        `Expected a type name at line ${tok.line}, got ${tok.type}`,
+      )
+    }
+    this.advance()
+    let name = tok.value
     while (this.match(TokenType.DOT)) {
-      const prop = this.expect(
-        TokenType.IDENTIFIER,
-        "Expected a property name after '.'",
-      ).value
-      name += `.${prop}`
+      name += `.${this.parsePropertyName("after '.'")}`
     }
 
     if (this.match(TokenType.LT)) {
@@ -1766,18 +1858,89 @@ parsePrimary() {
     return name
   }
 
+  // `(a: T, b?: U, ...rest: V[])` -> "a: T, b?: U, ...rest: V[]"
+  parseTypeParamList() {
+    this.expect(TokenType.LPAREN, "Expected '(' to start a parameter list")
+    const params = []
+    while (!this.check(TokenType.RPAREN)) {
+      const rest = this.match(TokenType.SPREAD)
+      const name = this.parseNameToken('Expected a parameter name')
+      const optional = this.match(TokenType.QUESTION)
+      this.expect(TokenType.COLON, "Expected ':' after parameter name")
+      const type = this.parseTypeExpression()
+      params.push(`${rest ? '...' : ''}${name}${optional ? '?' : ''}: ${type}`)
+      if (!this.match(TokenType.COMMA)) break
+    }
+    this.expect(TokenType.RPAREN, "Expected ')' to close a parameter list")
+    return params.join(', ')
+  }
+
+  // Speculative: restores the position and returns null when the
+  // parens turn out to be a grouped type instead.
+  tryParseFunctionType() {
+    const savedPos = this.pos
+    try {
+      const params = this.parseTypeParamList()
+      this.expect(TokenType.ARROW, "Expected '=>' in function type")
+      const returnType = this.parseTypeExpression()
+      return `(${params}) => ${returnType}`
+    } catch {
+      this.pos = savedPos
+      return null
+    }
+  }
+
+  parseTupleType() {
+    this.expect(TokenType.LBRACKET, "Expected '[' to start a tuple type")
+    const members = []
+    while (!this.check(TokenType.RBRACKET)) {
+      const rest = this.match(TokenType.SPREAD)
+      let member = this.parseTypeExpression()
+      if (this.match(TokenType.QUESTION)) member += '?'
+      members.push(`${rest ? '...' : ''}${member}`)
+      if (!this.match(TokenType.COMMA)) break
+    }
+    this.expect(TokenType.RBRACKET, "Expected ']' to close a tuple type")
+    return `[${members.join(', ')}]`
+  }
+
   parseObjectTypeLiteral() {
     this.expect(TokenType.LBRACE, "Expected '{' to start object type")
     const members = []
     while (!this.check(TokenType.RBRACE)) {
-      const key = this.parseNameToken('Expected a property name')
-      const optional = this.match(TokenType.QUESTION)
-      this.expect(
-        TokenType.COLON,
-        "Expected ':' after property name in object type",
-      )
-      const valueType = this.parseTypeExpression()
-      members.push(`${key}${optional ? '?' : ''}: ${valueType}`)
+      if (this.check(TokenType.LBRACKET)) {
+        // index signature: [key: string]: T
+        this.advance()
+        const keyName = this.parseNameToken('Expected an index signature name')
+        this.expect(TokenType.COLON, "Expected ':' in index signature")
+        const keyType = this.parseTypeExpression()
+        this.expect(TokenType.RBRACKET, "Expected ']' to close index signature")
+        this.expect(TokenType.COLON, "Expected ':' after index signature")
+        const valueType = this.parseTypeExpression()
+        members.push(`[${keyName}: ${keyType}]: ${valueType}`)
+      } else {
+        const key = this.check(TokenType.STRING)
+          ? JSON.stringify(this.advance().value)
+          : this.parseNameToken('Expected a property name')
+        const optional = this.match(TokenType.QUESTION)
+
+        if (this.check(TokenType.LPAREN)) {
+          // method signature: name(a: T): R
+          const params = this.parseTypeParamList()
+          let returnType = 'any'
+          if (this.match(TokenType.COLON)) {
+            returnType = this.parseTypeExpression()
+          }
+          members.push(`${key}${optional ? '?' : ''}(${params}): ${returnType}`)
+        } else {
+          this.expect(
+            TokenType.COLON,
+            "Expected ':' after property name in object type",
+          )
+          const valueType = this.parseTypeExpression()
+          members.push(`${key}${optional ? '?' : ''}: ${valueType}`)
+        }
+      }
       if (!this.match(TokenType.COMMA)) this.match(TokenType.SEMICOLON)
     }
     this.expect(TokenType.RBRACE, "Expected '}' to close object type")

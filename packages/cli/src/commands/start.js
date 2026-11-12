@@ -14,6 +14,8 @@ const DRIVER_LABELS = {
   mongodb: 'MongoDB',
 }
 
+const SHUTDOWN_TIMEOUT_MS = 10_000
+
 // Production server: no file watching, no hot reload, no dev-only
 // routes, cached page preparation, generic error pages. Expects
 // `tylix build` and `tylix migrate` to have run already.
@@ -37,24 +39,39 @@ export async function start({ port } = {}) {
     notFoundHandler: app.notFoundHandler,
   })
 
-  server.listen(listenPort, () => {
+  const httpServer = server.listen(listenPort, (actualPort = listenPort) => {
     console.log()
     printBox('Tylix Framework')
     console.log()
     printChecklist([
-      `Environment  production`,
+      `Environment  ${process.env.APP_ENV || 'production'}`,
       `Database     ${DRIVER_LABELS[app.config.database.driver] ?? app.config.database.driver}`,
       `Features     ${app.features.length}`,
       `Pages        ${app.pageRoutes.length}`,
     ])
-    printLinkSection('Listening on', `http://localhost:${listenPort}`)
+    printLinkSection('Listening on', `http://localhost:${actualPort}`)
     console.log()
   })
 
+  // Stop accepting connections, let running requests finish, then exit.
+  // A second signal, or the timeout, exits immediately.
+  let closing = false
+  const shutdown = (signal) => {
+    if (closing) process.exit(1)
+    closing = true
+    console.log(`\nReceived ${signal}, finishing open requests...`)
+
+    httpServer.close(() => process.exit(0))
+    // Keep-alive connections with no request in flight would hold close() open.
+    httpServer.closeIdleConnections?.()
+
+    setTimeout(() => {
+      console.error('Shutdown timed out, exiting.')
+      process.exit(1)
+    }, SHUTDOWN_TIMEOUT_MS).unref()
+  }
+
   for (const signal of ['SIGINT', 'SIGTERM']) {
-    process.on(signal, () => {
-      console.log(`\nReceived ${signal}, shutting down.`)
-      process.exit(0)
-    })
+    process.on(signal, () => shutdown(signal))
   }
 }

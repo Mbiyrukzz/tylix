@@ -104,6 +104,7 @@ function printRouteGroup(title, routes) {
 function printBanner({
   version,
   port,
+  environment,
   driver,
   featureCount,
   pageCount,
@@ -117,7 +118,7 @@ function printBanner({
   console.log()
 
   printStatus([
-    ['Environment', 'development'],
+    ['Environment', environment],
     ['Database', DRIVER_LABELS[driver] ?? driver],
     ['Compiler', 'Ready'],
     ['ORM', 'Ready'],
@@ -324,6 +325,9 @@ async function runServer({ port } = {}) {
     (Number(process.env.TYLIX_DEV_PORT) || undefined) ??
     (Number(process.env.PORT) || 3000)
 
+  // Shown in the startup banner. "local" etc. come from APP_ENV in .env.
+  const environment = process.env.APP_ENV || 'development'
+
   const hotReloadCompiler = process.env.TYLIX_HOT_RELOAD_COMPILER === 'true'
 
   await buildTailwindCss(baseDir)
@@ -373,18 +377,24 @@ async function runServer({ port } = {}) {
   const server = new Server(app.router, {
     notFoundHandler: app.notFoundHandler,
   })
-  server.listen(port, () => {
+
+  // `actualPort` is the port that was really bound. It differs from
+  // `port` when that one was taken and AUTO_PORT moved us to the next.
+  server.listen(port, (actualPort = port) => {
     const readyMs = Math.round(performance.now() - startedAt)
 
     if (wasRestarted) {
-      console.log(`  ✔ Server restarted in ${readyMs}ms · http://localhost:${port}\n`)
+      console.log(
+        `  ✔ Server restarted in ${readyMs}ms · http://localhost:${actualPort}\n`,
+      )
       return
     }
 
     printBanner({
       version,
       readyMs,
-      port,
+      port: actualPort,
+      environment,
       driver: app.config.database.driver,
       featureCount: app.features.length,
       pageCount: app.pageRoutes.length,

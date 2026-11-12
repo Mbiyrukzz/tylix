@@ -16,6 +16,7 @@ import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
 import { renderErrorPage } from '../utils/error-page.js'
 import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
 import { createRouteRecorder } from './routeRecorder.js'
+import { stripModuleSyntax } from './stripModuleSyntax.js'
 
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
@@ -65,9 +66,7 @@ async function loadApiHelpers(baseDir, transpileTsToJs) {
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith(ext)) {
       const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
-      const stripped = raw
-        .replace(/^import\s+.*$/gm, '')
-        .replace(/export\s+/g, '')
+      const stripped = stripModuleSyntax(raw)
       sources.push(
         language === 'typescript' ? transpileTsToJs(stripped) : stripped,
       )
@@ -85,9 +84,7 @@ async function loadApiHelpersForTypecheck(baseDir) {
   for (const entry of entries) {
     if (entry.isFile() && entry.name.endsWith('.ts')) {
       const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
-      sources.push(
-        raw.replace(/^import\s+.*$/gm, '').replace(/export\s+/g, ''),
-      )
+      sources.push(stripModuleSyntax(raw))
     }
   }
   return sources.join('\n\n')
@@ -96,20 +93,25 @@ async function loadApiHelpersForTypecheck(baseDir) {
 const MIME_TYPES = {
   '.css': 'text/css',
   '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
   '.json': 'application/json',
+  '.map': 'application/json',
+  '.webmanifest': 'application/manifest+json',
   '.txt': 'text/plain',
+  '.xml': 'application/xml',
+  '.pdf': 'application/pdf',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.gif': 'image/gif',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
 }
-
 // Package files the browser may import directly. Browsers can't resolve
 // bare names like "@tylix/charts", so the framework serves the package's
 // source folder under a fixed /_tylix/ URL. Only the listed folder of the
@@ -860,16 +862,19 @@ export async function createApp(
     hydrate: config.auth?.hydrate,
   })
 
-  router.get('/api/_tylix/features', (req, res) => {
-    res.json({
-      data: features
-        .filter((f) => f.manifest.table !== 'posts')
-        .map((f) => ({
-          name: f.manifest.name,
-          table: f.manifest.table,
-        })),
+   // Lists table names, so it is a dev tool like the mail routes below.
+  if (!production) {
+    router.get('/api/_tylix/features', (req, res) => {
+      res.json({
+        data: features
+          .filter((f) => f.manifest.table !== 'posts')
+          .map((f) => ({
+            name: f.manifest.name,
+            table: f.manifest.table,
+          })),
+      })
     })
-  })
+  }
 
   // Mail logs hold password-reset, verification and invite links, and
   // MailLog.recent() returns every user's mail, not just the caller's.

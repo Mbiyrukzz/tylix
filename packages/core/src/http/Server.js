@@ -8,6 +8,7 @@ import { renderDebugPage } from './debug/renderDebugPage.js'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024 // 1 MB
+const DEFAULT_PORT_ATTEMPTS = 10
 
 // Pages inline their scripts, so script-src needs 'unsafe-inline'. The rest
 // still blocks framing, base-tag and form hijacking, plugins, and data being
@@ -93,7 +94,14 @@ function wantsHtml(req) {
 export class Server {
   constructor(
     router,
-    { notFoundHandler = null, trustProxy, debug, maxBodyBytes } = {},
+    {
+      notFoundHandler = null,
+      trustProxy,
+      debug,
+      maxBodyBytes,
+      autoPort,
+      maxPortAttempts,
+    } = {},
   ) {
     this.router = router
     // Optional fallback called when no route matches, before the
@@ -114,6 +122,20 @@ export class Server {
     this.maxBodyBytes =
       maxBodyBytes ??
       (Number(process.env.MAX_BODY_BYTES) || DEFAULT_MAX_BODY_BYTES)
+
+    // When the port is already taken, try the next one instead of
+    // crashing. On by default outside production (a proxy or process
+    // manager expects a fixed port there). Override with AUTO_PORT=true
+    // or AUTO_PORT=false.
+    this.autoPort =
+      autoPort ??
+      (process.env.AUTO_PORT !== undefined
+        ? process.env.AUTO_PORT === 'true'
+        : !this.production)
+    // How many following ports to try (PORT_ATTEMPTS, default 10).
+    this.maxPortAttempts =
+      maxPortAttempts ??
+      (Number(process.env.PORT_ATTEMPTS) || DEFAULT_PORT_ATTEMPTS)
 
     // Origins allowed to make browser write requests from elsewhere
     // (TRUSTED_ORIGINS=https://a.example,https://b.example). APP_URL counts too.
@@ -311,8 +333,61 @@ export class Server {
     })
   }
 
+  // Starts listening on `port`. If that port is taken and autoPort is on,
+  // tries port + 1, port + 2, ... up to maxPortAttempts times.
+  //
+  // `callback` receives the port actually bound, which may differ from
+  // the one requested, so print THAT in your "running at" message.
+  // Port 0 (let the OS pick) never retries.
   listen(port, callback) {
     const server = http.createServer(this.createHandler())
-    return server.listen(port, callback)
+    const requested = Number(port)
+    let attempt = 0
+
+    const tryPort = (candidate) => {
+      const onError = (err) => {
+        const canRetry =
+          err.code === 'EADDRINUSE' &&
+          this.autoPort &&
+          requested !== 0 &&
+          attempt < this.maxPortAttempts
+
+        if (canRetry) {
+          attempt++
+          console.warn(
+            `[tylix] Port ${candidate} is already in use, trying ${candidate + 1}...`,
+          )
+          tryPort(candidate + 1)
+          return
+        }
+
+        if (err.code === 'EADDRINUSE') {
+          console.error(
+            `[tylix] Port ${candidate} is already in use.` +
+              (this.autoPort
+                ? ` Tried ${attempt + 1} port(s) starting at ${requested}.`
+                : ' Set AUTO_PORT=true to use the next free port, or change PORT.'),
+          )
+        }
+        // Same behaviour as before: with no 'error' listener this throws.
+        server.emit('error', err)
+      }
+
+      server.once('error', onError)
+      server.listen(candidate, () => {
+        server.removeListener('error', onError)
+        const bound = server.address()
+        const actual = typeof bound === 'object' && bound ? bound.port : candidate
+        if (actual !== requested && requested !== 0) {
+          console.warn(
+            `[tylix] Listening on port ${actual} instead of ${requested}.`,
+          )
+        }
+        if (callback) callback(actual)
+      })
+    }
+
+    tryPort(requested)
+    return server
   }
 }

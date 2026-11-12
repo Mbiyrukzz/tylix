@@ -32,6 +32,19 @@ export interface ServerOptions {
    * Defaults to the MAX_BODY_BYTES env var, then 1 MB.
    */
   maxBodyBytes?: number
+
+  /**
+   * When the port is already in use, try the next one instead of failing.
+   * Defaults to the AUTO_PORT env var, otherwise on outside production
+   * and off in production.
+   */
+  autoPort?: boolean
+
+  /**
+   * How many following ports to try. Defaults to the PORT_ATTEMPTS env
+   * var, then 10.
+   */
+  maxPortAttempts?: number
 }
 
 export declare class Server {
@@ -41,6 +54,10 @@ export declare class Server {
   production: boolean
   debug: boolean
   maxBodyBytes: number
+  /** When the port is in use, try the next one instead of failing. */
+  autoPort: boolean
+  /** How many following ports to try. */
+  maxPortAttempts: number
   /** Origins allowed to make cross-site browser writes (TRUSTED_ORIGINS + APP_URL). */
   trustedOrigins: Set<string>
   /** CSP_MODE: 'off' | 'report-only' | 'enforce' (lowercased, not validated). */
@@ -50,7 +67,9 @@ export declare class Server {
   constructor(router: Router, options?: ServerOptions)
 
   createHandler(): (req: any, res: any) => Promise<void>
-  listen(port: number, callback?: () => void): HttpServer
+
+  /** `callback` receives the port actually bound. */
+  listen(port: number, callback?: (port: number) => void): HttpServer
 
   applySecurityHeaders(req: any, res: any): void
   isCrossSiteWrite(req: any): boolean

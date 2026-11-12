@@ -14,6 +14,10 @@ function compose(fns) {
   }
 }
 
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export class Router {
   constructor() {
     this.routes = []
@@ -44,7 +48,8 @@ export class Router {
           keys.push(segment.slice(1))
           return '([^/]+)'
         }
-        return segment
+        // Static text is literal: "." in "/sitemap.xml" is just a dot.
+        return escapeRegex(segment)
       })
       .join('/')
 
@@ -89,9 +94,11 @@ export class Router {
       const result = route.regex.exec(pathname)
       if (!result) continue
 
+      // decodeURIComponent throws URIError on a bad escape; Server.fail
+      // turns that into a 400.
       const params = {}
       route.keys.forEach((key, i) => {
-        params[key] = result[i + 1]
+        params[key] = decodeURIComponent(result[i + 1])
       })
 
       const chain = compose([

@@ -4,14 +4,54 @@ export async function useApi(url, options = {}) {
     body,
     headers = {},
     credentials = 'include',
+    // Abort after this many milliseconds. 0 means no timeout.
+    timeout = 0,
+    signal,
   } = options
 
   const finalHeaders = { ...headers }
+  const hasHeader = (name) =>
+    Object.keys(finalHeaders).some((k) => k.toLowerCase() === name)
+
+  // Bodies fetch understands natively are sent untouched. Any other
+  // object (plain objects, arrays, reactive proxies) is sent as JSON.
+  const isNativeBody =
+    body instanceof FormData ||
+    body instanceof Blob ||
+    body instanceof URLSearchParams ||
+    body instanceof ArrayBuffer ||
+    ArrayBuffer.isView(body) ||
+    (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream)
+
   let finalBody = body
-  if (body && typeof body === 'object' && !(body instanceof FormData)) {
-    finalHeaders['Content-Type'] =
-      finalHeaders['Content-Type'] || 'application/json'
+  if (body && typeof body === 'object' && !isNativeBody) {
+    if (!hasHeader('content-type')) {
+      finalHeaders['Content-Type'] = 'application/json'
+    }
     finalBody = JSON.stringify(body)
+  }
+
+  // fetch() throws a TypeError for a GET/HEAD with a body, which used
+  // to surface as a confusing "could not reach the server".
+  const upper = String(method).toUpperCase()
+  if ((upper === 'GET' || upper === 'HEAD') && finalBody !== undefined) {
+    console.warn(
+      `[tylix] ${upper} ${url}: a ${upper} request cannot have a body, so it was ignored.`,
+    )
+    finalBody = undefined
+  }
+
+  let controller = null
+  let timer = null
+  let fetchSignal = signal
+  if (timeout > 0) {
+    controller = new AbortController()
+    timer = setTimeout(() => controller.abort(), timeout)
+    if (signal) {
+      if (signal.aborted) controller.abort()
+      else signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+    fetchSignal = controller.signal
   }
 
   // __tylixRequestStart/End are injected by the runtime. Guarding them
@@ -25,13 +65,17 @@ export async function useApi(url, options = {}) {
       headers: finalHeaders,
       body: finalBody,
       credentials,
+      signal: fetchSignal,
     })
+
     let data = null
     try {
-      data = await response.json()
+      const text = await response.text()
+      if (text) data = JSON.parse(text)
     } catch {
-      /* empty body */
+      /* empty or non-JSON body */
     }
+
     if (!response.ok) {
       // Only present when the server runs with APP_DEBUG=true.
       const debug =
@@ -41,18 +85,26 @@ export async function useApi(url, options = {}) {
         ok: false,
         status: response.status,
         data,
-        error: (data && (data.error || data.message)) || 'Request failed',
+        error:
+          (data && (data.error || data.message)) ||
+          `Request failed (HTTP ${response.status})`,
         debug,
       }
     }
     return { ok: true, status: response.status, data, error: null, debug: null }
   } catch (err) {
+    const timedOut =
+      controller && controller.signal.aborted && !(signal && signal.aborted)
+    const message = timedOut
+      ? `Request timed out after ${timeout}ms`
+      : err.message
     console.warn(
-      `[tylix] ${method} ${url} could not reach the server: ${err.message}. ` +
+      `[tylix] ${method} ${url} could not reach the server: ${message}. ` +
         'Is "tylix dev" running, and is the URL correct?',
     )
-    return { ok: false, status: 0, data: null, error: err.message, debug: null }
+    return { ok: false, status: 0, data: null, error: message, debug: null }
   } finally {
+    if (timer) clearTimeout(timer)
     if (track) __tylixRequestEnd()
   }
 
@@ -61,7 +113,13 @@ export async function useApi(url, options = {}) {
   // file still works if the compiler injects only this one function.
   // ---------------------------------------------------------------
   function showDebug(debug, method, url) {
-    logToConsole(debug, method, url)
+    // Neither step may throw: this runs inside the request's try block,
+    // so an error here would be reported as a network failure.
+    try {
+      logToConsole(debug, method, url)
+    } catch (err) {
+      console.warn('[tylix] debug logging failed:', err)
+    }
     try {
       showOverlay(debug, method, url)
     } catch (err) {
@@ -99,10 +157,6 @@ export async function useApi(url, options = {}) {
       index: 0,
       open: false,
     })
-    store.errors.unshift({ debug, method, url })
-    store.errors = store.errors.slice(0, 20)
-    store.index = 0
-    render()
 
     function h(tag, props, ...children) {
       const node = document.createElement(tag)
@@ -401,5 +455,12 @@ export async function useApi(url, options = {}) {
       .frame span { color: var(--ac); font-size: 12px; word-break: break-all; }
       .actions { display: flex; gap: 8px; margin-top: 22px; }
     `
+
+    // Last on purpose: render() reads CSS and KEYWORDS, which are
+    // consts and cannot be touched before their declarations above.
+    store.errors.unshift({ debug, method, url })
+    store.errors = store.errors.slice(0, 20)
+    store.index = 0
+    render()
   }
 }

@@ -26,10 +26,23 @@ export const JS_GLOBALS = new Set([
   'crypto',
   'localStorage',
   'sessionStorage',
+  'indexedDB',
   'matchMedia',
   'getComputedStyle',
+  'getSelection',
   'scrollTo',
   'scrollBy',
+
+  // Tylix runtime helpers (declared in tylix-globals.d.ts). Without
+  // these, `{{ postApi(...) }}` or `onclick="{{ () => notFound() }}"`
+  // in a template became `instance.postApi` / `instance.notFound`.
+  'useApi',
+  'getApi',
+  'postApi',
+  'putApi',
+  'deleteApi',
+  'useChannel',
+  'notFound',
 
   // dialogs
   'alert',
@@ -61,7 +74,8 @@ export const JS_GLOBALS = new Set([
   'BroadcastChannel',
   'Worker',
 
-  // core objects
+  // core objects (Date and Intl cover toLocaleDateString,
+  // Intl.DateTimeFormat, Intl.NumberFormat, ...)
   'Math',
   'JSON',
   'Date',
@@ -75,6 +89,7 @@ export const JS_GLOBALS = new Set([
   'WeakSet',
   'WeakMap',
   'WeakRef',
+  'FinalizationRegistry',
   'Promise',
   'RegExp',
   'Symbol',
@@ -93,11 +108,13 @@ export const JS_GLOBALS = new Set([
   'URIError',
   'EvalError',
   'AggregateError',
+  'DOMException',
 
   // binary / files
   'Blob',
   'FileReader',
   'ArrayBuffer',
+  'SharedArrayBuffer',
   'DataView',
   'TextEncoder',
   'TextDecoder',
@@ -111,16 +128,32 @@ export const JS_GLOBALS = new Set([
   'Float32Array',
   'Float64Array',
   'BigInt64Array',
+  'BigUint64Array',
 
   // DOM types
   'HTMLElement',
+  'HTMLInputElement',
+  'HTMLTextAreaElement',
+  'HTMLSelectElement',
+  'HTMLButtonElement',
+  'HTMLFormElement',
+  'HTMLCanvasElement',
+  'SVGElement',
   'Element',
   'Node',
   'NodeList',
+  'DocumentFragment',
   'DOMParser',
   'CustomEvent',
   'KeyboardEvent',
   'MouseEvent',
+  'PointerEvent',
+  'FocusEvent',
+  'InputEvent',
+  'WheelEvent',
+  'DragEvent',
+  'TouchEvent',
+  'SubmitEvent',
   'MutationObserver',
   'IntersectionObserver',
   'ResizeObserver',

@@ -1,4 +1,13 @@
-import { Identifier, MemberExpr } from './nodes.js'
+import { Identifier, CallExpr, Literal } from './nodes.js'
+
+// A bare capability name (`Auth`) used to become `this.Auth`, which is
+// wrong inside `function () {}` bodies and object-method shorthand,
+// where `this` is not the page. resolveCapability("Auth") is a global
+// of the inline script and returns the same memoized singleton, so it
+// works in every kind of function.
+function capabilityRef(name) {
+  return CallExpr(Identifier('resolveCapability'), [Literal(name)])
+}
 
 function rewriteList(list, names) {
   return list.map((s) => rewriteStatement(s, names))
@@ -16,9 +25,7 @@ function rewriteExpr(node, names) {
   if (node == null) return node
   switch (node.type) {
     case 'Identifier':
-      return names.has(node.name)
-        ? MemberExpr(Identifier('this'), node.name)
-        : node
+      return names.has(node.name) ? capabilityRef(node.name) : node
     case 'MemberExpression':
       return {
         ...node,
