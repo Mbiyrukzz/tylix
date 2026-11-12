@@ -105,7 +105,11 @@ export function generateClass(node, typed = false) {
   const ext = node.superClass
     ? ` extends ${generateExpression(node.superClass, typed)}`
     : ''
-  const members = node.members.map((m) => `    ${classMemberSource(m, typed)}`)
+    const members = node.members.map((m) => `    ${classMemberSource(m, typed)}`)
+  // JS classes often create fields in the constructor (`this.n = n`).
+  // The index signature stops the checker from rejecting those, the
+  // same way the page class does.
+  if (typed) members.unshift('    [key: string]: any;')
   return `class${name}${ext} {\n${members.join('\n')}\n  }`
 }
 
