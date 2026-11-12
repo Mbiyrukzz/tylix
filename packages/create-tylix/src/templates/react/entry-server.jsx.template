@@ -1,0 +1,33 @@
+import { StaticRouter } from 'react-router'
+import { renderWithData } from '@tylix/react/server'
+// @if ts
+import type { RenderOptions } from '@tylix/react/server'
+// @endif
+import App from './App'
+
+// Server-side rendering (frontend.ssr in tylix.config). Tylix calls this
+// for every page request and puts the result in index.html's
+// <!--ssr-outlet-->. The browser then hydrates it (see main).
+//
+//   url      the requested path and query
+//   session  the visitor's session: { user } or { user: null }
+//   load     loads one /api/ URL in-process as this visitor
+//
+// renderWithData renders, loads what useApi asked for, and renders again
+// until the page has its data. Components can set the HTTP status or answer
+// with a redirect through useServerContext() (see NotFound, Redirects).
+// @if ts
+export function render({ url, session, load }: { url: string } & RenderOptions) {
+// @endif
+// @if !ts
+export function render({ url, session, load }) {
+// @endif
+  return renderWithData(
+    () => (
+      <StaticRouter location={url}>
+        <App />
+      </StaticRouter>
+    ),
+    { session, load },
+  )
+}

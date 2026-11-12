@@ -1,0 +1,150 @@
+<script__LANG__>
+  import { useHydrated, useSession } from '@tylix/svelte'
+  // @if posts
+  import { api, useApi } from '@tylix/svelte'
+  // @endif
+
+  // The request's state during SSR, the browser's otherwise.
+  const session = useSession()
+  // @if posts
+
+  // @if ts
+  // The fields GET /api/posts returns (app/models/Post).
+  type Post = {
+    id: number
+    title: string
+    body: string
+    cover_image: string | null
+  }
+
+  // @endif
+  // Your posts, from the Post feature the starter generated. /api/posts is
+  // behind requireAuth and only returns the logged-in user's posts.
+  // @if ts
+  const posts = useApi<Post[]>('/api/posts')
+  // @endif
+  // @if !ts
+  const posts = useApi('/api/posts')
+  // @endif
+
+  let title = $state('')
+  let body = $state('')
+  let error = $state('')
+  let saving = $state(false)
+
+  async function create() {
+    if (saving) return
+    if (!title.trim() || !body.trim()) {
+      error = 'Give the post a title and some text.'
+      return
+    }
+    saving = true
+    const result = await api.post('/api/posts', { title: title.trim(), body: body.trim() })
+    saving = false
+    if (!result.ok) {
+      error = result.error ?? 'Could not save the post.'
+      return
+    }
+    error = ''
+    title = ''
+    body = ''
+    posts.reload()
+  }
+
+  // @if ts
+  async function remove(id: number) {
+  // @endif
+  // @if !ts
+  async function remove(id) {
+  // @endif
+    const result = await api.delete(`/api/posts/${id}`)
+    if (result.ok) posts.reload()
+    else error = result.error ?? 'Could not delete the post.'
+  }
+  // @endif
+
+  const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5'
+
+  // Submitting before hydration would reload the page; see useHydrated.
+  const hydrated = useHydrated()
+</script>
+
+<div class="max-w-6xl mx-auto px-6 py-12">
+  <p class="text-sm text-zinc-500 mb-1">Signed in as</p>
+  <h1 class="text-3xl font-semibold tracking-tight mb-8" data-testid="dashboard-name">{$session.user?.name}</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+    <div class={cardClass}>
+      <p class="text-xs text-zinc-500 mb-1">Email</p>
+      <p class="text-sm font-semibold truncate">{$session.user?.email}</p>
+    </div>
+    <div class={cardClass}>
+      <p class="text-xs text-zinc-500 mb-1">Session</p>
+      <p class="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
+    </div>
+    <div class={cardClass}>
+      <p class="text-xs text-zinc-500 mb-1">Protected API</p>
+      <p class="text-sm font-semibold">GET /api/me</p>
+    </div>
+  </div>
+  <!-- @if posts -->
+
+  <section>
+    <h2 class="text-xl font-semibold tracking-tight mb-4">Your posts</h2>
+
+    <form
+      class="{cardClass} mb-6"
+      onsubmit={(event) => {
+        event.preventDefault()
+        create()
+      }}
+    >
+      {#if error}
+        <p role="alert" class="text-rose-600 dark:text-rose-400 text-sm mb-3">{error}</p>
+      {/if}
+      <input
+        name="title"
+        placeholder="Title"
+        bind:value={title}
+        class="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+      />
+      <textarea
+        name="body"
+        placeholder="Write something…"
+        rows="3"
+        bind:value={body}
+        class="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+      ></textarea>
+      <button
+        type="submit"
+        disabled={saving || !$hydrated}
+        class="px-4 py-2 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50"
+      >
+        {saving ? 'Saving…' : 'Publish post'}
+      </button>
+    </form>
+
+    {#if $posts.loading && !$posts.data}
+      <p class="text-sm text-zinc-500">Loading posts…</p>
+    {:else if $posts.error}
+      <p class="text-sm text-rose-600">{$posts.error}</p>
+    {:else if $posts.data && $posts.data.length > 0}
+      <ul class="space-y-3" data-testid="posts">
+        {#each $posts.data as post (post.id)}
+          <li class="{cardClass} flex items-start justify-between gap-4">
+            <div>
+              <p class="font-semibold">{post.title}</p>
+              <p class="text-sm text-zinc-500 mt-1 whitespace-pre-line">{post.body}</p>
+            </div>
+            <button type="button" onclick={() => remove(post.id)} class="text-sm text-zinc-500 hover:text-rose-600 transition-colors">
+              Delete
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="text-sm text-zinc-500">No posts yet. Publish your first one above.</p>
+    {/if}
+  </section>
+  <!-- @endif -->
+</div>

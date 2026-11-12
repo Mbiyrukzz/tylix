@@ -1,0 +1,24 @@
+// Content types for files served straight from disk (public/, built
+// frontend assets, package assets).
+export const MIME_TYPES = {
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
+  '.json': 'application/json',
+  '.map': 'application/json',
+  '.webmanifest': 'application/manifest+json',
+  '.txt': 'text/plain',
+  '.xml': 'application/xml',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}

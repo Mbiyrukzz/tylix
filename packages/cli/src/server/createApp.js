@@ -17,6 +17,18 @@ import { renderErrorPage } from '../utils/error-page.js'
 import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
 import { createRouteRecorder } from './routeRecorder.js'
 import { stripModuleSyntax } from './stripModuleSyntax.js'
+import { MIME_TYPES } from '../utils/mime.js'
+import {
+  NATIVE_DRIVER,
+  createFrontendHost,
+  resolveFrontendDriver,
+} from '../frontend/frontendHost.js'
+import {
+  createInternalFetch,
+  createSessionResolver,
+  isProtectedPath,
+  loginRedirectLocation,
+} from '../frontend/session.js'
 
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
@@ -90,28 +102,6 @@ async function loadApiHelpersForTypecheck(baseDir) {
   return sources.join('\n\n')
 }
 
-const MIME_TYPES = {
-  '.css': 'text/css',
-  '.js': 'application/javascript',
-  '.mjs': 'application/javascript',
-  '.json': 'application/json',
-  '.map': 'application/json',
-  '.webmanifest': 'application/manifest+json',
-  '.txt': 'text/plain',
-  '.xml': 'application/xml',
-  '.pdf': 'application/pdf',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-}
 // Package files the browser may import directly. Browsers can't resolve
 // bare names like "@tylix/charts", so the framework serves the package's
 // source folder under a fixed /_tylix/ URL. Only the listed folder of the
@@ -910,18 +900,38 @@ export async function createApp(
     config.mail,
   )
 
-  const { routes: pageRoutes, renderNotFound } = await registerPageRoutes(
-    router,
-    baseDir,
-    {
-      hotReloadCompiler,
-      production,
-      compilerOptions,
-      loadingBar: config.loadingBar !== false,
-    },
-  )
+  // frontend.driver in tylix.config picks who renders pages. "tylix" (the
+  // default, and what every existing project gets) is the native .tyx
+  // compiler. Anything else is a hosted frontend served through Vite.
+  const frontendDriver = resolveFrontendDriver(config)
+  let pageRoutes = []
+  let renderNotFound = null
+  let frontendHost = null
+  const resolveSession = createSessionResolver(router)
+  const internalFetch = createInternalFetch(router)
+  const protectedPaths = config.frontend?.protected ?? []
+  const loginPath = config.frontend?.loginPath ?? '/login'
 
-  if (pageRoutes.length === 0 && features.length === 0) {
+  if (frontendDriver === NATIVE_DRIVER) {
+    ;({ routes: pageRoutes, renderNotFound } = await registerPageRoutes(
+      router,
+      baseDir,
+      {
+        hotReloadCompiler,
+        production,
+        compilerOptions,
+        loadingBar: config.loadingBar !== false,
+      },
+    ))
+  } else {
+    frontendHost = await createFrontendHost(baseDir, {
+      driver: frontendDriver,
+      production,
+      config,
+    })
+  }
+
+  if (!frontendHost && pageRoutes.length === 0 && features.length === 0) {
     router.get('/', (req, res) => {
       res.json({
         message: production
@@ -951,8 +961,56 @@ export async function createApp(
     pageRoutes,
     routes: recorder.routes,
     authEnabled,
+    frontend: {
+      driver: frontendDriver,
+      label: frontendHost ? frontendHost.label : 'Tylix',
+      host: frontendHost,
+    },
+    async close() {
+      await frontendHost?.close()
+    },
     notFoundHandler: async (req, res) => {
       if (await serveStaticAsset(req, res, baseDir, { production })) return true
+
+      // A hosted frontend gets everything that isn't the API: its modules
+      // and assets first, then index.html for any browser navigation, so
+      // its own router handles the URL (and its own 404 page).
+      if (frontendHost && !String(req.url).startsWith('/api/')) {
+        if (await frontendHost.handle(req, res)) return true
+        if (wantsHtml(req)) {
+          const pathname = String(req.url).split('?')[0]
+          // With auth, the page always learns the session: the user, or
+          // { user: null } when there's no valid access token (the client
+          // then still checks in the background, since a refresh token may
+          // bring the session back).
+          const session = authEnabled
+            ? ((await resolveSession(req)) ?? { user: null })
+            : null
+
+          // Guests never get the HTML of a protected page. See session.js
+          // for why this sends them to login with ?next= rather than
+          // deciding they are logged out for good.
+          if (
+            !session?.user &&
+            pathname !== loginPath &&
+            isProtectedPath(protectedPaths, pathname)
+          ) {
+            res.statusCode = 302
+            res.setHeader('Location', loginRedirectLocation(loginPath, req.url))
+            res.setHeader('Cache-Control', 'no-store')
+            res.end()
+            return true
+          }
+
+          // SSR loads the data a page asks for through the app's own API
+          // routes, in-process and as this visitor.
+          await frontendHost.serveHtml(req, res, {
+            session,
+            load: (url) => internalFetch(req, url),
+          })
+          return true
+        }
+      }
 
       // Browser navigations only. /api/* and fetch calls keep the JSON 404.
       if (wantsHtml(req) && !String(req.url).startsWith('/api/')) {

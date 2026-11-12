@@ -1,0 +1,111 @@
+<script setup__LANG__>
+import { onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+// @if auth
+import { useRouter } from 'vue-router'
+import { useAuth } from '@tylix/vue'
+// @endif
+
+const route = useRoute()
+
+// Read once mounted: the server can't see the visitor's theme, and the first
+// browser render must match the server's. The script in index.html has
+// already applied the right class to <html> by then.
+const dark = ref(false)
+onMounted(() => {
+  dark.value = document.documentElement.classList.contains('dark')
+})
+
+watch(dark, () => {
+  document.documentElement.classList.toggle('dark', dark.value)
+  try {
+    localStorage.setItem('theme', dark.value ? 'dark' : 'light')
+  } catch {
+    // private mode: the theme just isn't remembered
+  }
+})
+
+const base = 'text-sm px-3.5 py-1.5 rounded-md transition-colors '
+const idle =
+  base +
+  'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
+const active = base + 'text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-900 font-medium'
+
+// @if ts
+const linkClass = (href: string) =>
+// @endif
+// @if !ts
+const linkClass = (href) =>
+// @endif
+  route.path === href || (href !== '/' && route.path.startsWith(href + '/')) ? active : idle
+// @if auth
+
+const router = useRouter()
+const { isAuthenticated, loading, logout } = useAuth()
+
+async function logOut() {
+  // Leave the page first, so a protected page doesn't bounce to /login
+  // the moment the session ends.
+  await router.replace('/')
+  await logout()
+}
+// @endif
+</script>
+
+<template>
+  <header class="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur">
+    <nav class="max-w-6xl mx-auto h-16 px-6 flex items-center justify-between">
+      <div class="flex items-center gap-8">
+        <RouterLink to="/" class="flex items-center gap-2.5">
+          <img src="/logo-mark.png" alt="" class="w-7 h-7 rounded-md" />
+          <span class="font-semibold tracking-tight">__APP_NAME__</span>
+        </RouterLink>
+        <div class="hidden md:flex items-center gap-1">
+          <RouterLink to="/" :class="linkClass('/')">Home</RouterLink>
+          <!-- @if posts -->
+          <RouterLink to="/posts" :class="linkClass('/posts')">Posts</RouterLink>
+          <!-- @endif -->
+          <!-- @if auth -->
+          <RouterLink v-if="isAuthenticated" to="/dashboard" :class="linkClass('/dashboard')">Dashboard</RouterLink>
+          <!-- @endif -->
+          <a href="https://tylix.dev/docs" :class="idle">Docs</a>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Toggle color theme"
+          class="w-9 h-9 flex items-center justify-center rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          @click="dark = !dark"
+        >
+          {{ dark ? '☀' : '☾' }}
+        </button>
+        <!-- @if auth -->
+        <button
+          v-if="isAuthenticated"
+          type="button"
+          data-testid="logout"
+          class="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          @click="logOut"
+        >
+          Log out
+        </button>
+        <template v-else-if="!loading">
+          <RouterLink
+            to="/login"
+            class="text-sm px-3.5 py-1.5 rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          >
+            Log in
+          </RouterLink>
+          <RouterLink
+            to="/register"
+            class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 font-semibold hover:bg-emerald-400 transition-colors"
+          >
+            Get started
+          </RouterLink>
+        </template>
+        <!-- @endif -->
+      </div>
+    </nav>
+  </header>
+</template>

@@ -1,0 +1,83 @@
+<script setup__LANG__>
+import { computed } from 'vue'
+import { useApi } from '@tylix/vue'
+
+// @if ts
+type MailLog = {
+  id: number
+  recipient: string
+  subject: string
+  body: string
+  status: string
+  created_at: string
+}
+
+// @endif
+// Development only (router registers this route when import.meta.env.DEV
+// is true, and the API behind it doesn't exist in production). With
+// MAIL_DRIVER=log, mails are recorded instead of sent, so verification and
+// password-reset links can be clicked from here.
+// @if ts
+const { data, loading, error, reload } = useApi<{ data: MailLog[] }>('/api/_tylix/mail-logs')
+// @endif
+// @if !ts
+const { data, loading, error, reload } = useApi('/api/_tylix/mail-logs')
+// @endif
+const mails = computed(() => (data.value ? data.value.data : []))
+
+// A mail usually holds each link twice (href and text). The links are made
+// relative, so they open on this server whatever APP_URL says.
+// @if ts
+const linksIn = (body: string) =>
+// @endif
+// @if !ts
+const linksIn = (body) =>
+// @endif
+  Array.from(new Set(String(body).match(/https?:\/\/[^\s"'<>]+/g) ?? [])).map((link) => ({
+    label: link,
+    href: link.replace(/^https?:\/\/[^/]+/, ''),
+  }))
+// A fixed locale and time zone: with SSR, a date must read the same on the
+// server and in the visitor's browser, or hydration fails.
+const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+</script>
+
+<template>
+  <div class="max-w-4xl mx-auto px-6 py-12">
+    <div class="flex items-center justify-between mb-2">
+      <h1 class="text-3xl font-semibold tracking-tight">Dev mail log</h1>
+      <button
+        type="button"
+        class="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+        @click="reload()"
+      >
+        Refresh
+      </button>
+    </div>
+    <p class="text-sm text-zinc-500 mb-8">The last 50 mails, newest first. Only available in development.</p>
+
+    <p v-if="loading && !data" class="text-sm text-zinc-500">Loading…</p>
+    <p v-else-if="error" class="text-sm text-rose-600">{{ error }}</p>
+    <p v-else-if="mails.length === 0" class="text-sm text-zinc-500">No mails yet.</p>
+    <ul v-else class="space-y-3" data-testid="mail-log">
+      <li v-for="mail in mails" :key="mail.id" class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="font-semibold">{{ mail.subject }}</p>
+            <p class="text-sm text-zinc-500">To {{ mail.recipient }}</p>
+          </div>
+          <p class="text-xs text-zinc-400 shrink-0">{{ dateFormat.format(new Date(mail.created_at)) }}</p>
+        </div>
+        <div class="mt-3 flex flex-col gap-1">
+          <!-- Plain <a>: these may be server URLs (/api/auth/verify-email). -->
+          <a
+            v-for="link in linksIn(mail.body)"
+            :key="link.href"
+            :href="link.href"
+            class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline break-all"
+          >{{ link.label }}</a>
+        </div>
+      </li>
+    </ul>
+  </div>
+</template>

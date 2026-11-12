@@ -10,6 +10,9 @@
   "bin": {
     "tylix": "src/index.js"
   },
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
+  },
   "dependencies": {
     "@tylix/auth": "^0.6.0",
     "@tylix/compiler": "^0.6.0",

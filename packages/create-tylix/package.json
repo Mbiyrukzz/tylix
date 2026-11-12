@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "build:starter-css": "tailwindcss -c tailwind.starter.config.js -i src/templates/starter-input.css -o src/templates/starter.css --minify",
-    "prepublishOnly": "npm run build:starter-css"
+    "prepublishOnly": "npm run build:starter-css",
+    "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
     "@tylix/auth": "^0.6.0",

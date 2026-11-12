@@ -1,0 +1,42 @@
+{
+  "name": "@tylix/react",
+  "version": "0.6.0",
+  "description": "React frontend for Tylix: auth hooks and route guards, plus the Vite adapter the Tylix CLI loads.",
+  "type": "module",
+  "keywords": [
+    "tylix",
+    "react",
+    "adapter"
+  ],
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./adapter": {
+      "types": "./src/adapter.d.ts",
+      "default": "./src/adapter.js"
+    },
+    "./server": {
+      "types": "./src/server.d.ts",
+      "default": "./src/server.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "@tylix/client": "^0.6.0"
+  },
+  "peerDependencies": {
+    "react": "^18.2.0 || ^19.0.0",
+    "react-dom": "^18.2.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}

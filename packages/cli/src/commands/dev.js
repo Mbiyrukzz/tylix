@@ -29,6 +29,10 @@ const execFileAsync = promisify(execFile)
 // rebuilds Tailwind and reloads the page; it never restarts the server.
 const FRONTEND_DIRS = ['pages', 'useApi']
 
+// app/frontend holds a hosted frontend (React, ...). Vite hot-reloads it,
+// so a change there never restarts the server either.
+const HOSTED_FRONTEND_DIR = 'frontend'
+
 // Files that don't need a server restart wherever they live under app/.
 const FRONTEND_EXTENSIONS = ['.tyx', '.css']
 
@@ -102,6 +106,8 @@ function printRouteGroup(title, routes) {
 }
 
 function printBanner({
+  frontendLabel,
+  hosted,
   version,
   port,
   environment,
@@ -120,13 +126,16 @@ function printBanner({
   printStatus([
     ['Environment', environment],
     ['Database', DRIVER_LABELS[driver] ?? driver],
-    ['Compiler', 'Ready'],
+    hosted ? ['Frontend', `${frontendLabel} (Vite)`] : ['Compiler', 'Ready'],
     ['ORM', 'Ready'],
     ['Features', String(featureCount)],
-    ['Pages', String(pageCount)],
+    ...(hosted ? [] : [['Pages', String(pageCount)]]),
   ])
 
-  if (pageRoutes.length > 0) {
+  if (hosted) {
+    printGroup('Pages')
+    printRoute('GET', '/*', `${frontendLabel} app`)
+  } else if (pageRoutes.length > 0) {
     printGroup('Pages')
     printRoute('GET', '/')
     for (const route of pageRoutes) printRoute('GET', route)
@@ -170,7 +179,7 @@ function isFrontendChange(baseDir, file) {
   if (FRONTEND_EXTENSIONS.includes(path.extname(file))) return true
   const relative = path.relative(path.join(baseDir, 'app'), file)
   const topFolder = relative.split(path.sep)[0]
-  return FRONTEND_DIRS.includes(topFolder)
+  return FRONTEND_DIRS.includes(topFolder) || topFolder === HOSTED_FRONTEND_DIR
 }
 
 // Watches .env and tylix.config.* in the project root (the directory
@@ -330,18 +339,29 @@ async function runServer({ port } = {}) {
 
   const hotReloadCompiler = process.env.TYLIX_HOT_RELOAD_COMPILER === 'true'
 
-  await buildTailwindCss(baseDir)
-
   const app = await createApp(baseDir, { production: false, hotReloadCompiler })
+  const hostedFrontend = app.frontend.host
+
+  // A hosted frontend runs Tailwind through Vite's PostCSS, so the
+  // Tailwind CLI build is only for native .tyx pages.
+  if (!hostedFrontend) await buildTailwindCss(baseDir)
 
   const hmr = createHmrChannel(app.router)
 
   // Under the supervisor, backend changes restart the whole process, so
   // this process only watches what the browser needs. Without it, the
   // backend folders are watched here for a browser reload only.
-  const watchedFolders = underSupervisor
-    ? FRONTEND_DIRS
-    : [...FRONTEND_DIRS, 'controllers', 'models', 'validators', 'Features']
+  //
+  // A hosted frontend's own files are watched by Vite; only the backend
+  // folders matter here, and only without the supervisor.
+  const backendFolders = ['controllers', 'models', 'validators', 'Features']
+  const watchedFolders = hostedFrontend
+    ? underSupervisor
+      ? []
+      : backendFolders
+    : underSupervisor
+      ? FRONTEND_DIRS
+      : [...FRONTEND_DIRS, ...backendFolders]
 
   const watchedDirs = watchedFolders.map((d) => path.join(baseDir, 'app', d))
 
@@ -358,6 +378,10 @@ async function runServer({ port } = {}) {
     watchDirectoryTree(
       dir,
       async (_last, files) => {
+        if (hostedFrontend) {
+          hostedFrontend.reload()
+          return
+        }
         await buildTailwindCss(baseDir)
         hmr.notify(files.map((f) => path.relative(baseDir, f)))
       },
@@ -366,10 +390,18 @@ async function runServer({ port } = {}) {
   )
 
   if (!underSupervisor) {
-    process.on('SIGINT', () => {
+    process.on('SIGINT', async () => {
       watchers.forEach((w) => w.close())
       hmr.close()
+      await app.close().catch(() => {})
       tracker.summary()
+      process.exit(0)
+    })
+  } else {
+    // The supervisor stops this child with SIGTERM on every restart. Close
+    // Vite first so its HMR port is free for the next child.
+    process.on('SIGTERM', async () => {
+      await app.close().catch(() => {})
       process.exit(0)
     })
   }
@@ -401,6 +433,8 @@ async function runServer({ port } = {}) {
       routes: app.routes,
       pageRoutes: app.pageRoutes,
       authEnabled: app.authEnabled,
+      hosted: Boolean(hostedFrontend),
+      frontendLabel: app.frontend.label,
     })
   })
 }

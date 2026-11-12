@@ -1,0 +1,28 @@
+import { StrictMode } from 'react'
+import { createRoot, hydrateRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router'
+import { auth } from '@tylix/react'
+// @if tailwind
+import '../tailwind-input.css'
+// @endif
+import App from './App'
+
+const container = document.getElementById('root')
+if (!container) throw new Error('index.html is missing <div id="root">.')
+
+const app = (
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>
+)
+
+// Picks up the session the server put in the page, synchronously, so the
+// first render here matches the server's.
+auth.init()
+
+// With SSR (frontend.ssr in tylix.config) the server already rendered this
+// page: attach to its markup. Otherwise render from scratch.
+if (globalThis.__TYLIX_SSR__) hydrateRoot(container, app)
+else createRoot(container).render(app)

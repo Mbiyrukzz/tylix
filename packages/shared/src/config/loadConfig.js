@@ -2,6 +2,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import fs from 'node:fs/promises'
 import { loadEnv } from './loadEnv.js'
+import { resolveFrontendConfig } from './frontendConfig.js'
 
 const DEFAULT_CONFIG = {
   database: {
@@ -185,5 +186,6 @@ export async function loadConfig(cwd = process.cwd(), language = 'javascript') {
       ...defined(userConfig.mail),
       ...mailFromEnv(),
     },
+    frontend: resolveFrontendConfig(userConfig.frontend),
   }
 }

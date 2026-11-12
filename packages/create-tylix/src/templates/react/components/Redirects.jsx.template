@@ -1,0 +1,44 @@
+import { Navigate, useLocation, useSearchParams } from 'react-router'
+import { useServerContext } from '@tylix/react'
+
+// Where to go after logging in: the ?next= path the login page was opened
+// with (by RedirectToLogin, or by the server for a protected URL), else the
+// dashboard. Only same-site paths are accepted: "//evil.com" or
+// "https://evil.com" would send the user off the site.
+export function useNextPath() {
+  const [params] = useSearchParams()
+  const next = params.get('next')
+  if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')) {
+    return next
+  }
+  return '/dashboard'
+}
+
+// Navigates in the browser; during server rendering it answers the request
+// with a 302 instead, so the browser never sees the wrong page.
+// @if ts
+function Redirect({ to }: { to: string }) {
+// @endif
+// @if !ts
+function Redirect({ to }) {
+// @endif
+  const server = useServerContext()
+  if (server) {
+    server.redirect = to
+    return null
+  }
+  return <Navigate to={to} replace />
+}
+
+// For pages a logged-in user shouldn't see (login, register).
+export function RedirectAfterLogin() {
+  const to = useNextPath()
+  return <Redirect to={to} />
+}
+
+// For protected pages: go to login, then come back here.
+export function RedirectToLogin() {
+  const location = useLocation()
+  const next = encodeURIComponent(location.pathname + location.search)
+  return <Redirect to={`/login?next=${next}`} />
+}

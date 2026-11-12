@@ -3,6 +3,12 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { detectLanguage, loadEnv, loadConfig } from '@tylix/shared'
+import {
+  NATIVE_DRIVER,
+  buildFrontend,
+  loadFrontendAdapter,
+  resolveFrontendDriver,
+} from '../frontend/frontendHost.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -152,6 +158,45 @@ async function buildCss(baseDir) {
   }
 }
 
+// Typechecks a hosted frontend against app/frontend/tsconfig.json with the
+// checker its adapter names (tsc for React, svelte-check for Svelte), run
+// from the project's own node_modules. Skipped when the tsconfig or the
+// checker is missing, e.g. in a JavaScript project.
+async function typecheckFrontend(baseDir, driver) {
+  const { adapter } = await loadFrontendAdapter(baseDir, driver)
+  const checker = adapter.typecheck ?? {
+    bin: 'tsc',
+    args: (tsconfig) => ['--noEmit', '-p', tsconfig],
+  }
+  const binPath = path.join(baseDir, 'node_modules', '.bin', checker.bin)
+  const tsconfig = path.join(baseDir, 'app', 'frontend', 'tsconfig.json')
+  if (!(await pathExists(binPath)) || !(await pathExists(tsconfig))) return true
+
+  console.log(`\nTypechecking the frontend (${checker.bin})...`)
+  try {
+    await execFileAsync(binPath, checker.args(tsconfig), { cwd: baseDir })
+    console.log('✔ No type errors found.')
+    return true
+  } catch (err) {
+    console.log(`${err.stdout ?? ''}${err.stderr ?? ''}`.trim() || err.message)
+    console.log('✘ The frontend has type errors.')
+    return false
+  }
+}
+
+// Bundles a hosted frontend into dist/client with Vite.
+async function bundleFrontend(baseDir, driver, config) {
+  console.log('\nBuilding the frontend...')
+  try {
+    const { outDir, label } = await buildFrontend(baseDir, { driver, config })
+    console.log(`✔ ${label} app built to ${path.relative(baseDir, outDir)}.`)
+    return true
+  } catch (err) {
+    console.log(`✘ Frontend build failed: ${err.message}`)
+    return false
+  }
+}
+
 // `tylix build` is a pre-flight gate for production, not a bundler --
 // pages are rendered per request against a live database/auth/feature
 // backend, so there's no static HTML to emit. It checks the config,
@@ -171,11 +216,33 @@ export async function build() {
   const results = []
   results.push(await checkConfig(baseDir, language, isProduction))
 
-  if (language === 'typescript') {
-    results.push(await typecheckPages(baseDir))
+  let driver = NATIVE_DRIVER
+  let config = null
+  try {
+    config = await loadConfig(baseDir, language)
+    driver = resolveFrontendDriver(config)
+  } catch (err) {
+    // A config that doesn't load already failed checkConfig above.
+    if (config) {
+      console.log(`✘ ${err.message}`)
+      results.push(false)
+    }
   }
 
-  results.push(await buildCss(baseDir))
+  if (driver === NATIVE_DRIVER) {
+    if (language === 'typescript') {
+      results.push(await typecheckPages(baseDir))
+    }
+    results.push(await buildCss(baseDir))
+  } else {
+    if (language === 'typescript') {
+      results.push(await typecheckFrontend(baseDir, driver))
+    }
+    // Tailwind runs inside the Vite build for hosted frontends.
+    if (!results.includes(false)) {
+      results.push(await bundleFrontend(baseDir, driver, config))
+    }
+  }
 
   console.log()
   if (results.includes(false)) {

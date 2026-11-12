@@ -1,0 +1,45 @@
+<script setup__LANG__>
+import { useRoute } from 'vue-router'
+import { useApi } from '@tylix/vue'
+
+// @if ts
+// What GET /api/public/posts/:id returns.
+type PublicPostDetail = {
+  id: number
+  title: string
+  body: string
+  cover_image: string | null
+  author: string
+  created_at: string
+}
+
+// @endif
+const route = useRoute()
+// A getter, so moving to another post refetches.
+// @if ts
+const { data: post, loading, error, status } = useApi<PublicPostDetail>(() => `/api/public/posts/${route.params.id}`)
+// @endif
+// @if !ts
+const { data: post, loading, error, status } = useApi(() => `/api/public/posts/${route.params.id}`)
+// @endif
+// A fixed locale and time zone: with SSR, a date must read the same on the
+// server and in the visitor's browser, or hydration fails.
+const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
+</script>
+
+<template>
+  <article class="max-w-3xl mx-auto px-6 py-12">
+    <RouterLink to="/posts" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">← All posts</RouterLink>
+    <p v-if="loading && !post" class="text-sm text-zinc-500 mt-8">Loading…</p>
+    <div v-else-if="status === 404" class="mt-8">
+      <h1 class="text-2xl font-semibold">Post not found</h1>
+      <p class="text-sm text-zinc-500 mt-2">It may have been deleted.</p>
+    </div>
+    <p v-else-if="error" class="text-sm text-rose-600 mt-8">{{ error }}</p>
+    <template v-else-if="post">
+      <h1 class="text-4xl font-semibold tracking-tight mt-6 mb-3" data-testid="post-title">{{ post.title }}</h1>
+      <p class="text-sm text-zinc-500 mb-8">{{ post.author }} · {{ dateFormat.format(new Date(post.created_at)) }}</p>
+      <div class="text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">{{ post.body }}</div>
+    </template>
+  </article>
+</template>

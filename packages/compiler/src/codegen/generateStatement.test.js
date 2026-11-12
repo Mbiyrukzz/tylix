@@ -23,7 +23,8 @@ test("generates an expression statement wrapping an assignment", () => {
       BinaryExpr("+", MemberExpr(Identifier("this"), "count"), Literal(1))
     )
   );
-  assert.equal(generateStatement(node), "this.count = (this.count + 1);");
+  // Assignments are parenthesized; see generateExpression.test.js.
+  assert.equal(generateStatement(node), "(this.count = (this.count + 1));");
 });
 
 test("throws on an unknown statement type", () => {

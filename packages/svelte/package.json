@@ -1,0 +1,40 @@
+{
+  "name": "@tylix/svelte",
+  "version": "0.6.0",
+  "description": "Svelte frontend for Tylix: auth and API stores, a small history router, plus the Vite adapter the Tylix CLI loads.",
+  "type": "module",
+  "keywords": [
+    "tylix",
+    "svelte",
+    "adapter"
+  ],
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./adapter": {
+      "types": "./src/adapter.d.ts",
+      "default": "./src/adapter.js"
+    },
+    "./server": {
+      "types": "./src/server.d.ts",
+      "default": "./src/server.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "@tylix/client": "^0.6.0"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "svelte": "^5.46.0"
+  }
+}

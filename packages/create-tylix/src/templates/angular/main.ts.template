@@ -1,0 +1,20 @@
+import { mergeApplicationConfig } from '@angular/core'
+import { bootstrapApplication, provideClientHydration } from '@angular/platform-browser'
+import { auth } from '@tylix/angular'
+// @if tailwind
+import '../tailwind-input.css'
+// @endif
+import { App } from './app'
+import { appConfig } from './app.config'
+
+// Picks up the session the server put in the page, synchronously, so the
+// first render here matches the server's.
+auth.init()
+
+// With SSR (frontend.ssr in tylix.config) the server already rendered this
+// page: hydrate, attaching to its markup. Otherwise render from scratch.
+const config = globalThis.__TYLIX_SSR__
+  ? mergeApplicationConfig(appConfig, { providers: [provideClientHydration()] })
+  : appConfig
+
+bootstrapApplication(App, config).catch((err) => console.error(err))

@@ -47,7 +47,9 @@ export async function start({ port } = {}) {
       `Environment  ${process.env.APP_ENV || 'production'}`,
       `Database     ${DRIVER_LABELS[app.config.database.driver] ?? app.config.database.driver}`,
       `Features     ${app.features.length}`,
-      `Pages        ${app.pageRoutes.length}`,
+      app.frontend.host
+        ? `Frontend     ${app.frontend.label} (dist/client)`
+        : `Pages        ${app.pageRoutes.length}`,
     ])
     printLinkSection('Listening on', `http://localhost:${actualPort}`)
     console.log()

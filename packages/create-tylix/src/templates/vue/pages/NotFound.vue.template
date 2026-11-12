@@ -1,0 +1,19 @@
+<script setup__LANG__>
+import { useServerContext } from '@tylix/vue'
+
+// Rendered for any URL no other route in router matches. A server-rendered
+// 404 page answers with HTTP status 404.
+const server = useServerContext()
+if (server) server.status = 404
+</script>
+
+<template>
+  <div class="min-h-[70vh] flex flex-col items-center justify-center text-center px-6">
+    <p class="text-sm font-bold tracking-widest text-emerald-500">404</p>
+    <h1 class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-100">Page not found</h1>
+    <p class="mt-3 text-zinc-500 dark:text-zinc-400">The page you're looking for doesn't exist.</p>
+    <RouterLink to="/" class="mt-6 px-5 py-2 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-400 transition-colors">
+      Go home
+    </RouterLink>
+  </div>
+</template>

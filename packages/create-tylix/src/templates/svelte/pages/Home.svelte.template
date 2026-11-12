@@ -1,0 +1,55 @@
+<script__LANG__>
+  // @if auth
+  import { useSession } from '@tylix/svelte'
+
+  // The request's state during SSR, the browser's otherwise.
+  const session = useSession()
+  // @endif
+</script>
+
+<section class="max-w-6xl mx-auto px-6 py-24 text-center">
+  <p class="text-sm font-semibold tracking-widest text-emerald-500 uppercase mb-4">Tylix + Svelte</p>
+  <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-5">Your full-stack app is ready.</h1>
+  <p class="max-w-2xl mx-auto text-lg text-zinc-500 dark:text-zinc-400 mb-10">
+    Svelte renders the pages. Tylix runs the API, database, authentication and mail, all from one server.
+  </p>
+  <!-- @if auth -->
+  <div class="flex items-center justify-center gap-3">
+    {#if $session.isAuthenticated}
+      <a
+        href="/dashboard"
+        class="px-5 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+      >
+        Go to dashboard
+      </a>
+    {:else}
+      <a
+        href="/register"
+        class="px-5 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+      >
+        Create an account
+      </a>
+      <a
+        href="/login"
+        class="px-5 py-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+      >
+        Log in
+      </a>
+    {/if}
+  </div>
+  <!-- @endif -->
+  <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+      <h2 class="font-semibold mb-2">app/frontend</h2>
+      <p class="text-sm text-zinc-500">Your Svelte code. Edits hot-reload without restarting the server.</p>
+    </div>
+    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+      <h2 class="font-semibold mb-2">app/controllers, models</h2>
+      <p class="text-sm text-zinc-500">The backend. Generate more with tylix make:feature.</p>
+    </div>
+    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+      <h2 class="font-semibold mb-2">@tylix/svelte</h2>
+      <p class="text-sm text-zinc-500">session, useApi and a router, wired to the same session as the API.</p>
+    </div>
+  </div>
+</section>

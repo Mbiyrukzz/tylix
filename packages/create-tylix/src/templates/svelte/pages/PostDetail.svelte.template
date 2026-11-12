@@ -1,0 +1,48 @@
+<script__LANG__>
+  import { matchPath, useApi, useRoute } from '@tylix/svelte'
+
+  // The request's state during SSR, the browser's otherwise.
+  const route = useRoute()
+
+  // @if ts
+  // What GET /api/public/posts/:id returns.
+  type PublicPostDetail = {
+    id: number
+    title: string
+    body: string
+    cover_image: string | null
+    author: string
+    created_at: string
+  }
+
+  // @endif
+  const id = $derived(matchPath('/posts/:id', $route.path)?.id ?? null)
+  // A new store whenever the id changes; $post follows it.
+  // @if ts
+  const post = $derived(useApi<PublicPostDetail>(id ? `/api/public/posts/${id}` : null))
+  // @endif
+  // @if !ts
+  const post = $derived(useApi(id ? `/api/public/posts/${id}` : null))
+  // @endif
+  // A fixed locale and time zone: with SSR, a date must read the same on the
+  // server and in the visitor's browser, or hydration fails.
+  const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
+</script>
+
+<article class="max-w-3xl mx-auto px-6 py-12">
+  <a href="/posts" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">← All posts</a>
+  {#if $post.loading && !$post.data}
+    <p class="text-sm text-zinc-500 mt-8">Loading…</p>
+  {:else if $post.status === 404}
+    <div class="mt-8">
+      <h1 class="text-2xl font-semibold">Post not found</h1>
+      <p class="text-sm text-zinc-500 mt-2">It may have been deleted.</p>
+    </div>
+  {:else if $post.error}
+    <p class="text-sm text-rose-600 mt-8">{$post.error}</p>
+  {:else if $post.data}
+    <h1 class="text-4xl font-semibold tracking-tight mt-6 mb-3" data-testid="post-title">{$post.data.title}</h1>
+    <p class="text-sm text-zinc-500 mb-8">{$post.data.author} · {dateFormat.format(new Date($post.data.created_at))}</p>
+    <div class="text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">{$post.data.body}</div>
+  {/if}
+</article>

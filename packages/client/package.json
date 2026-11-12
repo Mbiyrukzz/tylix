@@ -1,0 +1,23 @@
+{
+  "name": "@tylix/client",
+  "version": "0.6.0",
+  "description": "Browser client for Tylix apps: API requests and the auth session, with no framework dependency.",
+  "type": "module",
+  "keywords": [
+    "tylix",
+    "client",
+    "auth"
+  ],
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "node --test src/*.test.js"
+  }
+}

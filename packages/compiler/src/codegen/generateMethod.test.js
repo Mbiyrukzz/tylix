@@ -31,7 +31,8 @@ test("generates a method with parameters", () => {
   ]);
 
   const code = generateMethod(node);
-  assert.equal(code, "  setCount(value) {\n    this.count = value;\n  }");
+  // Assignments are parenthesized; see generateExpression.test.js.
+  assert.equal(code, "  setCount(value) {\n    (this.count = value);\n  }");
 });
 
 test("generates a method with multiple statements", () => {
@@ -52,7 +53,7 @@ test("generates a method with multiple statements", () => {
   const code = generateMethod(node);
   assert.equal(
     code,
-    "  increment() {\n    this.count = (this.count + 1);\n    return this.count;\n  }"
+    "  increment() {\n    (this.count = (this.count + 1));\n    return this.count;\n  }"
   );
 });
 

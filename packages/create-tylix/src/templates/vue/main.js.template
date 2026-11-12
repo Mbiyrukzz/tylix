@@ -1,0 +1,35 @@
+import { createApp, createSSRApp } from 'vue'
+import { createWebHistory } from 'vue-router'
+import { auth, sessionReady } from '@tylix/vue'
+// @if tailwind
+import '../tailwind-input.css'
+// @endif
+import App from './App.vue'
+import { createAppRouter } from './router'
+
+// Picks up the session the server put in the page, synchronously, so the
+// first render here matches the server's.
+auth.init()
+
+// With SSR (frontend.ssr in tylix.config) the server already rendered this
+// page: createSSRApp attaches to its markup. Otherwise render from scratch.
+let hydrating = Boolean(globalThis.__TYLIX_SSR__)
+const app = hydrating ? createSSRApp(App) : createApp(App)
+const router = createAppRouter({
+  history: createWebHistory(),
+  getSession: async () => {
+    // The first navigation of a server-rendered page decides with the
+    // session the server rendered it with, so hydration matches. App.vue
+    // reacts if the background check then changes it (e.g. a refresh).
+    if (hydrating) return auth.getState()
+    await sessionReady()
+    return auth.getState()
+  },
+})
+app.use(router)
+
+// Hydration must see the same route the server rendered.
+router.isReady().then(() => {
+  app.mount('#app')
+  hydrating = false
+})

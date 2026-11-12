@@ -10,6 +10,10 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 const STATIC_TEMPLATE_BY_PAGE = {
   Login: 'login-page.tyx.template',
   Register: 'register-page.tyx.template',
+  // Lower-case file names: the file name is the URL (/forgot-password),
+  // matching the link on the login page and the one in the reset email.
+  'forgot-password': 'forgot-password-page.tyx.template',
+  'reset-password': 'reset-password-page.tyx.template',
   Dashboard: 'dashboard-page.tyx.template',
   'dashboard/Mail': 'mail-page.tyx.template',
   'posts/Index': 'posts-index-page.tyx.template',

@@ -1,0 +1,52 @@
+import { Component } from '@angular/core'
+import { RouterOutlet } from '@angular/router'
+// @if auth
+import { effect, inject, untracked } from '@angular/core'
+import { Router, type ActivatedRouteSnapshot } from '@angular/router'
+import { decideAccess, injectAuth, useServerContext } from '@tylix/angular'
+// @endif
+import { Navbar } from './components/navbar'
+
+@Component({
+  selector: 'app-root',
+  imports: [RouterOutlet, Navbar],
+  template: `
+    <div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      <app-navbar />
+      <main class="flex-1">
+        <router-outlet />
+      </main>
+      <footer class="border-t border-zinc-200 dark:border-zinc-800">
+        <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Angular.</div>
+      </footer>
+    </div>
+  `,
+})
+export class App {
+  // @if auth
+  private readonly router = inject(Router)
+  private readonly auth = injectAuth()
+
+  constructor() {
+    // On the server the guards have already decided; nothing changes later.
+    if (useServerContext()) return
+
+    // The route guards run on navigation. This covers the session changing
+    // while a page is open: a logout in another tab, or a login finishing.
+    effect(() => {
+      if (this.auth.loading()) return
+      const status = this.auth.status()
+      untracked(() => {
+        let route: ActivatedRouteSnapshot = this.router.routerState.snapshot.root
+        while (route.firstChild) route = route.firstChild
+        const decision = decideAccess(route.data['access'], status, this.router.url, route.queryParamMap.get('next'))
+        if (decision && 'login' in decision) {
+          this.router.navigate(['/login'], { queryParams: { next: decision.login }, replaceUrl: true })
+        } else if (decision) {
+          this.router.navigateByUrl(decision.to, { replaceUrl: true })
+        }
+      })
+    })
+  }
+  // @endif
+}

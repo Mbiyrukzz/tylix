@@ -1,0 +1,47 @@
+<script setup__LANG__>
+import { useApi } from '@tylix/vue'
+
+// @if ts
+// What GET /api/public/posts returns for each post.
+type PublicPost = {
+  id: number
+  title: string
+  excerpt: string
+  cover_image: string | null
+  author: string
+  created_at: string
+}
+
+// @endif
+// Everyone's posts, newest first. /api/public/posts needs no login.
+// @if ts
+const { data: posts, loading, error } = useApi<PublicPost[]>('/api/public/posts')
+// @endif
+// @if !ts
+const { data: posts, loading, error } = useApi('/api/public/posts')
+// @endif
+// A fixed locale and time zone: with SSR, a date must read the same on the
+// server and in the visitor's browser, or hydration fails.
+const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
+</script>
+
+<template>
+  <div class="max-w-3xl mx-auto px-6 py-12">
+    <h1 class="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
+    <p v-if="loading && !posts" class="text-sm text-zinc-500">Loading posts…</p>
+    <p v-else-if="error" class="text-sm text-rose-600">{{ error }}</p>
+    <ul v-else-if="posts && posts.length > 0" class="space-y-4" data-testid="public-posts">
+      <li v-for="post in posts" :key="post.id">
+        <RouterLink
+          :to="`/posts/${post.id}`"
+          class="block rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+        >
+          <p class="font-semibold">{{ post.title }}</p>
+          <p class="text-sm text-zinc-500 mt-1">{{ post.excerpt }}</p>
+          <p class="text-xs text-zinc-400 mt-3">{{ post.author }} · {{ dateFormat.format(new Date(post.created_at)) }}</p>
+        </RouterLink>
+      </li>
+    </ul>
+    <p v-else class="text-sm text-zinc-500">No posts yet.</p>
+  </div>
+</template>

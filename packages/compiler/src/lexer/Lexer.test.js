@@ -67,12 +67,28 @@ test("tokenizes the arrow operator distinctly from equals", () => {
   assert.deepEqual(types, [TokenType.ARROW, TokenType.EOF]);
 });
 
-test("tokenizes interpolation markers distinctly from braces", () => {
-  const types = tokenTypes("{{ count }}");
-  assert.deepEqual(types, [
-    TokenType.INTERP_START,
+// "{{" and "}}" are plain braces to the Lexer: parseTemplate finds
+// interpolations at the string level. Tokenizing them as one unit broke
+// nested object literals.
+test("treats doubled braces as plain braces, so nested objects lex", () => {
+  assert.deepEqual(tokenTypes("{a:{b:1}}"), [
+    TokenType.LBRACE,
     TokenType.IDENTIFIER,
-    TokenType.INTERP_END,
+    TokenType.COLON,
+    TokenType.LBRACE,
+    TokenType.IDENTIFIER,
+    TokenType.COLON,
+    TokenType.NUMBER,
+    TokenType.RBRACE,
+    TokenType.RBRACE,
+    TokenType.EOF,
+  ]);
+  assert.deepEqual(tokenTypes("{{ count }}"), [
+    TokenType.LBRACE,
+    TokenType.LBRACE,
+    TokenType.IDENTIFIER,
+    TokenType.RBRACE,
+    TokenType.RBRACE,
     TokenType.EOF,
   ]);
 });
@@ -124,16 +140,28 @@ test("tokenizes a realistic action block with a method call body", () => {
 });
 
 test("tokenizes arithmetic and comparison operators", () => {
-  const types = tokenTypes("+ - * / > <");
-  assert.deepEqual(types, [
-    TokenType.PLUS,
-    TokenType.MINUS,
-    TokenType.STAR,
+  // Operands between the operators: as in JavaScript, a "/" right after
+  // another operator would start a regex, not divide.
+  const types = tokenTypes("a + b - c * d / e > f < g");
+  assert.deepEqual(
+    types.filter((t) => t !== TokenType.IDENTIFIER),
+    [TokenType.PLUS, TokenType.MINUS, TokenType.STAR, TokenType.SLASH, TokenType.GT, TokenType.LT, TokenType.EOF],
+  );
+});
+
+test("a slash is division after a value and a regex after an operator", () => {
+  assert.deepEqual(tokenTypes("total / 2"), [TokenType.IDENTIFIER, TokenType.SLASH, TokenType.NUMBER, TokenType.EOF]);
+  assert.deepEqual(tokenTypes("(a) / 2"), [
+    TokenType.LPAREN,
+    TokenType.IDENTIFIER,
+    TokenType.RPAREN,
     TokenType.SLASH,
-    TokenType.GT,
-    TokenType.LT,
+    TokenType.NUMBER,
     TokenType.EOF,
   ]);
+  const regex = new Lexer("x = /^a+$/i").tokenize()[2];
+  assert.equal(regex.type, TokenType.REGEX);
+  assert.deepEqual(regex.value, { pattern: "^a+$", flags: "i" });
 });
 
 test("throws a clear error on an unexpected character", () => {

@@ -225,12 +225,18 @@ async function main() {
   }
 
   if (command === 'make:page') {
-    const [name] = rest
+    const auth = rest.includes('--auth')
+    const [name] = rest.filter((a) => a !== '--auth')
     if (!name) {
-      console.error('Usage: tylix make:page <Name>')
+      console.error('Usage: tylix make:page <Name> [--auth]')
       process.exit(1)
     }
-    await makePage(name)
+    try {
+      await makePage(name, { auth })
+    } catch (err) {
+      console.error(`\n✘ ${err.message}\n`)
+      process.exit(1)
+    }
     return
   }
 
@@ -250,7 +256,12 @@ async function main() {
       console.error('Usage: tylix make:component <Name>')
       process.exit(1)
     }
-    await makeComponent(name)
+    try {
+      await makeComponent(name)
+    } catch (err) {
+      console.error(`\n✘ ${err.message}\n`)
+      process.exit(1)
+    }
     return
   }
 

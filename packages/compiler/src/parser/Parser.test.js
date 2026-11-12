@@ -177,9 +177,24 @@ test('parses a method with parameters', () => {
       }
     }
   `)
-  // Params carry an optional type annotation, so they are objects.
+  // Params are objects: a name plus type, default, rest and optional info.
   assert.deepEqual(ast.actions[0].params, [
-    { name: 'newValue', typeAnnotation: null },
+    { name: 'newValue', typeAnnotation: null, defaultValue: null, rest: false, optional: false },
+  ])
+})
+
+test('parses default, optional and rest parameters', () => {
+  const ast = parse(`
+    action {
+      load(page = 1, label?: string, ...rest) {
+        return page
+      }
+    }
+  `)
+  assert.deepEqual(ast.actions[0].params, [
+    { name: 'page', typeAnnotation: null, defaultValue: { type: 'Literal', value: 1 }, rest: false, optional: false },
+    { name: 'label', typeAnnotation: 'string', defaultValue: null, rest: false, optional: true },
+    { name: 'rest', typeAnnotation: null, defaultValue: null, rest: true, optional: false },
   ])
 })
 
@@ -192,7 +207,7 @@ test('accepts a keyword token as a method parameter name', () => {
     }
   `)
   assert.deepEqual(ast.actions[0].params, [
-    { name: 'title', typeAnnotation: null },
+    { name: 'title', typeAnnotation: null, defaultValue: null, rest: false, optional: false },
   ])
 })
 

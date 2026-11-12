@@ -1,0 +1,16 @@
+// Where to go after logging in: the ?next= path the login page was opened
+// with (by the protected-page guard, or by the server for a protected URL),
+// else the dashboard. Only same-site paths are accepted: "//evil.com" or
+// "https://evil.com" would send the user off the site.
+// @if ts
+export function nextPath(query: URLSearchParams): string {
+// @endif
+// @if !ts
+export function nextPath(query) {
+// @endif
+  const next = query.get('next')
+  if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')) {
+    return next
+  }
+  return '/dashboard'
+}

@@ -25,6 +25,7 @@ const CHOICES = {
     'plain-css': 'plain-css',
   },
   template: { starter: 'starter', blank: 'blank' },
+  frontend: { tylix: 'tylix', react: 'react', svelte: 'svelte', vue: 'vue', angular: 'angular' },
   'package-manager': { npm: 'npm', pnpm: 'pnpm' },
 }
 
@@ -48,6 +49,7 @@ function parseCli(argv) {
         auth: { type: 'string' },
         styling: { type: 'string' },
         template: { type: 'string' },
+        frontend: { type: 'string' },
         'package-manager': { type: 'string' },
         'no-git': { type: 'boolean' },
         'no-install': { type: 'boolean' },
@@ -73,6 +75,9 @@ function parseCli(argv) {
 
   const nonInteractive = Boolean(values.yes)
   if (nonInteractive && !projectName) fail('--yes requires a project name.')
+  if (resolved.frontend === 'angular' && resolved.language === 'javascript') {
+    fail('Angular projects are TypeScript-only (components need decorators). Drop --language or use --language ts.')
+  }
   if (resolved.auth === true && resolved.database === 'none') {
     fail(
       'Authentication needs a database. Use --database sqlite (or another) or --auth no.',
@@ -90,6 +95,7 @@ function parseCli(argv) {
     authEnabled: resolved.auth,
     styling: resolved.styling,
     starter: resolved.template,
+    frontend: resolved.frontend,
     packageManager: resolved['package-manager'],
     gitInit: values['no-git'] ? false : undefined,
     installNow: values['no-install'] ? false : undefined,

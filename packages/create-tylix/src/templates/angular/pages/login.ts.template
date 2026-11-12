@@ -1,0 +1,113 @@
+import { Component, inject, input, signal } from '@angular/core'
+import { FormsModule } from '@angular/forms'
+import { Router, RouterLink } from '@angular/router'
+import { injectAuth, injectHydrated, nextPath } from '@tylix/angular'
+
+const inputClass =
+  'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
+
+@Component({
+  selector: 'app-login',
+  imports: [FormsModule, RouterLink],
+  template: `
+    <div class="flex items-center justify-center px-6 py-16">
+      <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+        <div class="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+          <h2 class="text-2xl font-semibold tracking-tight mb-3">Welcome back</h2>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">Log in to pick up where you left off.</p>
+          <ul class="space-y-3">
+            @for (perk of perks; track perk) {
+              <li class="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
+                <span class="text-emerald-500">✓</span>
+                {{ perk }}
+              </li>
+            }
+          </ul>
+        </div>
+
+        <form class="flex items-center justify-center px-6 py-12" (ngSubmit)="submit()">
+          <div class="w-full max-w-sm">
+            <h1 class="text-2xl font-semibold tracking-tight mb-1">Log in</h1>
+            <p class="text-sm text-zinc-500 mb-8">Continue to your dashboard.</p>
+
+            @if (error()) {
+              <div role="alert" aria-live="polite" class="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
+                <p class="text-rose-700 dark:text-rose-400 text-sm">{{ error() }}</p>
+              </div>
+            }
+
+            <label for="email" class="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" autofocus placeholder="you@example.com" [(ngModel)]="email" [class]="inputClass" />
+
+            <label for="password" class="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" [(ngModel)]="password" [class]="inputClass" />
+
+            <div class="flex justify-end -mt-1 mb-4">
+              <a routerLink="/forgot-password" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">Forgot password?</a>
+            </div>
+
+            <button
+              type="submit"
+              [disabled]="submitting() || !hydrated()"
+              class="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ submitting() ? 'Logging in…' : 'Log in' }}
+            </button>
+
+            <p class="text-sm text-zinc-500 text-center mt-6">
+              Need an account? <a routerLink="/register" class="text-emerald-600 dark:text-emerald-400 hover:underline">Sign up</a>
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
+  `,
+})
+export class Login {
+  // Submitting before hydration would reload the page; see injectHydrated.
+  protected readonly hydrated = injectHydrated()
+
+  // ?next= from the URL (withComponentInputBinding).
+  readonly next = input<string>()
+
+  protected readonly inputClass = inputClass
+  protected readonly perks = [
+    'Manage your posts from one dashboard',
+    'Your session refreshes automatically',
+    'The same login works across every tab',
+  ]
+
+  private readonly router = inject(Router)
+  private readonly auth = injectAuth()
+
+  protected readonly email = signal('')
+  protected readonly password = signal('')
+  protected readonly error = signal(this.auth.expired() ? 'Your session ended. Log in again.' : '')
+  protected readonly submitting = signal(false)
+
+  private validate() {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email())) return 'Enter a valid email address.'
+    if (this.password().length === 0) return 'Enter your password.'
+    return ''
+  }
+
+  protected async submit() {
+    if (this.submitting()) return
+    this.error.set(this.validate())
+    if (this.error()) return
+
+    this.submitting.set(true)
+    const result = await this.auth.login(this.email(), this.password())
+    if (result.ok) {
+      await this.router.navigateByUrl(nextPath(this.next()), { replaceUrl: true })
+      return
+    }
+
+    this.submitting.set(false)
+    if (result.status === 401) this.error.set('Invalid email or password.')
+    else if (result.status === 403) this.error.set(result.error ?? 'Please verify your email before logging in.')
+    else if (result.status === 429) this.error.set('Too many attempts. Wait a minute and try again.')
+    else if (result.status === 0) this.error.set('Network error. Check your connection and try again.')
+    else this.error.set(result.error ?? 'Could not log in. Try again.')
+  }
+}

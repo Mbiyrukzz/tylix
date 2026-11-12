@@ -1,0 +1,48 @@
+import type { Routes } from '@angular/router'
+// @if auth
+import { authGuard, guestGuard } from '@tylix/angular'
+// @endif
+import { Home } from './pages/home'
+// @if auth
+import { Login } from './pages/login'
+import { Register } from './pages/register'
+import { ForgotPassword } from './pages/forgot-password'
+import { ResetPassword } from './pages/reset-password'
+import { Dashboard } from './pages/dashboard'
+import { DevMail } from './pages/dev-mail'
+// @endif
+// @if posts
+import { Posts } from './pages/posts'
+import { PostDetail } from './pages/post-detail'
+// @endif
+// tylix:imports (make:page adds page imports above this line)
+import { NotFound } from './pages/not-found'
+
+// Frontend routes only. Tylix serves the API (/api/*) itself, so those
+// requests never reach this router.
+//
+// The guards decide what to show; they don't protect data. The API routes
+// behind requireAuth do. The server also redirects guests away from
+// frontend.protected paths (tylix.config) before any HTML is sent.
+// data.access lets App re-apply the same rule when the session changes
+// while a page is open.
+export const routes: Routes = [
+  { path: '', component: Home },
+  // @if posts
+  { path: 'posts', component: Posts },
+  { path: 'posts/:id', component: PostDetail },
+  // @endif
+  // @if auth
+  { path: 'login', component: Login, canActivate: [guestGuard], data: { access: 'guest' } },
+  { path: 'register', component: Register, canActivate: [guestGuard], data: { access: 'guest' } },
+  { path: 'forgot-password', component: ForgotPassword, canActivate: [guestGuard], data: { access: 'guest' } },
+  // Not guarded: the link in the reset email must work in any state.
+  { path: 'reset-password', component: ResetPassword },
+  { path: 'dashboard', component: Dashboard, canActivate: [authGuard], data: { access: 'auth' } },
+  // Development only: the mails MAIL_DRIVER=log recorded, so you can click
+  // verification and reset links without a mail server.
+  ...(import.meta.env.DEV ? [{ path: 'dev/mail', component: DevMail }] : []),
+  // @endif
+  // tylix:routes (make:page adds routes above this line)
+  { path: '**', component: NotFound },
+]

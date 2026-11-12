@@ -13,6 +13,21 @@ function timestampSuffix(offsetMs = 0) {
     .slice(0, 14)
 }
 
+// The migration that already creates `table`, whatever its timestamp, so
+// running make:auth again (for example to regenerate the controller) never
+// adds a second "create users table" migration.
+async function findExistingMigration(migrationsDir, name) {
+  let entries = []
+  try {
+    entries = await fs.readdir(migrationsDir)
+  } catch {
+    return null // no migrations folder yet
+  }
+  const pattern = new RegExp(`^\\d{14}_${name}\\.(js|ts)$`)
+  const match = entries.filter((entry) => pattern.test(entry)).sort()[0]
+  return match ? path.join(migrationsDir, match) : null
+}
+
 export class AuthGenerator {
   async generate(baseDir) {
     const results = {}
@@ -91,38 +106,24 @@ export class AuthGenerator {
       { overwrite: true },
     )
 
-    results.userMigration = await writeFile(
-      path.join(
-        baseDir,
-        'database',
-        'migrations',
-        `${timestampSuffix(0)}_create_users_table.${ext}`,
-      ),
-      await read('user-migration'),
-      { overwrite: true },
-    )
+    // An existing migration is kept as it is: it may already have run
+    // against a database, so rewriting it would be wrong too.
+    const migrationsDir = path.join(baseDir, 'database', 'migrations')
+    const writeMigration = async (name, offsetMs, template) => {
+      const existing = await findExistingMigration(migrationsDir, name)
+      if (existing) return existing
+      return writeFile(
+        path.join(migrationsDir, `${timestampSuffix(offsetMs)}_${name}.${ext}`),
+        await read(template),
+        { overwrite: true },
+      )
+    }
 
-    results.refreshTokenMigration = await writeFile(
-      path.join(
-        baseDir,
-        'database',
-        'migrations',
-        `${timestampSuffix(1000)}_create_refresh_tokens_table.${ext}`,
-      ),
-      await read('refresh-token-migration'),
-      { overwrite: true },
-    )
+    results.userMigration = await writeMigration('create_users_table', 0, 'user-migration')
 
-    results.passwordResetMigration = await writeFile(
-      path.join(
-        baseDir,
-        'database',
-        'migrations',
-        `${timestampSuffix(2000)}_create_password_resets_table.${ext}`,
-      ),
-      await read('password-reset-migration'),
-      { overwrite: true },
-    )
+    results.refreshTokenMigration = await writeMigration('create_refresh_tokens_table', 1000, 'refresh-token-migration')
+
+    results.passwordResetMigration = await writeMigration('create_password_resets_table', 2000, 'password-reset-migration')
 
     return results
   }

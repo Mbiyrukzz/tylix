@@ -1,0 +1,147 @@
+import { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet } from 'react-router'
+// @if auth
+import { useNavigate } from 'react-router'
+import { useAuth } from '@tylix/react'
+// @endif
+
+const linkClass = ({ isActive = false }) =>
+  'text-sm px-3.5 py-1.5 rounded-md transition-colors ' +
+  (isActive
+    ? 'text-zinc-900 dark:text-white bg-zinc-100 dark:bg-zinc-900 font-medium'
+    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900')
+
+function useTheme() {
+  // Unknown until mounted: the server can't see the visitor's theme, and the
+  // first browser render must match the server's. The script in index.html
+  // has already applied the right class to <html> by then.
+  // @if ts
+  const [dark, setDark] = useState<boolean | null>(null)
+  // @endif
+  // @if !ts
+  const [dark, setDark] = useState(null)
+  // @endif
+
+  useEffect(() => {
+    setDark(document.documentElement.classList.contains('dark'))
+  }, [])
+
+  useEffect(() => {
+    if (dark === null) return
+    document.documentElement.classList.toggle('dark', dark)
+    try {
+      localStorage.setItem('theme', dark ? 'dark' : 'light')
+    } catch {
+      // private mode: the theme just isn't remembered
+    }
+  }, [dark])
+
+  return { dark: Boolean(dark), toggle: () => setDark((value) => !value) }
+}
+
+function Navbar() {
+  const theme = useTheme()
+  // @if auth
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+
+  async function handleLogout() {
+    await logout()
+    navigate('/', { replace: true })
+  }
+  // @endif
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur">
+      <nav className="max-w-6xl mx-auto h-16 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link to="/" className="flex items-center gap-2.5">
+            <img src="/logo-mark.png" alt="" className="w-7 h-7 rounded-md" />
+            <span className="font-semibold tracking-tight">__APP_NAME__</span>
+          </Link>
+          <div className="hidden md:flex items-center gap-1">
+            <NavLink to="/" end className={linkClass}>
+              Home
+            </NavLink>
+            {/* @if posts */}
+            <NavLink to="/posts" className={linkClass}>
+              Posts
+            </NavLink>
+            {/* @endif */}
+            {/* @if auth */}
+            {user && (
+              <NavLink to="/dashboard" className={linkClass}>
+                Dashboard
+              </NavLink>
+            )}
+            {/* @endif */}
+            <a href="https://tylix.dev/docs" className={linkClass({})}>
+              Docs
+            </a>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={theme.toggle}
+            aria-label="Toggle color theme"
+            className="w-9 h-9 flex items-center justify-center rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          >
+            {theme.dark ? '☀' : '☾'}
+          </button>
+          {/* @if auth */}
+          {user ? (
+            <button
+              type="button"
+              onClick={handleLogout}
+              data-testid="logout"
+              className="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              Log out
+            </button>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="text-sm px-3.5 py-1.5 rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/register"
+                className="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 font-semibold hover:bg-emerald-400 transition-colors"
+              >
+                Get started
+              </Link>
+            </>
+          )}
+          {/* @endif */}
+        </div>
+      </nav>
+    </header>
+  )
+}
+
+export function PageLoading() {
+  return (
+    <div className="flex items-center justify-center py-32" role="status" aria-label="Loading">
+      <div className="w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-700 border-t-emerald-500 animate-spin" />
+    </div>
+  )
+}
+
+export default function Layout() {
+  return (
+    <div className="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      <Navbar />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <footer className="border-t border-zinc-200 dark:border-zinc-800">
+        <div className="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">
+          Built with Tylix and React.
+        </div>
+      </footer>
+    </div>
+  )
+}

@@ -1,0 +1,38 @@
+<script setup__LANG__>
+// @if auth
+import { watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuth } from '@tylix/vue'
+import { nextPath } from './lib/next'
+// @endif
+import Navbar from './components/Navbar.vue'
+// @if auth
+
+const route = useRoute()
+const router = useRouter()
+const { isAuthenticated, loading } = useAuth()
+
+// The router guard runs on navigation. This covers the session changing
+// while a page is open: a logout in another tab, or a login finishing.
+watch([isAuthenticated, loading], () => {
+  if (loading.value) return
+  if (route.meta.access === 'auth' && !isAuthenticated.value) {
+    router.replace({ path: '/login', query: { next: route.fullPath } })
+  } else if (route.meta.access === 'guest' && isAuthenticated.value) {
+    router.replace(nextPath(route.query.next))
+  }
+})
+// @endif
+</script>
+
+<template>
+  <div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+    <Navbar />
+    <main class="flex-1">
+      <RouterView />
+    </main>
+    <footer class="border-t border-zinc-200 dark:border-zinc-800">
+      <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Vue.</div>
+    </footer>
+  </div>
+</template>

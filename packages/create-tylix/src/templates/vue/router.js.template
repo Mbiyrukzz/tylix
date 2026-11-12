@@ -1,0 +1,90 @@
+import { createRouter } from 'vue-router'
+// @if ts
+import type { RouterHistory } from 'vue-router'
+// @endif
+// @if auth
+import { nextPath } from './lib/next'
+// @endif
+import Home from './pages/Home.vue'
+// @if auth
+import Login from './pages/Login.vue'
+import Register from './pages/Register.vue'
+import ForgotPassword from './pages/ForgotPassword.vue'
+import ResetPassword from './pages/ResetPassword.vue'
+import Dashboard from './pages/Dashboard.vue'
+import DevMail from './pages/DevMail.vue'
+// @endif
+// @if posts
+import Posts from './pages/Posts.vue'
+import PostDetail from './pages/PostDetail.vue'
+// @endif
+// tylix:imports (make:page adds page imports above this line)
+import NotFound from './pages/NotFound.vue'
+// @if ts
+
+declare module 'vue-router' {
+  interface RouteMeta {
+    // 'auth': logged-in users only. 'guest': logged-out users only.
+    access?: 'auth' | 'guest'
+  }
+}
+// @endif
+
+// Frontend routes only. Tylix serves the API (/api/*) itself, so those
+// requests never reach this router.
+//
+// meta.access decides what to show; it doesn't protect data. The API
+// routes behind requireAuth do. The server also redirects guests away from
+// frontend.protected paths (tylix.config) before any HTML is sent.
+//
+// A function, not a single router: with SSR each server request needs its
+// own (memory history), the browser gets one with web history (main).
+// getSession resolves the session the guards decide on: the shared one in
+// the browser, the request's on the server.
+// @if ts
+type Session = { status: 'loading' | 'authenticated' | 'guest' }
+
+export function createAppRouter({ history, getSession }: { history: RouterHistory; getSession: () => Promise<Session> }) {
+// @endif
+// @if !ts
+export function createAppRouter({ history, getSession }) {
+// @endif
+  const router = createRouter({
+    history,
+    scrollBehavior: () => ({ top: 0 }),
+    routes: [
+      { path: '/', component: Home },
+      // @if posts
+      { path: '/posts', component: Posts },
+      { path: '/posts/:id', component: PostDetail },
+      // @endif
+      // @if auth
+      { path: '/login', component: Login, meta: { access: 'guest' } },
+      { path: '/register', component: Register, meta: { access: 'guest' } },
+      { path: '/forgot-password', component: ForgotPassword, meta: { access: 'guest' } },
+      // Not guarded: the link in the reset email must work in any state.
+      { path: '/reset-password', component: ResetPassword },
+      { path: '/dashboard', component: Dashboard, meta: { access: 'auth' } },
+      // Development only: the mails MAIL_DRIVER=log recorded, so you can
+      // click verification and reset links without a mail server.
+      ...(import.meta.env.DEV ? [{ path: '/dev/mail', component: DevMail }] : []),
+      // @endif
+      // tylix:routes (make:page adds routes above this line)
+      { path: '/:pathMatch(.*)*', component: NotFound },
+    ],
+  })
+  // @if auth
+
+  // Waits for the session, then sends users who may not see a page where
+  // they belong. On the server, such a redirect becomes a 302. App.vue
+  // re-applies the same rules when the session changes while a page is open.
+  router.beforeEach(async (to) => {
+    if (!to.meta.access) return true
+    const signedIn = (await getSession()).status === 'authenticated'
+    if (to.meta.access === 'auth' && !signedIn) return { path: '/login', query: { next: to.fullPath } }
+    if (to.meta.access === 'guest' && signedIn) return nextPath(to.query.next)
+    return true
+  })
+  // @endif
+  return router
+}

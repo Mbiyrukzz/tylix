@@ -20,7 +20,16 @@ export async function writeStylingConfig(config) {
       ['tailwind.config.js', 'tailwind.config.js.template'],
       ['postcss.config.js', 'postcss.config.js.template'],
     ]) {
-      const content = await fs.readFile(templatePath(templateName), 'utf-8')
+      let content = await fs.readFile(templatePath(templateName), 'utf-8')
+      // A hosted frontend's source lives in app/frontend. Vite runs
+      // Tailwind through postcss.config.js, so only the content globs change.
+      const hosted = config.frontend && config.frontend !== 'tylix'
+      if (filename === 'tailwind.config.js' && hosted) {
+        content = content.replace(
+          'content: ["./app/**/*.tyx"],',
+          'content: ["./app/frontend/**/*.{html,js,jsx,ts,tsx,svelte,vue}"],',
+        )
+      }
       await fs.writeFile(path.join(targetDir, filename), content)
     }
 

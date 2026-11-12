@@ -4,8 +4,16 @@ export { writeFile } from './filesystem/writeFile.js';
 export type { WriteFileOptions } from './filesystem/writeFile.js';
 export { resolveColumnType } from './schema/columnTypes.js';
 export type { Schema, CreateTableBuilder, AlterTableBuilder, ColumnDef } from './schema/Schema.js';
-export { loadConfig } from './config/loadConfig.js';
-export type { DatabaseConfig, AuthConfig, TylixConfig } from './config/loadConfig.js';
+export { loadConfig, resolveFrontendConfig, defineConfig, FRONTEND_DRIVERS } from './config/loadConfig.js';
+export type {
+  DatabaseConfig,
+  AuthConfig,
+  MailConfig,
+  TylixConfig,
+  UserConfig,
+  FrontendConfig,
+  FrontendDriver,
+} from './config/loadConfig.js';
 export { required, isString, isBoolean, isInteger, isEmail } from './validation/rules.js';
 export type { ValidationError } from './validation/rules.js';
 export { validate } from './validation/validate.js';

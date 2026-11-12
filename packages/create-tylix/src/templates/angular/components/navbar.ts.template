@@ -1,0 +1,115 @@
+import { Component, afterNextRender, effect, signal } from '@angular/core'
+import { RouterLink, RouterLinkActive } from '@angular/router'
+// @if auth
+import { inject } from '@angular/core'
+import { Router } from '@angular/router'
+import { injectAuth } from '@tylix/angular'
+// @endif
+
+const base = 'text-sm px-3.5 py-1.5 rounded-md transition-colors '
+
+@Component({
+  selector: 'app-navbar',
+  imports: [RouterLink, RouterLinkActive],
+  template: `
+    <header class="sticky top-0 z-50 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur">
+      <nav class="max-w-6xl mx-auto h-16 px-6 flex items-center justify-between">
+        <div class="flex items-center gap-8">
+          <a routerLink="/" class="flex items-center gap-2.5">
+            <img src="/logo-mark.png" alt="" class="w-7 h-7 rounded-md" />
+            <span class="font-semibold tracking-tight">__APP_NAME__</span>
+          </a>
+          <div class="hidden md:flex items-center gap-1">
+            <a routerLink="/" [class]="idle" [routerLinkActive]="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
+            <!-- @if posts -->
+            <a routerLink="/posts" [class]="idle" [routerLinkActive]="active">Posts</a>
+            <!-- @endif -->
+            <!-- @if auth -->
+            @if (auth.isAuthenticated()) {
+              <a routerLink="/dashboard" [class]="idle" [routerLinkActive]="active">Dashboard</a>
+            }
+            <!-- @endif -->
+            <a href="https://tylix.dev/docs" [class]="idle">Docs</a>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Toggle color theme"
+            class="w-9 h-9 flex items-center justify-center rounded-md text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            (click)="dark.set(!dark())"
+          >
+            {{ dark() ? '☀' : '☾' }}
+          </button>
+          <!-- @if auth -->
+          @if (auth.isAuthenticated()) {
+            <button
+              type="button"
+              data-testid="logout"
+              class="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+              (click)="logOut()"
+            >
+              Log out
+            </button>
+          } @else if (!auth.loading()) {
+            <a
+              routerLink="/login"
+              class="text-sm px-3.5 py-1.5 rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              Log in
+            </a>
+            <a
+              routerLink="/register"
+              class="text-sm px-4 py-1.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 font-semibold hover:bg-emerald-400 transition-colors"
+            >
+              Get started
+            </a>
+          }
+          <!-- @endif -->
+        </div>
+      </nav>
+    </header>
+  `,
+})
+export class Navbar {
+  protected readonly idle =
+    base +
+    'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
+  // Added on top of `idle` by routerLinkActive for the current page.
+  protected readonly active = '!text-zinc-900 dark:!text-white bg-zinc-100 dark:bg-zinc-900 font-medium'
+  // Unknown until rendered in the browser: the server has no document, and
+  // the first browser render must match the server's. The script in
+  // index.html has already applied the right class to <html> by then.
+  protected readonly dark = signal(false)
+  private readonly themeKnown = signal(false)
+  // @if auth
+  protected readonly auth = injectAuth()
+  private readonly router = inject(Router)
+  // @endif
+
+  constructor() {
+    afterNextRender(() => {
+      this.dark.set(document.documentElement.classList.contains('dark'))
+      this.themeKnown.set(true)
+    })
+    effect(() => {
+      if (!this.themeKnown()) return
+      const dark = this.dark()
+      document.documentElement.classList.toggle('dark', dark)
+      try {
+        localStorage.setItem('theme', dark ? 'dark' : 'light')
+      } catch {
+        // private mode: the theme just isn't remembered
+      }
+    })
+  }
+  // @if auth
+
+  protected async logOut() {
+    // Leave the page first, so a protected page doesn't bounce to /login
+    // the moment the session ends.
+    await this.router.navigateByUrl('/', { replaceUrl: true })
+    await this.auth.logout()
+  }
+  // @endif
+}

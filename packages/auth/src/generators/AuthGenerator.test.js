@@ -57,3 +57,26 @@ test('generates auth models, validator, controller, mail files and migrations', 
     await fs.rm(outputDir, { recursive: true, force: true })
   }
 })
+
+test('running make:auth again keeps the existing migrations instead of adding copies', async () => {
+  const outputDir = path.join(__dirname, '.tmp-test-output-rerun')
+  await fs.rm(outputDir, { recursive: true, force: true })
+  await fs.mkdir(outputDir, { recursive: true })
+
+  try {
+    const first = await new AuthGenerator().generate(outputDir)
+    // Stands in for a migration that has already run and been edited.
+    await fs.appendFile(first.userMigration, '\n// already applied\n')
+
+    const second = await new AuthGenerator().generate(outputDir)
+
+    const migrations = (await fs.readdir(path.join(outputDir, 'database', 'migrations'))).sort()
+    assert.equal(migrations.length, 3, `expected 3 migrations, found: ${migrations.join(', ')}`)
+    assert.equal(second.userMigration, first.userMigration)
+    assert.equal(second.refreshTokenMigration, first.refreshTokenMigration)
+    assert.equal(second.passwordResetMigration, first.passwordResetMigration)
+    assert.match(await fs.readFile(second.userMigration, 'utf-8'), /already applied/, 'existing file left untouched')
+  } finally {
+    await fs.rm(outputDir, { recursive: true, force: true })
+  }
+})

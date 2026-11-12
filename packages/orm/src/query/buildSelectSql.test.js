@@ -51,8 +51,27 @@ test("combines where, orderBy, and limit together", () => {
 });
 
 test("throws on an unsupported operator", () => {
-  assert.throws(
-    () => buildSelectSql("posts", { wheres: [{ field: "x", operator: "LIKE", value: "y" }] }),
-    /Unsupported where operator/
-  );
+  // Operators come from code, but a value that slipped through from user
+  // input must never be pasted into SQL.
+  for (const operator of ["REGEXP", "BETWEEN", "= 1 OR 1 = 1 --", "ILIKE"]) {
+    assert.throws(
+      () => buildSelectSql("posts", { wheres: [{ field: "x", operator, value: "y" }] }),
+      /Unsupported where operator/,
+      operator
+    );
+  }
+});
+
+test("LIKE uses a placeholder and the adapter's LIKE flavour", () => {
+  const where = { wheres: [{ field: "title", operator: "like", value: "%tylix%" }] };
+
+  const mysql = buildSelectSql("posts", where);
+  assert.equal(mysql.sql, "SELECT * FROM posts WHERE title LIKE ?");
+  assert.deepEqual(mysql.params, ["%tylix%"]);
+
+  // PostgreSQL's LIKE is case-sensitive, so its adapter asks for ILIKE.
+  const postgres = buildSelectSql("posts", where, { likeOperator: "ILIKE" });
+  assert.equal(postgres.sql, "SELECT * FROM posts WHERE title ILIKE ?");
+
+  assert.throws(() => buildSelectSql("posts", where, { likeOperator: "SIMILAR TO" }), /Unsupported likeOperator/);
 });

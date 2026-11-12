@@ -138,6 +138,11 @@ const PUBLISHED_VERSIONS = {
   '@tylix/auth': '^0.6.0',
   '@tylix/mail': '^0.6.0',
   'tylix-icons': '^0.6.0',
+  '@tylix/client': '^0.6.0',
+  '@tylix/react': '^0.6.0',
+  '@tylix/svelte': '^0.6.0',
+  '@tylix/vue': '^0.6.0',
+  '@tylix/angular': '^0.6.0',
 }
 
 // Package name -> folder under packages/. Used for file: links and for
@@ -154,6 +159,89 @@ const LOCAL_PACKAGE_DIRS = {
   '@tylix/mail': 'mail',
   '@tylix/auth': 'auth',
   'tylix-icons': 'tylix-icons',
+  '@tylix/client': 'client',
+  '@tylix/react': 'react',
+  '@tylix/svelte': 'svelte',
+  '@tylix/vue': 'vue',
+  '@tylix/angular': 'angular',
+}
+
+// What each hosted frontend adds to package.json. `tylix` packages are
+// linked like the rest (file: links in the monorepo, versions otherwise);
+// the others come from the registry. `typecheck` is the frontend half of
+// the TypeScript project's "typecheck" script.
+const HOSTED_FRONTENDS = {
+  react: {
+    tylix: ['@tylix/client', '@tylix/react'],
+    dependencies: {
+      react: '^19.2.0',
+      'react-dom': '^19.2.0',
+      'react-router': '^7.9.0',
+    },
+    devDependencies: {
+      vite: '^8.0.0',
+      '@vitejs/plugin-react': '^6.0.0',
+    },
+    tsDevDependencies: {
+      '@types/react': '^19.2.0',
+      '@types/react-dom': '^19.2.0',
+    },
+    typecheck: 'tsc --noEmit -p app/frontend',
+  },
+  svelte: {
+    tylix: ['@tylix/client', '@tylix/svelte'],
+    dependencies: {},
+    // Svelte compiles away at build time, so it's a dev dependency.
+    devDependencies: {
+      vite: '^8.0.0',
+      svelte: '^5.46.0',
+      '@sveltejs/vite-plugin-svelte': '^7.0.0',
+    },
+    tsDevDependencies: {
+      'svelte-check': '^4.0.0',
+    },
+    typecheck: 'svelte-check --tsconfig app/frontend/tsconfig.json --threshold error',
+  },
+  vue: {
+    tylix: ['@tylix/client', '@tylix/vue'],
+    dependencies: {
+      vue: '^3.5.0',
+      'vue-router': '^5.0.0',
+    },
+    devDependencies: {
+      vite: '^8.0.0',
+      '@vitejs/plugin-vue': '^6.0.0',
+    },
+    tsDevDependencies: {
+      'vue-tsc': '^3.0.0',
+    },
+    typecheck: 'vue-tsc --noEmit -p app/frontend',
+  },
+  angular: {
+    tylix: ['@tylix/client', '@tylix/angular'],
+    dependencies: {
+      '@angular/common': '^22.2.0',
+      '@angular/compiler': '^22.2.0',
+      '@angular/core': '^22.2.0',
+      '@angular/forms': '^22.2.0',
+      '@angular/platform-browser': '^22.2.0',
+      '@angular/platform-server': '^22.2.0',
+      '@angular/router': '^22.2.0',
+      rxjs: '^7.8.0',
+      tslib: '^2.8.0',
+    },
+    devDependencies: {
+      vite: '^8.0.0',
+      '@analogjs/vite-plugin-angular': '^2.9.0',
+      '@angular/build': '^22.2.0',
+      '@angular/compiler-cli': '^22.2.0',
+    },
+    tsDevDependencies: {
+      // Angular 22's compiler needs TypeScript 6.0.
+      typescript: '~6.0.0',
+    },
+    typecheck: 'ngc -p app/frontend/tsconfig.json --noEmit',
+  },
 }
 
 // Packages every generated app depends on directly. @tylix/auth is
@@ -368,6 +456,10 @@ export async function createProjectStructure(config) {
   const isTs = config.language === 'typescript'
   const ext = isTs ? 'ts' : 'js'
   const pm = getPackageManager(config)
+  // A hosted frontend (React, Svelte) has no .tyx pages, so none of the
+  // native page helpers (useApi globals, app/useApi, app/pages) are written.
+  const hostedFrontend = HOSTED_FRONTENDS[config.frontend] ?? null
+  const hosted = hostedFrontend !== null
 
   const exists = await pathExists(targetDir)
   if (exists) {
@@ -382,19 +474,27 @@ export async function createProjectStructure(config) {
         path.join(PACKAGE_ROOT, 'src', 'templates', 'tsconfig.json.template'),
         'utf-8',
       )
-      await fs.writeFile(
-        path.join(targetDir, 'tsconfig.json'),
-        tsconfigTemplate,
-      )
+      // The React code has its own tsconfig (DOM types, JSX) in
+      // app/frontend, so the backend config leaves that folder out.
+      const tsconfig = hosted
+        ? JSON.stringify(
+            { ...JSON.parse(tsconfigTemplate), exclude: ['app/frontend'] },
+            null,
+            2,
+          ) + '\n'
+        : tsconfigTemplate
+      await fs.writeFile(path.join(targetDir, 'tsconfig.json'), tsconfig)
 
       // Ambient declarations for the framework-injected globals.
       // Without this, every generated .ts file that calls useApi() fails
       // with "Cannot find name 'useApi'" (TS2304).
-      await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
-      await fs.writeFile(
-        path.join(targetDir, 'app', 'types', 'globals.d.ts'),
-        GLOBALS_DTS_SOURCE,
-      )
+      if (!hosted) {
+        await fs.mkdir(path.join(targetDir, 'app', 'types'), { recursive: true })
+        await fs.writeFile(
+          path.join(targetDir, 'app', 'types', 'globals.d.ts'),
+          GLOBALS_DTS_SOURCE,
+        )
+      }
     }
 
     await fs.mkdir(path.join(targetDir, 'app', 'models'), { recursive: true })
@@ -402,7 +502,9 @@ export async function createProjectStructure(config) {
       recursive: true,
     })
     await fs.mkdir(path.join(targetDir, 'app', 'Features'), { recursive: true })
-    await fs.mkdir(path.join(targetDir, 'app', 'pages'), { recursive: true })
+    if (!hosted) {
+      await fs.mkdir(path.join(targetDir, 'app', 'pages'), { recursive: true })
+    }
     await fs.mkdir(path.join(targetDir, 'database', 'migrations'), {
       recursive: true,
     })
@@ -419,36 +521,39 @@ export async function createProjectStructure(config) {
     // API helpers. Each takes an optional last `options` argument that is
     // passed to useApi (headers, credentials, timeout, signal). method and
     // body are set after the spread, so options cannot override them.
-    await fs.mkdir(path.join(targetDir, 'app', 'useApi'), { recursive: true })
-    await fs.writeFile(
-      path.join(targetDir, 'app', 'useApi', `getApi.${ext}`),
-      isTs
-        ? `export const getApi = (table: string, options?: ApiOptions) =>\n  useApi(\`/api/\${table}\`, options)\n`
-        : `export const getApi = (table, options) => useApi(\`/api/\${table}\`, options)\n`,
-    )
-    await fs.writeFile(
-      path.join(targetDir, 'app', 'useApi', `postApi.${ext}`),
-      isTs
-        ? `export const postApi = (table: string, data: unknown, options?: ApiOptions) =>\n  useApi(\`/api/\${table}\`, { ...options, method: 'POST', body: data })\n`
-        : `export const postApi = (table, data, options) =>\n  useApi(\`/api/\${table}\`, { ...options, method: 'POST', body: data })\n`,
-    )
-    await fs.writeFile(
-      path.join(targetDir, 'app', 'useApi', `putApi.${ext}`),
-      isTs
-        ? `export const putApi = (\n  table: string,\n  id: number | string,\n  data: unknown,\n  options?: ApiOptions,\n) => useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'PUT', body: data })\n`
-        : `export const putApi = (table, id, data, options) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'PUT', body: data })\n`,
-    )
-    await fs.writeFile(
-      path.join(targetDir, 'app', 'useApi', `deleteApi.${ext}`),
-      isTs
-        ? `export const deleteApi = (table: string, id: number | string, options?: ApiOptions) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'DELETE' })\n`
-        : `export const deleteApi = (table, id, options) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'DELETE' })\n`,
-    )
+    // Native pages only: a React app calls api() from @tylix/react.
+    if (!hosted) {
+      await fs.mkdir(path.join(targetDir, 'app', 'useApi'), { recursive: true })
+      await fs.writeFile(
+        path.join(targetDir, 'app', 'useApi', `getApi.${ext}`),
+        isTs
+          ? `export const getApi = (table: string, options?: ApiOptions) =>\n  useApi(\`/api/\${table}\`, options)\n`
+          : `export const getApi = (table, options) => useApi(\`/api/\${table}\`, options)\n`,
+      )
+      await fs.writeFile(
+        path.join(targetDir, 'app', 'useApi', `postApi.${ext}`),
+        isTs
+          ? `export const postApi = (table: string, data: unknown, options?: ApiOptions) =>\n  useApi(\`/api/\${table}\`, { ...options, method: 'POST', body: data })\n`
+          : `export const postApi = (table, data, options) =>\n  useApi(\`/api/\${table}\`, { ...options, method: 'POST', body: data })\n`,
+      )
+      await fs.writeFile(
+        path.join(targetDir, 'app', 'useApi', `putApi.${ext}`),
+        isTs
+          ? `export const putApi = (\n  table: string,\n  id: number | string,\n  data: unknown,\n  options?: ApiOptions,\n) => useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'PUT', body: data })\n`
+          : `export const putApi = (table, id, data, options) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'PUT', body: data })\n`,
+      )
+      await fs.writeFile(
+        path.join(targetDir, 'app', 'useApi', `deleteApi.${ext}`),
+        isTs
+          ? `export const deleteApi = (table: string, id: number | string, options?: ApiOptions) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'DELETE' })\n`
+          : `export const deleteApi = (table, id, options) =>\n  useApi(\`/api/\${table}/\${id}\`, { ...options, method: 'DELETE' })\n`,
+      )
 
-    await fs.writeFile(
-      path.join(targetDir, 'app', 'useApi', `createResource.${ext}`),
-      isTs ? CREATE_RESOURCE_TS_SOURCE : CREATE_RESOURCE_JS_SOURCE,
-    )
+      await fs.writeFile(
+        path.join(targetDir, 'app', 'useApi', `createResource.${ext}`),
+        isTs ? CREATE_RESOURCE_TS_SOURCE : CREATE_RESOURCE_JS_SOURCE,
+      )
+    }
     const dbEnvLines = buildDatabaseEnvLines(config)
 
     // .env holds the database password and AUTH_SECRET, so only the owner
@@ -596,6 +701,12 @@ export async function createProjectStructure(config) {
     if (config.authEnabled) {
       dependencies['@tylix/auth'] = pkgSpec('@tylix/auth')
     }
+    if (hosted) {
+      for (const name of hostedFrontend.tylix) {
+        dependencies[name] = pkgSpec(name)
+      }
+      Object.assign(dependencies, hostedFrontend.dependencies)
+    }
 
     const devDependencies = {}
     if (config.styling === 'tailwind') {
@@ -614,6 +725,10 @@ export async function createProjectStructure(config) {
         '@types/node': '^22.0.0',
       })
     }
+    if (hosted) {
+      Object.assign(devDependencies, hostedFrontend.devDependencies)
+      if (isTs) Object.assign(devDependencies, hostedFrontend.tsDevDependencies)
+    }
 
     // `build` and `start` are always present. `build` is the
     // pre-flight gate (config check, typecheck, minified CSS) and
@@ -625,14 +740,16 @@ export async function createProjectStructure(config) {
       start: 'tylix start',
       migrate: 'tylix migrate',
     }
-    if (config.styling === 'tailwind') {
+    if (config.styling === 'tailwind' && !hosted) {
       scripts['css:build'] =
         'tailwindcss -i ./app/tailwind-input.css -o ./public/tailwind.css'
       scripts['css:watch'] =
         'tailwindcss -i ./app/tailwind-input.css -o ./public/tailwind.css --watch'
     }
     if (isTs) {
-      scripts.typecheck = 'tsc --noEmit'
+      scripts.typecheck = hosted
+        ? `tsc --noEmit && ${hostedFrontend.typecheck}`
+        : 'tsc --noEmit'
     }
 
     const packageJson = {
@@ -663,7 +780,7 @@ export async function createProjectStructure(config) {
       // ERR_PNPM_IGNORED_BUILDS.
       const buildable = []
       if (config.database === 'sqlite') buildable.push('better-sqlite3')
-      if (isTs) buildable.push('esbuild')
+      if (isTs || hosted) buildable.push('esbuild')
 
       const workspaceYaml = buildPnpmWorkspaceYaml({
         buildable,

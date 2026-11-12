@@ -1,0 +1,82 @@
+import { useApi } from '@tylix/react'
+
+// @if ts
+type MailLog = {
+  id: number
+  recipient: string
+  subject: string
+  body: string
+  status: string
+  created_at: string
+}
+
+// @endif
+// A fixed locale and time zone: with SSR, a date must read the same on the
+// server and in the visitor's browser, or hydration fails.
+const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+
+// Development only (App.jsx registers this route when import.meta.env.DEV
+// is true, and the API behind it doesn't exist in production). With
+// MAIL_DRIVER=log, mails are recorded instead of sent, so verification and
+// password-reset links can be clicked from here.
+export default function DevMail() {
+  // @if ts
+  const logs = useApi<{ data: MailLog[] }>('/api/_tylix/mail-logs')
+  // @endif
+  // @if !ts
+  const logs = useApi('/api/_tylix/mail-logs')
+  // @endif
+  const mails = logs.data ? logs.data.data : []
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Dev mail log</h1>
+        <button
+          type="button"
+          onClick={() => logs.reload()}
+          className="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+        >
+          Refresh
+        </button>
+      </div>
+      <p className="text-sm text-zinc-500 mb-8">The last 50 mails, newest first. Only available in development.</p>
+
+      {logs.loading && !logs.data ? (
+        <p className="text-sm text-zinc-500">Loading…</p>
+      ) : logs.error ? (
+        <p className="text-sm text-rose-600">{logs.error}</p>
+      ) : mails.length === 0 ? (
+        <p className="text-sm text-zinc-500">No mails yet.</p>
+      ) : (
+        <ul className="space-y-3" data-testid="mail-log">
+          {mails.map((mail) => (
+            <li key={mail.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold">{mail.subject}</p>
+                  <p className="text-sm text-zinc-500">To {mail.recipient}</p>
+                </div>
+                <p className="text-xs text-zinc-400 shrink-0">{dateFormat.format(new Date(mail.created_at))}</p>
+              </div>
+              <div className="mt-3 flex flex-col gap-1">
+                {/* A mail usually holds each link twice (href and text). */}
+                {Array.from(new Set(String(mail.body).match(/https?:\/\/[^\s"'<>]+/g) ?? [])).map((link) => (
+                  // Opened on this server whatever APP_URL says, so the
+                  // links work on any dev port.
+                  <a
+                    key={link}
+                    href={link.replace(/^https?:\/\/[^/]+/, '')}
+                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline break-all"
+                  >
+                    {link}
+                  </a>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}

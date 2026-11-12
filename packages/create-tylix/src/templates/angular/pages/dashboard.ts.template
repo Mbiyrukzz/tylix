@@ -1,0 +1,142 @@
+import { Component } from '@angular/core'
+import { injectAuth, injectHydrated } from '@tylix/angular'
+// @if posts
+import { signal } from '@angular/core'
+import { FormsModule } from '@angular/forms'
+import { api, injectApi } from '@tylix/angular'
+
+// The fields GET /api/posts returns (app/models/Post).
+type Post = {
+  id: number
+  title: string
+  body: string
+  cover_image: string | null
+}
+// @endif
+
+const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5'
+
+@Component({
+  selector: 'app-dashboard',
+  // @if posts
+  imports: [FormsModule],
+  // @endif
+  template: `
+    <div class="max-w-6xl mx-auto px-6 py-12">
+      <p class="text-sm text-zinc-500 mb-1">Signed in as</p>
+      <h1 class="text-3xl font-semibold tracking-tight mb-8" data-testid="dashboard-name">{{ auth.user()?.name }}</h1>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+        <div [class]="cardClass">
+          <p class="text-xs text-zinc-500 mb-1">Email</p>
+          <p class="text-sm font-semibold truncate">{{ auth.user()?.email }}</p>
+        </div>
+        <div [class]="cardClass">
+          <p class="text-xs text-zinc-500 mb-1">Session</p>
+          <p class="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
+        </div>
+        <div [class]="cardClass">
+          <p class="text-xs text-zinc-500 mb-1">Protected API</p>
+          <p class="text-sm font-semibold">GET /api/me</p>
+        </div>
+      </div>
+      <!-- @if posts -->
+
+      <section>
+        <h2 class="text-xl font-semibold tracking-tight mb-4">Your posts</h2>
+
+        <form [class]="cardClass + ' mb-6'" (ngSubmit)="create()">
+          @if (error()) {
+            <p role="alert" class="text-rose-600 dark:text-rose-400 text-sm mb-3">{{ error() }}</p>
+          }
+          <input
+            name="title"
+            placeholder="Title"
+            [(ngModel)]="title"
+            class="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <textarea
+            name="body"
+            placeholder="Write something…"
+            rows="3"
+            [(ngModel)]="body"
+            class="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+          ></textarea>
+          <button
+            type="submit"
+            [disabled]="saving() || !hydrated()"
+            class="px-4 py-2 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50"
+          >
+            {{ saving() ? 'Saving…' : 'Publish post' }}
+          </button>
+        </form>
+
+        @if (posts.loading() && !posts.data()) {
+          <p class="text-sm text-zinc-500">Loading posts…</p>
+        } @else if (posts.error()) {
+          <p class="text-sm text-rose-600">{{ posts.error() }}</p>
+        } @else if (posts.data()?.length) {
+          <ul class="space-y-3" data-testid="posts">
+            @for (post of posts.data(); track post.id) {
+              <li [class]="cardClass + ' flex items-start justify-between gap-4'">
+                <div>
+                  <p class="font-semibold">{{ post.title }}</p>
+                  <p class="text-sm text-zinc-500 mt-1 whitespace-pre-line">{{ post.body }}</p>
+                </div>
+                <button type="button" class="text-sm text-zinc-500 hover:text-rose-600 transition-colors" (click)="remove(post.id)">
+                  Delete
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-sm text-zinc-500">No posts yet. Publish your first one above.</p>
+        }
+      </section>
+      <!-- @endif -->
+    </div>
+  `,
+})
+export class Dashboard {
+  // Submitting before hydration would reload the page; see injectHydrated.
+  protected readonly hydrated = injectHydrated()
+
+  protected readonly auth = injectAuth()
+  protected readonly cardClass = cardClass
+  // @if posts
+
+  // Your posts, from the Post feature the starter generated. /api/posts is
+  // behind requireAuth and only returns the logged-in user's posts.
+  protected readonly posts = injectApi<Post[]>('/api/posts')
+
+  protected readonly title = signal('')
+  protected readonly body = signal('')
+  protected readonly error = signal('')
+  protected readonly saving = signal(false)
+
+  protected async create() {
+    if (this.saving()) return
+    if (!this.title().trim() || !this.body().trim()) {
+      this.error.set('Give the post a title and some text.')
+      return
+    }
+    this.saving.set(true)
+    const result = await api.post('/api/posts', { title: this.title().trim(), body: this.body().trim() })
+    this.saving.set(false)
+    if (!result.ok) {
+      this.error.set(result.error ?? 'Could not save the post.')
+      return
+    }
+    this.error.set('')
+    this.title.set('')
+    this.body.set('')
+    this.posts.reload()
+  }
+
+  protected async remove(id: number) {
+    const result = await api.delete(`/api/posts/${id}`)
+    if (result.ok) this.posts.reload()
+    else this.error.set(result.error ?? 'Could not delete the post.')
+  }
+  // @endif
+}

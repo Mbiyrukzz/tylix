@@ -1,0 +1,108 @@
+<script__LANG__>
+  import { matchPath, useRoute } from '@tylix/svelte'
+  // @if auth
+  import { navigate, useServerContext, useSession } from '@tylix/svelte'
+  import { nextPath } from './lib/next'
+  // @endif
+  import Navbar from './components/Navbar.svelte'
+  import PageLoading from './components/PageLoading.svelte'
+  import Home from './pages/Home.svelte'
+  // @if auth
+  import Login from './pages/Login.svelte'
+  import Register from './pages/Register.svelte'
+  import ForgotPassword from './pages/ForgotPassword.svelte'
+  import ResetPassword from './pages/ResetPassword.svelte'
+  import Dashboard from './pages/Dashboard.svelte'
+  import DevMail from './pages/DevMail.svelte'
+  // @endif
+  // @if posts
+  import Posts from './pages/Posts.svelte'
+  import PostDetail from './pages/PostDetail.svelte'
+  // @endif
+  // tylix:imports (make:page adds page imports above this line)
+  import NotFound from './pages/NotFound.svelte'
+
+  // Frontend routes only. Tylix serves the API (/api/*) itself, so those
+  // requests never reach this router. The first matching path wins.
+  //
+  // access: 'auth' pages need a logged-in user, 'guest' pages are for
+  // logged-out users only. That decides what to show; it doesn't protect
+  // data. The API routes behind requireAuth do. The server also redirects
+  // guests away from frontend.protected paths (tylix.config) before any
+  // HTML is sent.
+  const routes = [
+    { path: '/', page: Home, access: 'any' },
+    // @if posts
+    { path: '/posts', page: Posts, access: 'any' },
+    { path: '/posts/:id', page: PostDetail, access: 'any' },
+    // @endif
+    // @if auth
+    { path: '/login', page: Login, access: 'guest' },
+    { path: '/register', page: Register, access: 'guest' },
+    { path: '/forgot-password', page: ForgotPassword, access: 'guest' },
+    // Not guarded: the link in the reset email must work in any state.
+    { path: '/reset-password', page: ResetPassword, access: 'any' },
+    { path: '/dashboard', page: Dashboard, access: 'auth' },
+    // Development only: the mails MAIL_DRIVER=log recorded, so you can
+    // click verification and reset links without a mail server.
+    ...(import.meta.env.DEV ? [{ path: '/dev/mail', page: DevMail, access: 'any' }] : []),
+    // @endif
+    // tylix:routes (make:page adds routes above this line)
+  ]
+
+  // The request's location and session during SSR, the browser's otherwise.
+  const route = useRoute()
+  // @if auth
+  const session = useSession()
+  const server = useServerContext()
+  // @endif
+
+  const current = $derived(routes.find((r) => matchPath(r.path, $route.path)) ?? null)
+  // @if auth
+  const allowed = $derived(
+    !current ||
+      current.access === 'any' ||
+      (current.access === 'auth' && $session.isAuthenticated) ||
+      (current.access === 'guest' && !$session.isAuthenticated && !$session.loading),
+  )
+
+  // Server rendering: the session is known, so a user who may not see this
+  // page gets a 302 to where they belong instead of the page.
+  if (server && current && !allowed) {
+    server.redirect =
+      current.access === 'auth'
+        ? `/login?next=${encodeURIComponent($route.path + $route.search)}`
+        : nextPath($route.query)
+  }
+
+  // Sends users who may not see the current page where they belong, once
+  // the session is known.
+  $effect(() => {
+    if (!current || $session.loading) return
+    if (current.access === 'auth' && !$session.isAuthenticated) {
+      navigate(`/login?next=${encodeURIComponent($route.path + $route.search)}`, { replace: true })
+    } else if (current.access === 'guest' && $session.isAuthenticated) {
+      navigate(nextPath($route.query), { replace: true })
+    }
+  })
+  // @endif
+  // @if !auth
+  const allowed = true
+  // @endif
+</script>
+
+<div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+  <Navbar />
+  <main class="flex-1">
+    {#if !current}
+      <NotFound />
+    {:else if !allowed}
+      <PageLoading />
+    {:else}
+      <current.page />
+    {/if}
+  </main>
+  <footer class="border-t border-zinc-200 dark:border-zinc-800">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Svelte.</div>
+  </footer>
+</div>

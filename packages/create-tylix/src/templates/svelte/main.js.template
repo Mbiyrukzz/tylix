@@ -1,0 +1,17 @@
+import { hydrate, mount } from 'svelte'
+import { auth } from '@tylix/svelte'
+// @if tailwind
+import '../tailwind-input.css'
+// @endif
+import App from './App.svelte'
+
+const target = document.getElementById('app')
+if (!target) throw new Error('index.html is missing <div id="app">.')
+
+// Picks up the session the server put in the page, synchronously, so the
+// first render here matches the server's.
+auth.init()
+
+// With SSR (frontend.ssr in tylix.config) the server already rendered this
+// page: hydrate attaches to its markup. Otherwise render from scratch.
+export default globalThis.__TYLIX_SSR__ ? hydrate(App, { target }) : mount(App, { target })

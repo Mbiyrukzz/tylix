@@ -1,0 +1,18 @@
+import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http'
+import { provideZonelessChangeDetection, type ApplicationConfig } from '@angular/core'
+import { provideRouter, withComponentInputBinding } from '@angular/router'
+import { tylixInterceptor } from '@tylix/angular'
+import { routes } from './app.routes'
+
+// Shared by the browser (main.ts) and the server (entry-server.ts), which
+// each add hydration as needed.
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideZonelessChangeDetection(),
+    // Route and query parameters arrive as component inputs.
+    provideRouter(routes, withComponentInputBinding()),
+    // HttpClient, if you prefer it to injectApi(): the interceptor sends the
+    // session cookies and renews an expired session, like injectApi() does.
+    provideHttpClient(withFetch(), withInterceptors([tylixInterceptor])),
+  ],
+}

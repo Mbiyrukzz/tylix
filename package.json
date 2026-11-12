@@ -8,7 +8,8 @@
   ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build --workspaces --if-present",
+    "test:e2e": "node e2e/parity.mjs"
   },
   "repository": {
     "type": "git",
@@ -20,5 +21,8 @@
   "bugs": {
     "url": "https://github.com/Mbiyrukzz/tylix/issues"
   },
-  "homepage": "https://github.com/Mbiyrukzz/tylix#readme"
+  "homepage": "https://github.com/Mbiyrukzz/tylix#readme",
+  "devDependencies": {
+    "playwright-core": "^1.65.0"
+  }
 }

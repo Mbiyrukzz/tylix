@@ -1,0 +1,61 @@
+import { Link } from 'react-router'
+// @if auth
+import { useAuth } from '@tylix/react'
+// @endif
+
+export default function Home() {
+  // @if auth
+  const { user } = useAuth()
+  // @endif
+
+  return (
+    <section className="max-w-6xl mx-auto px-6 py-24 text-center">
+      <p className="text-sm font-semibold tracking-widest text-emerald-500 uppercase mb-4">Tylix + React</p>
+      <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight mb-5">Your full-stack app is ready.</h1>
+      <p className="max-w-2xl mx-auto text-lg text-zinc-500 dark:text-zinc-400 mb-10">
+        React renders the pages. Tylix runs the API, database, authentication and mail, all from one server.
+      </p>
+      {/* @if auth */}
+      <div className="flex items-center justify-center gap-3">
+        {user ? (
+          <Link
+            to="/dashboard"
+            className="px-5 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+          >
+            Go to dashboard
+          </Link>
+        ) : (
+          <>
+            <Link
+              to="/register"
+              className="px-5 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+            >
+              Create an account
+            </Link>
+            <Link
+              to="/login"
+              className="px-5 py-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+            >
+              Log in
+            </Link>
+          </>
+        )}
+      </div>
+      {/* @endif */}
+      <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+          <h2 className="font-semibold mb-2">app/frontend</h2>
+          <p className="text-sm text-zinc-500">Your React code. Edits hot-reload without restarting the server.</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+          <h2 className="font-semibold mb-2">app/controllers, models</h2>
+          <p className="text-sm text-zinc-500">The backend. Generate more with tylix make:feature.</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+          <h2 className="font-semibold mb-2">@tylix/react</h2>
+          <p className="text-sm text-zinc-500">useAuth, useApi and route guards, wired to the same session as the API.</p>
+        </div>
+      </div>
+    </section>
+  )
+}

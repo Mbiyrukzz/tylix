@@ -1,0 +1,40 @@
+import { createSSRApp } from 'vue'
+import { createMemoryHistory } from 'vue-router'
+import { createServerContext, renderWithData } from '@tylix/vue/server'
+import App from './App.vue'
+import { createAppRouter } from './router'
+
+// Server-side rendering (frontend.ssr in tylix.config). Tylix calls this
+// for every page request and puts the result in index.html's
+// <!--ssr-outlet-->. The browser then hydrates it (see main).
+//
+//   url      the requested path and query
+//   session  the visitor's session: { user } or { user: null }
+//   load     loads one /api/ URL in-process as this visitor
+//
+// Every useApi GET is loaded with onServerPrefetch before the HTML is
+// produced. Components can set the HTTP status or answer with a redirect
+// through useServerContext() (see NotFound).
+// @if ts
+export async function render({ url, session, load }: { url: string } & Parameters<typeof createServerContext>[0]) {
+// @endif
+// @if !ts
+export async function render({ url, session, load }) {
+// @endif
+  const server = createServerContext({ session, load })
+  const app = createSSRApp(App)
+  const router = createAppRouter({
+    history: createMemoryHistory(),
+    getSession: async () => server.authState,
+  })
+  app.use(router)
+
+  await router.push(url)
+  await router.isReady()
+
+  // A guard sent this visitor elsewhere: answer with a 302, not the page.
+  const route = router.currentRoute.value
+  if (route.redirectedFrom) return { html: '', status: 302, redirect: route.fullPath, data: {} }
+
+  return renderWithData(app, server)
+}

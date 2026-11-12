@@ -1,0 +1,154 @@
+import { Component, computed, signal } from '@angular/core'
+import { FormsModule } from '@angular/forms'
+import { RouterLink } from '@angular/router'
+import { injectAuth, injectHydrated } from '@tylix/angular'
+
+const inputClass =
+  'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
+
+@Component({
+  selector: 'app-register',
+  imports: [FormsModule, RouterLink],
+  template: `
+    <div class="flex items-center justify-center px-6 py-16">
+      <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+        <div class="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+          <h2 class="text-2xl font-semibold tracking-tight mb-3">Create your account</h2>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">It takes less than a minute.</p>
+          <ul class="space-y-3">
+            @for (perk of perks; track perk) {
+              <li class="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
+                <span class="text-emerald-500">✓</span>
+                {{ perk }}
+              </li>
+            }
+          </ul>
+        </div>
+
+        <div class="flex items-center justify-center px-6 py-12">
+          @if (registered()) {
+            <div class="w-full max-w-sm" data-testid="registered">
+              <div class="w-11 h-11 rounded-md bg-emerald-500/10 flex items-center justify-center mb-5 text-emerald-600">✓</div>
+              <h1 class="text-2xl font-semibold tracking-tight mb-2">Check your email</h1>
+              <p class="text-sm text-zinc-500 mb-8">
+                We sent a verification link to <span class="text-zinc-900 dark:text-zinc-200">{{ email() }}</span>. Click it, then log in.
+              </p>
+              <a
+                routerLink="/login"
+                class="inline-block w-full text-center bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+              >
+                Go to login
+              </a>
+              @if (isDev) {
+                <p class="text-xs text-zinc-500 text-center mt-4">
+                  No mail server yet? <a routerLink="/dev/mail" class="text-emerald-600 dark:text-emerald-400 hover:underline">Open the dev mail log</a>
+                </p>
+              }
+            </div>
+          } @else {
+            <form class="w-full max-w-sm" (ngSubmit)="submit()">
+              <h1 class="text-2xl font-semibold tracking-tight mb-1">Create account</h1>
+              <p class="text-sm text-zinc-500 mb-8">Start building with Tylix.</p>
+
+              @if (error()) {
+                <div role="alert" aria-live="polite" class="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
+                  <p class="text-rose-700 dark:text-rose-400 text-sm">{{ error() }}</p>
+                </div>
+              }
+
+              <label for="name" class="block text-zinc-500 text-xs font-medium mb-1.5">Name</label>
+              <input id="name" name="name" autocomplete="name" autofocus [(ngModel)]="name" [class]="inputClass" />
+
+              <label for="email" class="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+              <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" [(ngModel)]="email" [class]="inputClass" />
+
+              <label for="password" class="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+              <input id="password" name="password" type="password" autocomplete="new-password" [(ngModel)]="password" [class]="inputClass" />
+              @if (password()) {
+                <p class="-mt-3 mb-4 text-xs text-zinc-500">Strength: {{ strengthLabels[score()] }}</p>
+              }
+
+              <label for="confirmPassword" class="block text-zinc-500 text-xs font-medium mb-1.5">Confirm password</label>
+              <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" [(ngModel)]="confirmPassword" [class]="inputClass" />
+
+              <label class="flex items-center gap-2 text-sm text-zinc-500 mb-6">
+                <input type="checkbox" name="terms" [(ngModel)]="agreed" class="rounded border-zinc-300 dark:border-zinc-700" />
+                I agree to the Terms of Service
+              </label>
+
+              <button
+                type="submit"
+                [disabled]="submitting() || !hydrated()"
+                class="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ submitting() ? 'Creating account…' : 'Create account' }}
+              </button>
+
+              <p class="text-sm text-zinc-500 text-center mt-6">
+                Already have an account? <a routerLink="/login" class="text-emerald-600 dark:text-emerald-400 hover:underline">Log in</a>
+              </p>
+            </form>
+          }
+        </div>
+      </div>
+    </div>
+  `,
+})
+export class Register {
+  // Submitting before hydration would reload the page; see injectHydrated.
+  protected readonly hydrated = injectHydrated()
+
+  protected readonly inputClass = inputClass
+  protected readonly isDev = import.meta.env.DEV
+  protected readonly perks = [
+    'Auth, database and styling already wired',
+    'Angular on the front, Tylix on the back',
+    'Generate new features with one command',
+  ]
+  protected readonly strengthLabels = ['Too short', 'Weak', 'Fair', 'Good', 'Strong']
+
+  private readonly auth = injectAuth()
+
+  protected readonly name = signal('')
+  protected readonly email = signal('')
+  protected readonly password = signal('')
+  protected readonly confirmPassword = signal('')
+  protected readonly agreed = signal(false)
+  protected readonly error = signal('')
+  protected readonly submitting = signal(false)
+  protected readonly registered = signal(false)
+
+  protected readonly score = computed(() => {
+    const value = this.password()
+    if (value.length < 8) return 0
+    let points = 1
+    if (/[a-z]/.test(value) && /[A-Z]/.test(value)) points++
+    if (/[0-9]/.test(value)) points++
+    if (/[^A-Za-z0-9]/.test(value)) points++
+    return points
+  })
+
+  private validate() {
+    if (this.name().trim().length === 0) return 'Enter your name.'
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email())) return 'Enter a valid email address.'
+    if (this.password().length < 8) return 'Password must be at least 8 characters.'
+    if (this.password() !== this.confirmPassword()) return "Passwords don't match."
+    if (!this.agreed()) return 'Please agree to the Terms of Service to continue.'
+    return ''
+  }
+
+  protected async submit() {
+    if (this.submitting()) return
+    this.error.set(this.validate())
+    if (this.error()) return
+
+    this.submitting.set(true)
+    const result = await this.auth.register({ name: this.name().trim(), email: this.email(), password: this.password() })
+    this.submitting.set(false)
+
+    if (result.ok) this.registered.set(true)
+    else if (result.status === 429) this.error.set('Too many attempts. Wait a minute and try again.')
+    else if (result.status === 0) this.error.set('Network error. Check your connection and try again.')
+    else this.error.set(result.error ?? 'Could not create account. Check your details and try again.')
+  }
+}

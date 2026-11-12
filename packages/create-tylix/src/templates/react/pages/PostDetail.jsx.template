@@ -1,0 +1,56 @@
+import { Link, useParams } from 'react-router'
+import { useApi } from '@tylix/react'
+
+// @if ts
+// What GET /api/public/posts/:id returns.
+type PublicPostDetail = {
+  id: number
+  title: string
+  body: string
+  cover_image: string | null
+  author: string
+  created_at: string
+}
+
+// @endif
+// A fixed locale and time zone: with SSR, a date must read the same on the
+// server and in the visitor's browser, or hydration fails.
+const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
+
+export default function PostDetail() {
+  const { id } = useParams()
+  // @if ts
+  const post = useApi<PublicPostDetail>(id ? `/api/public/posts/${id}` : null)
+  // @endif
+  // @if !ts
+  const post = useApi(id ? `/api/public/posts/${id}` : null)
+  // @endif
+
+  return (
+    <article className="max-w-3xl mx-auto px-6 py-12">
+      <Link to="/posts" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+        ← All posts
+      </Link>
+      {post.loading && !post.data ? (
+        <p className="text-sm text-zinc-500 mt-8">Loading…</p>
+      ) : post.status === 404 ? (
+        <div className="mt-8">
+          <h1 className="text-2xl font-semibold">Post not found</h1>
+          <p className="text-sm text-zinc-500 mt-2">It may have been deleted.</p>
+        </div>
+      ) : post.error ? (
+        <p className="text-sm text-rose-600 mt-8">{post.error}</p>
+      ) : post.data ? (
+        <>
+          <h1 className="text-4xl font-semibold tracking-tight mt-6 mb-3" data-testid="post-title">
+            {post.data.title}
+          </h1>
+          <p className="text-sm text-zinc-500 mb-8">
+            {post.data.author} · {dateFormat.format(new Date(post.data.created_at))}
+          </p>
+          <div className="text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">{post.data.body}</div>
+        </>
+      ) : null}
+    </article>
+  )
+}

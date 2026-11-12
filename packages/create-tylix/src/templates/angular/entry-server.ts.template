@@ -1,0 +1,30 @@
+import { mergeApplicationConfig } from '@angular/core'
+import { bootstrapApplication, provideClientHydration, type BootstrapContext } from '@angular/platform-browser'
+import { provideServerRendering } from '@angular/platform-server'
+import { renderWithData, type RenderOptions } from '@tylix/angular/server'
+import { App } from './app'
+import { appConfig } from './app.config'
+
+const serverConfig = mergeApplicationConfig(appConfig, {
+  // provideClientHydration here makes the server add what the browser
+  // needs to hydrate (see main.ts).
+  providers: [provideServerRendering(), provideClientHydration()],
+})
+
+// Server-side rendering (frontend.ssr in tylix.config). Tylix calls this
+// for every page request and puts the result in index.html's
+// <!--ssr-outlet-->. The browser then hydrates it (provideClientHydration).
+//
+//   url      the requested path and query
+//   session  the visitor's session: { user } or { user: null }
+//   load     loads one /api/ URL in-process as this visitor
+//
+// Every injectApi GET is loaded as a pending task before the HTML is
+// produced. Guards answer with a 302 on the server, and components can set
+// the HTTP status through useServerContext() (see NotFound).
+export function render(options: RenderOptions) {
+  return renderWithData(
+    (context: BootstrapContext) => bootstrapApplication(App, serverConfig, context),
+    options,
+  )
+}

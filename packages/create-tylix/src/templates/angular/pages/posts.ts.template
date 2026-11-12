@@ -1,0 +1,55 @@
+import { Component } from '@angular/core'
+import { RouterLink } from '@angular/router'
+import { injectApi } from '@tylix/angular'
+
+// What GET /api/public/posts returns for each post.
+type PublicPost = {
+  id: number
+  title: string
+  excerpt: string
+  cover_image: string | null
+  author: string
+  created_at: string
+}
+
+// Everyone's posts, newest first. /api/public/posts needs no login.
+@Component({
+  selector: 'app-posts',
+  imports: [RouterLink],
+  template: `
+    <div class="max-w-3xl mx-auto px-6 py-12">
+      <h1 class="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
+      @if (posts.loading() && !posts.data()) {
+        <p class="text-sm text-zinc-500">Loading posts…</p>
+      } @else if (posts.error()) {
+        <p class="text-sm text-rose-600">{{ posts.error() }}</p>
+      } @else if (posts.data()?.length) {
+        <ul class="space-y-4" data-testid="public-posts">
+          @for (post of posts.data(); track post.id) {
+            <li>
+              <a
+                [routerLink]="['/posts', post.id]"
+                class="block rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+              >
+                <p class="font-semibold">{{ post.title }}</p>
+                <p class="text-sm text-zinc-500 mt-1">{{ post.excerpt }}</p>
+                <p class="text-xs text-zinc-400 mt-3">{{ post.author }} · {{ formatDate(post.created_at) }}</p>
+              </a>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="text-sm text-zinc-500">No posts yet.</p>
+      }
+    </div>
+  `,
+})
+export class Posts {
+  protected readonly posts = injectApi<PublicPost[]>('/api/public/posts')
+
+  // A fixed locale and time zone: with SSR, a date must read the same on the
+  // server and in the visitor's browser, or hydration fails.
+  protected formatDate(value: string) {
+    return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(value))
+  }
+}

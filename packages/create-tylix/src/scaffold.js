@@ -40,11 +40,14 @@ import { writePublicPostRoutes } from './steps/writePublicPostRoutes.js'
 import { writeIndexHtml } from './steps/writeIndexHtml.js'
 import { runMigrations } from './steps/runMigrations.js'
 import { writeCapabilities } from './steps/writeCapabilities.js'
+import { writeFrontend } from './steps/writeFrontend.js'
 import { initGit } from './steps/initGit.js'
-import { finalize } from './steps/finalize.js'
+
+const FRONTEND_LABELS = { tylix: 'Tylix', react: 'React', svelte: 'Svelte', vue: 'Vue', angular: 'Angular' }
 
 // Defaults used when --yes is set and a value wasn't passed as a flag.
 const DEFAULTS = {
+  frontend: 'tylix',
   language: 'typescript',
   database: 'sqlite',
   authEnabled: true,
@@ -80,8 +83,22 @@ async function runWizard(initialProjectName, options = {}) {
         }),
       )
 
+  const frontend = await resolve(options.frontend, DEFAULTS.frontend, () =>
+    select({
+      message: 'Choose your frontend',
+      choices: [
+        { label: 'Tylix', value: 'tylix', hint: '(Recommended) .tyx pages' },
+        { label: 'React', value: 'react', hint: 'React + Vite, same Tylix backend' },
+        { label: 'Svelte', value: 'svelte', hint: 'Svelte 5 + Vite, same Tylix backend' },
+        { label: 'Vue', value: 'vue', hint: 'Vue 3 + Vite, same Tylix backend' },
+        { label: 'Angular', value: 'angular', hint: 'Angular + Vite, TypeScript only' },
+      ],
+    }),
+  )
+
+  // Angular components need decorators, so Angular is TypeScript-only.
   const language = await resolve(
-    options.language,
+    frontend === 'angular' ? 'typescript' : options.language,
     DEFAULTS.language,
     () =>
       select({
@@ -218,6 +235,9 @@ async function runWizard(initialProjectName, options = {}) {
   console.log(bold('Configuration'))
   console.log(`Project Name      ${cyanBright(projectName)}`)
   console.log(
+    `Frontend          ${cyanBright(FRONTEND_LABELS[frontend] ?? frontend)}`,
+  )
+  console.log(
     `Language          ${cyanBright(language === 'javascript' ? 'JavaScript' : 'TypeScript')}`,
   )
   console.log(`Database          ${cyanBright(database)}`)
@@ -245,6 +265,7 @@ async function runWizard(initialProjectName, options = {}) {
 
   return {
     projectName,
+    frontend,
     language,
     database,
     databaseUser,
@@ -283,8 +304,12 @@ async function runBuildSteps(config) {
     { label: 'Configuring ORM', fn: () => writeOrmConfig(config) },
     { label: 'Writing project config', fn: () => writeDatabaseConfig(config) },
     { label: 'Configuring styling', fn: () => writeStylingConfig(config) },
-    { label: 'Creating HTML shell', fn: () => writeIndexHtml(config) },
   )
+  // React, Svelte, ...: a frontend served through Vite instead of .tyx pages.
+  const hosted = config.frontend !== 'tylix'
+  if (!hosted) {
+    steps.push({ label: 'Creating HTML shell', fn: () => writeIndexHtml(config) })
+  }
 
   if (config.authEnabled) {
     steps.push({
@@ -294,29 +319,43 @@ async function runBuildSteps(config) {
       warningMessage: `Authentication was not generated because dependencies weren't installed. Run "cd ${config.projectName} && ${installCommand(pm)} && ${execCommand(pm, 'tylix make:auth')} && ${runScriptCommand(pm, 'migrate')}".`,
     })
   }
-  steps.push({
-    label: 'Creating capabilities',
-    fn: () => writeCapabilities(config),
-  })
+  if (hosted) {
+    steps.push({
+      label: `Creating ${FRONTEND_LABELS[config.frontend]} frontend`,
+      fn: () => writeFrontend(config),
+    })
+  } else {
+    steps.push({
+      label: 'Creating capabilities',
+      fn: () => writeCapabilities(config),
+    })
 
-  steps.push({
-    label: 'Creating Home page',
-    fn: () => writePage(config, 'Home'),
-  })
+    steps.push({
+      label: 'Creating Home page',
+      fn: () => writePage(config, 'Home'),
+    })
+  }
 
-  if (config.starter === 'starter') {
+  if (!hosted && config.starter === 'starter') {
     steps.push({
       label: 'Creating Not Found page',
       fn: () => writePage(config, '_not_found'),
     })
   }
 
-  if (config.authEnabled) {
+  if (!hosted && config.authEnabled) {
     steps.push(
       { label: 'Creating Login page', fn: () => writePage(config, 'Login') },
       {
         label: 'Creating Register page',
         fn: () => writePage(config, 'Register'),
+      },
+      {
+        label: 'Creating password reset pages',
+        fn: async () => {
+          await writePage(config, 'forgot-password')
+          await writePage(config, 'reset-password')
+        },
       },
       { label: 'Creating dashboard', fn: () => writePage(config, 'Dashboard') },
       {
@@ -326,12 +365,14 @@ async function runBuildSteps(config) {
     )
   }
 
-  steps.push(
-    { label: 'Creating middleware', fn: () => writeMiddleware(config) },
-    { label: 'Creating layouts', fn: () => writeLayout(config) },
-    { label: 'Creating components', fn: () => writeComponents(config) },
-    { label: 'Creating API routes', fn: () => writeApiRoutes(config) },
-  )
+  steps.push({ label: 'Creating middleware', fn: () => writeMiddleware(config) })
+  if (!hosted) {
+    steps.push(
+      { label: 'Creating layouts', fn: () => writeLayout(config) },
+      { label: 'Creating components', fn: () => writeComponents(config) },
+    )
+  }
+  steps.push({ label: 'Creating API routes', fn: () => writeApiRoutes(config) })
 
   if (config.starter === 'starter' && config.authEnabled) {
     steps.push(
@@ -340,10 +381,12 @@ async function runBuildSteps(config) {
         fn: () => generatePostBoilerplate(config),
       },
       {
-        label: 'Creating public Posts pages',
+        label: hosted ? 'Creating public Posts routes' : 'Creating public Posts pages',
         fn: async () => {
-          await writePage(config, 'posts/Index')
-          await writePage(config, 'posts/[id]')
+          if (!hosted) {
+            await writePage(config, 'posts/Index')
+            await writePage(config, 'posts/[id]')
+          }
           await writePublicPostRoutes(config)
         },
       },
@@ -366,7 +409,6 @@ async function runBuildSteps(config) {
       fn: () => initGit(config),
     })
   }
-  steps.push({ label: 'Finalizing project', fn: () => finalize(config) })
 
   const warnings = []
   const progress = createProgressBar(steps.length)
