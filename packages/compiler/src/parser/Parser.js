@@ -7,6 +7,9 @@ import {
   AssignmentExpr,
   BinaryExpr,
   UnaryExpr,
+  UpdateExpr,
+  TypeDeclaration,
+  EnumDeclaration,
   TernaryExpr,
   NullishCoalescingExpr,
   ArrowFunctionExpr,
@@ -55,6 +58,7 @@ import {
   SwitchStatement,
 } from '../ast/nodes.js'
 import { parseExpressionString } from './parseExpressionString.js'
+import { generateExpression } from '../codegen/generateExpression.js'
 
 const COMPARISON_SYMBOLS = {
   [TokenType.GT]: '>',
@@ -103,32 +107,45 @@ const COMPOUND_ASSIGNMENT_OPS = {
 // and emitted verbatim by the codegen.
 function bindingToSource(t) {
   if (typeof t === 'string') return t
+  const withDefault = (src, def) =>
+    def ? `${src} = ${generateExpression(def)}` : src
   if (t.type === 'ObjectPattern') {
     const parts = t.properties.map((p) => {
-      if (p.defaultValue) {
-        throw new Error(
-          'Default values inside destructured parameters are not supported; use a default on the whole parameter or a const inside the body',
-        )
-      }
-      return typeof p.binding === 'string' && p.binding === p.key
-        ? p.key
-        : `${p.key}: ${bindingToSource(p.binding)}`
+      const plain = typeof p.binding === 'string' && p.binding === p.key
+      const lhs = plain ? p.key : `${p.key}: ${bindingToSource(p.binding)}`
+      return withDefault(lhs, p.defaultValue)
     })
     if (t.rest) parts.push(`...${t.rest}`)
     return `{ ${parts.join(', ')} }`
   }
-  const parts = t.elements.map((el) => {
-    if (el === null) return ''
-    if (el.defaultValue) {
-      throw new Error(
-        'Default values inside destructured parameters are not supported; use a default on the whole parameter or a const inside the body',
-      )
-    }
-    return bindingToSource(el.binding)
-  })
+  const parts = t.elements.map((el) =>
+    el === null ? '' : withDefault(bindingToSource(el.binding), el.defaultValue),
+  )
   if (t.rest) parts.push(`...${t.rest}`)
   return `[${parts.join(', ')}]`
 }
+
+// Optional extras on function nodes, attached only when present so
+// existing AST shapes stay unchanged.
+const PARAM_MODIFIERS = new Set(['public', 'private', 'protected', 'readonly', 'override'])
+
+function signatureExtras(fn) {
+  const extra = {}
+  if (fn.typeParams) extra.typeParams = fn.typeParams
+  if (fn.returnType) extra.returnType = fn.returnType
+  return extra
+}
+
+// Tokens that start a statement. After `if (cond)` one of these means
+// the parens were just the condition and a braceless body follows.
+const STATEMENT_START_TOKENS = new Set([
+  TokenType.RETURN, TokenType.THROW, TokenType.BREAK, TokenType.CONTINUE,
+  TokenType.IF, TokenType.WHILE, TokenType.DO, TokenType.SWITCH,
+  TokenType.FOR, TokenType.REPEAT, TokenType.TRY, TokenType.CONST,
+  TokenType.LET, TokenType.FUNCTION, TokenType.ASYNC, TokenType.AWAIT,
+  TokenType.NEW, TokenType.TYPEOF, TokenType.DELETE, TokenType.VOID,
+  TokenType.PLUS_PLUS, TokenType.MINUS_MINUS, TokenType.SEMICOLON,
+])
 
 // True when token `b` starts exactly where token `a` ends -- i.e. the
 // two were written with no whitespace between them.
@@ -147,6 +164,7 @@ function containsMutation(node) {
   if (node instanceof RegExp) return false
   if (
     node.type === 'AssignmentExpression' ||
+    node.type === 'UpdateExpression' ||
     node.type === 'AwaitExpression' ||
     node.type === 'YieldExpression'
   ) {
@@ -262,6 +280,7 @@ export class Parser {
       computed: [],
       actions: [],
       uses: [],
+      helpers: [],
       onMount: null,
     }
 
@@ -304,6 +323,8 @@ export class Parser {
         )
       } else if (this.match(TokenType.META)) {
         page.meta = this.parseSectionBlock(this.parseMetaEntry.bind(this))
+              } else if (this.isModuleDeclarationAhead()) {
+        page.helpers.push(this.parseStatement())
       } else {
         throw new Error(
           `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
@@ -379,9 +400,10 @@ export class Parser {
     )
   }
 
-  isAtSectionBoundary() {
+    isAtSectionBoundary(allowDeclarations = false) {
     const type = this.peek().type
     if (this.isSectionKeyword(type)) return true
+    if (allowDeclarations && this.isModuleDeclarationAhead()) return true
     if (this.isAmbiguousSectionKeyword(type)) {
       const next = this.tokens[this.pos + 1]
       // Followed by ':' or '(' means it's a field/prop/method name in
@@ -397,7 +419,7 @@ export class Parser {
 
   parseBareBlock(parseEntry) {
     const entries = []
-    while (!this.isAtSectionBoundary()) {
+    while (!this.isAtSectionBoundary(true)) {
       entries.push(parseEntry())
       this.match(TokenType.COMMA)
     }
@@ -533,6 +555,22 @@ export class Parser {
   parseParamList() {
     const params = []
     while (!this.check(TokenType.RPAREN)) {
+      // Constructor parameter properties: `constructor(private readonly x: T)`.
+      // A modifier word counts only when another name follows it, so a
+      // parameter that is itself called `readonly` still parses.
+      let accessibility = null
+      let isReadonly = false
+      let isOverride = false
+      while (
+        this.peek().type === TokenType.IDENTIFIER &&
+        PARAM_MODIFIERS.has(this.peek().value) &&
+        this.isNameToken(this.tokens[this.pos + 1])
+      ) {
+        const word = this.advance().value
+        if (word === 'readonly') isReadonly = true
+        else if (word === 'override') isOverride = true
+        else accessibility = word
+      }
       const rest = this.match(TokenType.SPREAD)
       let name
       if (this.check(TokenType.LBRACE) || this.check(TokenType.LBRACKET)) {
@@ -549,39 +587,18 @@ export class Parser {
       if (this.match(TokenType.EQUALS)) {
         defaultValue = this.parseAssignment()
       }
-      params.push({ name, typeAnnotation, defaultValue, rest, optional })
+      const param = { name, typeAnnotation, defaultValue, rest, optional }
+      if (accessibility || isReadonly || isOverride) {
+        Object.assign(param, { accessibility, isReadonly, isOverride, isProperty: true })
+      }
+      params.push(param)
       this.match(TokenType.COMMA)
     }
     this.expect(TokenType.RPAREN, "Expected ')' after parameters")
     return params
   }
 
-  parseMethod() {
-    const startLine = this.peek().line
-    const isAsync = this.match(TokenType.ASYNC)
-    const name = this.parseNameToken('Expected method name')
-    this.expect(TokenType.LPAREN, "Expected '(' after method name")
 
-    const params = this.parseParamList()
-
-    let returnType = null
-    if (this.match(TokenType.COLON)) {
-      returnType = this.parseTypeExpression()
-    }
-
-    this.expect(TokenType.LBRACE, "Expected '{' to start method body")
-    const body = []
-    while (!this.check(TokenType.RBRACE)) {
-      body.push(this.parseStatement())
-    }
-    this.expect(TokenType.RBRACE, "Expected '}' to close method body")
-
-    return {
-      ...MethodNode(name, params, body, returnType),
-      isAsync,
-      line: startLine,
-    }
-  }
 
   // A binding target is anywhere a name is bound to a value: a plain
   // identifier, or -- for destructuring -- a nested object/array
@@ -734,26 +751,7 @@ export class Parser {
     return body
   }
 
-  // After `function` (and an optional preceding `async`, already
-  // consumed by the caller): `[*] [name] (params) [: ReturnType] { body }`.
-  parseFunctionRest(isAsync) {
-    this.expect(TokenType.FUNCTION, "Expected 'function'")
-    const isGenerator = this.match(TokenType.STAR)
-    let name = null
-    if (!this.check(TokenType.LPAREN)) {
-      name = this.parseNameToken('Expected a function name')
-    }
-    this.expect(TokenType.LPAREN, "Expected '(' after function name")
-    const params = this.parseParamList()
-    if (this.match(TokenType.COLON)) {
-      this.parseTypeExpression() // return type: checked only in the virtual .ts
-    }
-    const body = this.withGenerator(isGenerator, () =>
-      this.parseBlockStatements('function body'),
-    )
-    return { name, params, body, isAsync, isGenerator }
-  }
-
+ 
   isFunctionKeywordAhead() {
     return (
       this.check(TokenType.FUNCTION) ||
@@ -864,139 +862,7 @@ export class Parser {
     }
   }
 
-  parseStatementInner() {
-    if (this.match(TokenType.SEMICOLON)) {
-      return EmptyStatement()
-    }
-
-    // A `{` at the start of a statement is always a block (JS rule).
-    if (this.check(TokenType.LBRACE)) {
-      return BlockStatement(this.parseBlockStatements('block'))
-    }
-
-    if (this.isLabelAhead()) {
-      const label = this.advance().value
-      this.advance() // ':'
-      return LabeledStatement(label, this.parseStatement())
-    }
-
-    if (this.match(TokenType.RETURN)) {
-      const hasValue =
-        !this.check(TokenType.SEMICOLON) && !this.check(TokenType.RBRACE)
-      const argument = hasValue ? this.parseExpression() : null
-      this.match(TokenType.SEMICOLON)
-      return ReturnStatement(argument)
-    }
-
-    if (this.match(TokenType.THROW)) {
-      const argument = this.parseExpression()
-      this.match(TokenType.SEMICOLON)
-      return ThrowStatement(argument)
-    }
-
-    if (this.match(TokenType.IF)) {
-      return this.parseIfStatement()
-    }
-
-    if (this.match(TokenType.WHILE)) {
-      return this.parseWhileStatement()
-    }
-
-    if (this.match(TokenType.DO)) {
-      return this.parseDoWhileStatement()
-    }
-
-    if (this.match(TokenType.SWITCH)) {
-      return this.parseSwitchStatement()
-    }
-
-    if (this.match(TokenType.FOR)) {
-      return this.parseForStatement()
-    }
-
-    if (this.match(TokenType.REPEAT)) {
-      return this.parseRepeatStatement()
-    }
-
-    if (this.match(TokenType.TRY)) {
-      return this.parseTryStatement()
-    }
-
-    if (this.check(TokenType.BREAK)) {
-      const tok = this.advance()
-      const label = this.optionalLabel(tok)
-      this.match(TokenType.SEMICOLON)
-      return BreakStatement(label)
-    }
-
-    if (this.check(TokenType.CONTINUE)) {
-      const tok = this.advance()
-      const label = this.optionalLabel(tok)
-      this.match(TokenType.SEMICOLON)
-      return ContinueStatement(label)
-    }
-
-    // `class Name { ... }` as a declaration.
-    if (this.isClassAhead(false)) {
-      return this.parseClass(false)
-    }
-
-    // `function name(...) { }` / `async function* name(...) { }` as a
-    // declaration. An anonymous `function (...) { }` falls through to
-    // the expression-statement path below.
-    if (this.isFunctionKeywordAhead()) {
-      let idx = this.pos + (this.check(TokenType.ASYNC) ? 2 : 1)
-      if (this.tokens[idx]?.type === TokenType.STAR) idx++
-      const nameTok = this.tokens[idx]
-      const afterName = this.tokens[idx + 1]
-      if (
-        nameTok &&
-        nameTok.type !== TokenType.LPAREN &&
-        afterName &&
-        afterName.type === TokenType.LPAREN
-      ) {
-        const isAsync = this.match(TokenType.ASYNC)
-        const fn = this.parseFunctionRest(isAsync)
-        return FunctionDeclaration(
-          fn.name,
-          fn.params,
-          fn.body,
-          fn.isAsync,
-          fn.isGenerator,
-        )
-      }
-    }
-
-    if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
-      const kind = this.advance().type === TokenType.CONST ? 'const' : 'let'
-      const decl = this.parseDeclarators(kind)
-      this.match(TokenType.SEMICOLON)
-      return decl
-    }
-
-    this.rejectUnsupportedKeyword()
-
-    const tok = this.peek()
-    const after = this.tokens[this.pos + 1]
-    if (
-      tok.type === TokenType.IDENTIFIER &&
-      tok.value === 'debugger' &&
-      !(
-        after &&
-        (after.type === TokenType.DOT ||
-          after.type === TokenType.LPAREN ||
-          after.type === TokenType.EQUALS)
-      )
-    ) {
-      this.advance()
-      this.match(TokenType.SEMICOLON)
-      return DebuggerStatement()
-    }
-
-    const expression = this.parseExpression()
-    this.match(TokenType.SEMICOLON)
-    return ExpressionStatement(expression)
-  }
+  
 
   // `: Type` after a binding name, or null when there is none.
   parseOptionalTypeAnnotation() {
@@ -1033,44 +899,7 @@ export class Parser {
     return VariableDeclaration(kind, target, init, more, typeAnnotation)
   }
 
-  parseIfStatement() {
-    const condition = this.parseExpression()
-    this.expect(TokenType.LBRACE, "Expected '{' to start if body")
-    const consequent = []
-    while (!this.check(TokenType.RBRACE)) {
-      consequent.push(this.parseStatement())
-    }
-    this.expect(TokenType.RBRACE, "Expected '}' to close if body")
-
-    let alternate = null
-    if (this.match(TokenType.ELSE)) {
-      if (this.check(TokenType.IF)) {
-        const startLine = this.peek().line
-        this.advance()
-        const nested = this.parseIfStatement()
-        nested.line = nested.line ?? startLine
-        alternate = [nested]
-      } else {
-        this.expect(TokenType.LBRACE, "Expected '{' to start else body")
-        alternate = []
-        while (!this.check(TokenType.RBRACE)) {
-          alternate.push(this.parseStatement())
-        }
-        this.expect(TokenType.RBRACE, "Expected '}' to close else body")
-      }
-    }
-
-    return IfStatement(condition, consequent, alternate)
-  }
-
-  // `while cond { ... }` or `while (cond) { ... }`. Parentheses need no
-  // special handling: `(cond)` already parses as a grouped expression,
-  // which also keeps `while (a) and (b) { ... }` working.
-  parseWhileStatement() {
-    const condition = this.parseExpression()
-    const body = this.parseBlockStatements('while body')
-    return WhileStatement(condition, body)
-  }
+ 
 
   // `do { ... } while cond` (parentheses optional, trailing ; optional)
   parseDoWhileStatement() {
@@ -1164,7 +993,7 @@ export class Parser {
 
     if (this.match(TokenType.IN) || this.match(TokenType.OF)) {
       const iterable = this.parseExpression()
-      const body = this.parseBlockStatements('loop body')
+      const body = this.parseBody('loop body')
       return ForInStatement(varName, iterable, body, declKind, isAwait)
     }
 
@@ -1182,7 +1011,7 @@ export class Parser {
       const start = this.parseExpression()
       this.expect(TokenType.TO, "Expected 'to' after the loop's starting value")
       const end = this.parseExpression()
-      const body = this.parseBlockStatements('loop body')
+      const body = this.parseBody('loop body')
       return ForRangeStatement(varName, start, end, body)
     }
 
@@ -1210,7 +1039,7 @@ export class Parser {
         }
         const iterable = this.parseExpression()
         this.expect(TokenType.RPAREN, "Expected ')' after the for header")
-        const body = this.parseBlockStatements('loop body')
+        const body = this.parseBody('loop body')
         return isOf
           ? ForInStatement(target, iterable, body, kind, isAwait)
           : ForKeysStatement(target, iterable, body, kind)
@@ -1263,20 +1092,10 @@ export class Parser {
     }
     this.expect(TokenType.RPAREN, "Expected ')' to close the for header")
 
-    const body = this.parseBlockStatements('loop body')
+    const body = this.parseBody('loop body')
     return ForStatement(init, test, update, body)
   }
 
-  parseRepeatStatement() {
-    const count = this.parseExpression()
-    this.expect(TokenType.LBRACE, "Expected '{' to start the repeat body")
-    const body = []
-    while (!this.check(TokenType.RBRACE)) {
-      body.push(this.parseStatement())
-    }
-    this.expect(TokenType.RBRACE, "Expected '}' to close the repeat body")
-    return RepeatStatement(count, body)
-  }
 
   // `catch (e)`, `catch (e: unknown)`, `catch ({ message })`,
   // `catch ([first])` and the optional-binding `catch { }`.
@@ -1325,6 +1144,17 @@ export class Parser {
   // `class Name {` / `class Name extends X {` as a declaration, or
   // (isExpression) also the anonymous `class {` / `class extends X {`.
   isClassAhead(isExpression) {
+    // `abstract class X` (statement form only)
+    if (!isExpression && this.isWord('abstract')) {
+      const after = this.tokens[this.pos + 1]
+      if (after?.type !== TokenType.IDENTIFIER || after.value !== 'class') return false
+      if (after.line !== this.peek().line) return false
+      const saved = this.pos
+      this.pos++
+      const ok = this.isClassAhead(false)
+      this.pos = saved
+      return ok
+    }
     const tok = this.peek()
     const next = this.tokens[this.pos + 1]
     if (tok.type !== TokenType.IDENTIFIER || tok.value !== 'class' || !next) {
@@ -1336,27 +1166,244 @@ export class Parser {
     return next.type === TokenType.IDENTIFIER && next.value !== 'extends'
   }
 
-  parseClass(isExpression) {
-    this.advance() // 'class'
-    let name = null
-    if (this.check(TokenType.IDENTIFIER) && this.peek().value !== 'extends') {
-      name = this.advance().value
+   isWord(word) {
+    const tok = this.peek()
+    return tok.type === TokenType.IDENTIFIER && tok.value === word
+  }
+
+  isNameToken(tok) {
+    return (
+      !!tok &&
+      (tok.type === TokenType.IDENTIFIER || KEYWORD_TOKEN_TYPES.has(tok.type))
+    )
+  }
+
+  // Body of if/else/while/for/repeat: a `{ ... }` block or ONE statement.
+  parseBody(what) {
+    if (this.check(TokenType.LBRACE)) return this.parseBlockStatements(what)
+    return [this.parseStatement()]
+  }
+
+  matchingParen(openIndex) {
+    let depth = 0
+    for (let i = openIndex; i < this.tokens.length; i++) {
+      const t = this.tokens[i].type
+      if (t === TokenType.LPAREN) depth++
+      else if (t === TokenType.RPAREN) {
+        depth--
+        if (depth === 0) return i
+      }
     }
-    let superClass = null
-    if (this.check(TokenType.IDENTIFIER) && this.peek().value === 'extends') {
+    return -1
+  }
+
+  startsBody(tok) {
+    if (tok.type === TokenType.IDENTIFIER) {
+      return tok.value !== 'as' && tok.value !== 'satisfies'
+    }
+    return STATEMENT_START_TOKENS.has(tok.type)
+  }
+
+  // Condition of if/while/repeat. `if (a) stmt` (JS style): when a
+  // statement starts right after the closing paren, the parens are just
+  // the condition. Otherwise it is a normal expression, so
+  // `while (a) and (b) { }` and `if (a) { }` behave exactly as before.
+  parseCondition() {
+    if (this.check(TokenType.LPAREN)) {
+      const close = this.matchingParen(this.pos)
+      const after = close === -1 ? null : this.tokens[close + 1]
+      if (after && this.startsBody(after)) {
+        this.advance()
+        const condition = this.parseExpression()
+        this.expect(TokenType.RPAREN, "Expected ')' after the condition")
+        return condition
+      }
+    }
+    return this.parseExpression()
+  }
+
+  // `<A, B>` in a call or `new`. Speculative: returns the type text, or
+  // null (position restored) when it is really a comparison. `followers`
+  // are the token types allowed right after the closing `>`.
+  tryParseTypeArguments(followers) {
+    if (!this.check(TokenType.LT)) return null
+    const savedPos = this.pos
+    try {
       this.advance()
-      superClass = this.parseMemberExpression()
+      const args = [this.parseTypeExpression()]
+      while (this.match(TokenType.COMMA)) args.push(this.parseTypeExpression())
+      this.expect(TokenType.GT, "Expected '>' to close type arguments")
+      if (!followers.includes(this.peek().type)) {
+        this.pos = savedPos
+        return null
+      }
+      return args.join(', ')
+    } catch {
+      this.pos = savedPos
+      return null
     }
-    this.expect(TokenType.LBRACE, "Expected '{' to start the class body")
+  }
+
+  // `<T, U extends X = Y>` or '' when absent.
+  parseOptionalTypeParams() {
+    if (!this.match(TokenType.LT)) return ''
+    const parts = []
+    do {
+      let p = this.parseNameToken('Expected a type parameter name')
+      if (this.isWord('extends')) {
+        this.advance()
+        p += ` extends ${this.parseTypeExpression()}`
+      }
+      if (this.match(TokenType.EQUALS)) {
+        p += ` = ${this.parseTypeExpression()}`
+      }
+      parts.push(p)
+    } while (this.match(TokenType.COMMA) && !this.check(TokenType.GT)) // allows `<T,>`
+    this.expect(TokenType.GT, "Expected '>' to close type parameters")
+    return `<${parts.join(', ')}>`
+  }
+
+  // A return type, which may be a type predicate: `x is T`,
+  // `asserts x`, `asserts x is T`. (`is` is a keyword token here.)
+  parseReturnType() {
+    const tok = this.peek()
+    const next = this.tokens[this.pos + 1]
+    if (
+      tok.type === TokenType.IDENTIFIER &&
+      tok.value === 'asserts' &&
+      this.isNameToken(next) &&
+      next.line === tok.line
+    ) {
+      this.advance()
+      const name = this.advance().value
+      return this.match(TokenType.IS)
+        ? `asserts ${name} is ${this.parseTypeExpression()}`
+        : `asserts ${name}`
+    }
+    if (this.isNameToken(tok) && next && next.type === TokenType.IS) {
+      const name = this.advance().value
+      this.advance() // 'is'
+      return `${name} is ${this.parseTypeExpression()}`
+    }
+    return this.parseTypeExpression()
+  }
+
+  tryParseReturnType() {
+    const savedPos = this.pos
+    try {
+      return this.parseReturnType()
+    } catch {
+      this.pos = savedPos
+      return null
+    }
+  }
+
+  // Backtracking variant of parseTypeExpression, for speculative parses
+  // (arrow params) where a failed type means "not an arrow after all".
+  tryParseTypeExpression() {
+    const savedPos = this.pos
+    try {
+      return this.parseTypeExpression()
+    } catch {
+      this.pos = savedPos
+      return null
+    }
+  }
+
+  // ---- type declarations and enums ----
+
+  isTypeDeclarationAhead() {
+    const tok = this.peek()
+    const next = this.tokens[this.pos + 1]
+    const third = this.tokens[this.pos + 2]
+    if (!this.isNameToken(tok) || !next || next.line !== tok.line) return false
+    if (next.type !== TokenType.IDENTIFIER || !third) return false
+    if (tok.value === 'type') {
+      return third.type === TokenType.EQUALS || third.type === TokenType.LT
+    }
+    if (tok.value === 'interface') {
+      return (
+        third.type === TokenType.LBRACE ||
+        third.type === TokenType.LT ||
+        (third.type === TokenType.IDENTIFIER && third.value === 'extends')
+      )
+    }
+    return false
+  }
+
+  parseTypeDeclaration() {
+    const keyword = this.advance().value
+    const name = this.advance().value
+    const generics = this.parseOptionalTypeParams()
+    if (keyword === 'type') {
+      this.expect(TokenType.EQUALS, "Expected '=' in the type declaration")
+      const body = this.parseTypeExpression()
+      this.match(TokenType.SEMICOLON)
+      return TypeDeclaration('type', name, `type ${name}${generics} = ${body};`)
+    }
+    let ext = ''
+    if (this.isWord('extends')) {
+      this.advance()
+      const list = [this.parseTypeExpression()]
+      while (this.match(TokenType.COMMA)) list.push(this.parseTypeExpression())
+      ext = ` extends ${list.join(', ')}`
+    }
+    const body = this.parseObjectTypeLiteral()
+    return TypeDeclaration(
+      'interface',
+      name,
+      `interface ${name}${generics}${ext} ${body}`,
+    )
+  }
+
+  isEnumAhead() {
+    const tok = this.peek()
+    const next = this.tokens[this.pos + 1]
+    const third = this.tokens[this.pos + 2]
+    return (
+      tok.type === TokenType.IDENTIFIER &&
+      tok.value === 'enum' &&
+      next?.type === TokenType.IDENTIFIER &&
+      third?.type === TokenType.LBRACE
+    )
+  }
+
+  parseEnum() {
+    this.advance() // 'enum'
+    const name = this.advance().value
+    this.expect(TokenType.LBRACE, "Expected '{' to start the enum body")
     const members = []
     while (!this.check(TokenType.RBRACE)) {
-      if (this.match(TokenType.SEMICOLON)) continue
-      members.push(this.parseClassMember())
+      const memberName = this.check(TokenType.STRING)
+        ? this.advance().value
+        : this.parseNameToken('Expected an enum member name')
+      const init = this.match(TokenType.EQUALS) ? this.parseAssignment() : null
+      members.push({ name: memberName, init })
+      this.match(TokenType.COMMA)
     }
-    this.expect(TokenType.RBRACE, "Expected '}' to close the class body")
-    return isExpression
-      ? ClassExpr(name, superClass, members)
-      : ClassDeclaration(name, superClass, members)
+    this.expect(TokenType.RBRACE, "Expected '}' to close the enum body")
+    return EnumDeclaration(name, members)
+  }
+
+  // Page-level declarations that become module helpers (see `helpers`
+  // on the page node).
+  isModuleDeclarationAhead() {
+    const t = this.peek()
+    const n = this.tokens[this.pos + 1]
+    if (
+      (t.type === TokenType.CONST ||
+        t.type === TokenType.LET ||
+        t.type === TokenType.FUNCTION) &&
+      n?.type !== TokenType.COLON
+    ) {
+      return true
+    }
+    if (t.type === TokenType.ASYNC && n?.type === TokenType.FUNCTION) return true
+    return (
+      this.isClassAhead(false) ||
+      this.isTypeDeclarationAhead() ||
+      this.isEnumAhead()
+    )
   }
 
   isMemberKeyStart(tok) {
@@ -1386,114 +1433,7 @@ export class Parser {
     )
   }
 
-  parseClassMember() {
-    const line = this.peek().line
-
-    // static { ... }
-    if (
-      this.peek().type === TokenType.IDENTIFIER &&
-      this.peek().value === 'static' &&
-      this.tokens[this.pos + 1]?.type === TokenType.LBRACE
-    ) {
-      this.advance()
-      const body = this.parseBlockStatements('static block')
-      return { kind: 'staticBlock', static: true, body, line }
-    }
-
-    let isStatic = false
-    let isAsync = false
-    let isGenerator = false
-    let kind = 'method'
-
-    if (this.modifierAhead('static')) {
-      this.advance()
-      isStatic = true
-    }
-    if (this.modifierAhead('async')) {
-      this.advance()
-      isAsync = true
-    }
-    if (this.match(TokenType.STAR)) {
-      isGenerator = true
-    } else if (!isAsync && (this.modifierAhead('get') || this.modifierAhead('set'))) {
-      kind = this.advance().value
-    }
-
-    let key = null
-    let keyExpr = null
-    let keyKind = 'name'
-    if (this.match(TokenType.LBRACKET)) {
-      keyExpr = this.parseExpression()
-      this.expect(
-        TokenType.RBRACKET,
-        "Expected ']' to close a computed class member name",
-      )
-      keyKind = 'computed'
-    } else if (this.check(TokenType.STRING)) {
-      key = this.advance().value
-      keyKind = 'string'
-    } else if (this.check(TokenType.NUMBER)) {
-      key = String(this.advance().value)
-      keyKind = 'number'
-    } else {
-      key = this.parseNameToken('Expected a class member name')
-    }
-
-    // Method, accessor or constructor
-    if (this.check(TokenType.LPAREN)) {
-      this.advance()
-      const params = this.parseParamList()
-      let returnType = null
-      if (this.match(TokenType.COLON)) {
-        returnType = this.parseTypeExpression()
-      }
-      const body = this.withGenerator(isGenerator, () =>
-        this.parseBlockStatements('method body'),
-      )
-      const isConstructor =
-        !isStatic && keyKind === 'name' && key === 'constructor' && kind === 'method'
-      return {
-        kind: isConstructor ? 'constructor' : kind,
-        static: isStatic,
-        key,
-        keyExpr,
-        keyKind,
-        isAsync,
-        isGenerator,
-        params,
-        body,
-        returnType,
-        line,
-      }
-    }
-
-    // Field
-    if (kind !== 'method' || isAsync || isGenerator) {
-      throw new Error(
-        `Expected '(' after the class member name at line ${this.peek().line}`,
-      )
-    }
-    if (!this.match(TokenType.QUESTION)) {
-      // definite-assignment `x!: T` is accepted and ignored
-      if (this.check(TokenType.NOT) && this.peek().value === '!') this.advance()
-    }
-    const typeAnnotation = this.parseOptionalTypeAnnotation()
-    let value = null
-    if (this.match(TokenType.EQUALS)) {
-      value = this.parseAssignment()
-    }
-    this.match(TokenType.SEMICOLON)
-    return {
-      kind: 'field',
-      static: isStatic,
-      key,
-      keyExpr,
-      keyKind,
-      typeAnnotation,
-      value,
-      line,
-    }
-  }
+ 
 
   // ---- expressions ----
 
@@ -1636,19 +1576,7 @@ export class Parser {
     return left
   }
 
-  // Parses a type expression speculatively: on failure the position is
-  // restored and null is returned instead of throwing. Needed because
-  // `cond ? label : 'none'` looks exactly like the start of a typed
-  // arrow parameter (`label: Type => ...`) until the type fails to parse.
-  tryParseTypeExpression() {
-    const savedPos = this.pos
-    try {
-      return this.parseTypeExpression()
-    } catch {
-      this.pos = savedPos
-      return null
-    }
-  }
+ 
 
   // Speculatively parses a destructuring pattern used as an arrow
   // parameter and returns its source text ("[k, v]", "{ id, name }"),
@@ -1702,36 +1630,6 @@ export class Parser {
     )
   }
 
-  // Entry point for arrow functions, including the async forms:
-  //   async x => ...        async (a, b) => ...
-  //   async x: Type => ...  async (a: Type) => ...
-  //
-  // `async` is a keyword token but also a legal identifier name, so
-  // it is only treated as the async modifier when what follows could
-  // start an arrow's parameter list (an identifier/keyword name or
-  // '('). `async => 1` (a param literally named async) still goes
-  // down the normal path, and so does `async(x)` as a plain call,
-  // because the speculative parse below backs out and restores the
-  // position when no `=>` follows.
-  tryParseArrowFunction() {
-    if (this.check(TokenType.ASYNC)) {
-      const next = this.tokens[this.pos + 1]
-      const startsParams =
-        next &&
-        (next.type === TokenType.LPAREN ||
-          next.type === TokenType.IDENTIFIER ||
-          (next.type !== TokenType.ARROW && KEYWORD_TOKEN_TYPES.has(next.type)))
-      if (startsParams) {
-        const savedPos = this.pos
-        this.advance() // consume 'async'
-        const arrow = this.tryParseSyncArrow()
-        if (arrow) return { ...arrow, isAsync: true }
-        this.pos = savedPos
-        return null
-      }
-    }
-    return this.tryParseSyncArrow()
-  }
 
   // Arrow functions are tried with backtracking before falling
   // through to the normal ternary/assignment chain, since both forms
@@ -1856,7 +1754,7 @@ export class Parser {
         let returnType = null
         if (this.check(TokenType.COLON)) {
           this.pos++
-          returnType = this.tryParseTypeExpression()
+          returnType = this.tryParseReturnType()
           if (returnType === null || !this.check(TokenType.ARROW)) {
             this.pos = savedPos
             return null
@@ -2117,24 +2015,18 @@ export class Parser {
       return UnaryExpr('void', this.parseUnary())
     }
     if (this.match(TokenType.PLUS_PLUS)) {
-      const target = this.parseUnary()
-      this.assertTargetRunsOnce(target)
-      return AssignmentExpr(target, BinaryExpr('+', target, Literal(1)))
+      return UpdateExpr('++', this.parseUnary(), true)
     }
     if (this.match(TokenType.MINUS_MINUS)) {
-      const target = this.parseUnary()
-      this.assertTargetRunsOnce(target)
-      return AssignmentExpr(target, BinaryExpr('-', target, Literal(1)))
+      return UpdateExpr('--', this.parseUnary(), true)
     }
 
     const expr = this.parseMemberExpression()
-    if (this.match(TokenType.PLUS_PLUS)) {
-      this.assertTargetRunsOnce(expr)
-      return AssignmentExpr(expr, BinaryExpr('+', expr, Literal(1)))
-    }
-    if (this.match(TokenType.MINUS_MINUS)) {
-      this.assertTargetRunsOnce(expr)
-      return AssignmentExpr(expr, BinaryExpr('-', expr, Literal(1)))
+    // Postfix must sit on the same line (`a\n++b` is `a; ++b`).
+    const prev = this.tokens[this.pos - 1]
+    if (prev && this.peek().line === prev.line) {
+      if (this.match(TokenType.PLUS_PLUS)) return UpdateExpr('++', expr, false)
+      if (this.match(TokenType.MINUS_MINUS)) return UpdateExpr('--', expr, false)
     }
     return expr
   }
@@ -2197,6 +2089,16 @@ export class Parser {
         expr = MemberExpr(expr, property, true)
         continue
       }
+
+               // Generic call: f<T>(x). Speculative, so `a < b` is untouched.
+         if (this.check(TokenType.LT)) {
+           const typeArgs = this.tryParseTypeArguments([TokenType.LPAREN])
+           if (typeArgs !== null) {
+             expr = { ...CallExpr(expr, this.parseCallArguments()), typeArgs }
+             continue
+           }
+         }
+
       if (this.check(TokenType.LPAREN)) {
         expr = CallExpr(expr, this.parseCallArguments())
         continue
@@ -2260,18 +2162,29 @@ export class Parser {
         const property = this.parsePropertyName("after '.'")
         callee = MemberExpr(callee, property)
       }
-      let args = []
-      if (this.check(TokenType.LPAREN)) {
-        args = this.parseCallArguments()
-      }
-      return NewExpr(callee, args)
+              const typeArgs = this.tryParseTypeArguments([TokenType.LPAREN])
+         let args = []
+         if (this.check(TokenType.LPAREN)) {
+           args = this.parseCallArguments()
+         }
+         return typeArgs
+           ? { ...NewExpr(callee, args), typeArgs }
+           : NewExpr(callee, args)
     }
 
     // function (a, b) { ... } / async function* name(a) { ... }
     if (this.isFunctionKeywordAhead()) {
       const isAsync = this.match(TokenType.ASYNC)
       const fn = this.parseFunctionRest(isAsync)
-      return FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name, fn.isGenerator)
+      if (!fn.body) {
+        throw new Error(
+          `Expected '{' to start function body at line ${this.peek().line}`,
+        )
+      }
+      return {
+        ...FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name, fn.isGenerator),
+        ...signatureExtras(fn),
+      }
     }
 
     // class { ... } / class Name extends Base { ... } as an expression
@@ -2363,14 +2276,8 @@ export class Parser {
   // ([string, number]), object types (with index signatures and method
   // signatures), function types ((id: number) => void), grouped types,
   // keyof / typeof / readonly prefixes, void/null/undefined.
-  parseTypeExpression() {
-    this.match(TokenType.PIPE) // leading "|" of a multi-line union
-    let left = this.parseIntersectionType()
-    while (this.match(TokenType.PIPE)) {
-      left = `${left} | ${this.parseIntersectionType()}`
-    }
-    return left
-  }
+  // (The entry point, parseTypeExpression, is defined further down: it
+  // adds conditional types on top of parseUnionType.)
 
   parseIntersectionType() {
     this.match(TokenType.AMP) // leading "&"
@@ -2396,7 +2303,7 @@ export class Parser {
     let prefix = ''
     if (
       tok.type === TokenType.IDENTIFIER &&
-      (tok.value === 'keyof' || tok.value === 'readonly')
+      (tok.value === 'keyof' || tok.value === 'readonly' || tok.value === 'infer')
     ) {
       const next = this.tokens[this.pos + 1]
       if (
@@ -2451,9 +2358,21 @@ export class Parser {
       this.advance()
       return `-${this.advance().value}`
     }
-    if (tok.type === TokenType.LBRACE) {
-      return this.parseObjectTypeLiteral()
-    }
+          if (tok.type === TokenType.TEMPLATE_LITERAL) {
+         this.advance()
+         const inner = tok.value
+           .map((p) => (p.type === 'text' ? p.raw : `\${${p.source}}`))
+           .join('')
+         return `\`${inner}\``
+       }
+       if (tok.type === TokenType.LT) {
+         const fn = this.tryParseFunctionType()
+         if (fn !== null) return fn
+         throw new Error(`Expected a type name at line ${tok.line}, got ${tok.type}`)
+       }
+       if (tok.type === TokenType.LBRACE) {
+         return this.parseObjectTypeLiteral()
+       }
     if (tok.type === TokenType.LBRACKET) {
       return this.parseTupleType()
     }
@@ -2509,15 +2428,524 @@ export class Parser {
     return params.join(', ')
   }
 
-  // Speculative: restores the position and returns null when the
-  // parens turn out to be a grouped type instead.
+    parseMethod() {
+    const startLine = this.peek().line
+    const isAsync = this.match(TokenType.ASYNC)
+    const name = this.parseNameToken('Expected method name')
+    const typeParams = this.check(TokenType.LT) ? this.parseOptionalTypeParams() : ''
+    this.expect(TokenType.LPAREN, "Expected '(' after method name")
+
+    const params = this.parseParamList()
+
+    let returnType = null
+    if (this.match(TokenType.COLON)) {
+      returnType = this.parseReturnType()
+    }
+
+    this.expect(TokenType.LBRACE, "Expected '{' to start method body")
+    const body = []
+    while (!this.check(TokenType.RBRACE)) {
+      body.push(this.parseStatement())
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close method body")
+
+    return {
+      ...MethodNode(name, params, body, returnType),
+      isAsync,
+      ...(typeParams ? { typeParams } : {}),
+      line: startLine,
+    }
+  }
+
+  parseFunctionRest(isAsync) {
+    this.expect(TokenType.FUNCTION, "Expected 'function'")
+    const isGenerator = this.match(TokenType.STAR)
+    let name = null
+    if (!this.check(TokenType.LPAREN) && !this.check(TokenType.LT)) {
+      name = this.parseNameToken('Expected a function name')
+    }
+    const typeParams = this.parseOptionalTypeParams()
+    this.expect(TokenType.LPAREN, "Expected '(' after function name")
+    const params = this.parseParamList()
+    const returnType = this.match(TokenType.COLON) ? this.parseReturnType() : null
+    // A named function with no `{` is an overload signature (statement
+    // form only; parsePrimary rejects a body-less function expression).
+    let body = null
+    if (!name || this.check(TokenType.LBRACE)) {
+      body = this.withGenerator(isGenerator, () =>
+        this.parseBlockStatements('function body'),
+      )
+    } else {
+      this.endSignature('function body')
+    }
+    return { name, params, body, isAsync, isGenerator, typeParams, returnType }
+  }
+
+  // A body-less signature must end at `;`, `}` or a line break, so a
+  // genuinely missing `{` still gets a clear error.
+  endSignature(what) {
+    if (this.match(TokenType.SEMICOLON)) return
+    const prev = this.tokens[this.pos - 1]
+    const next = this.peek()
+    if (next.type === TokenType.RBRACE || next.type === TokenType.EOF || next.line !== prev.line) {
+      return
+    }
+    throw new Error(
+      `Expected '{' to start ${what} at line ${next.line}, got ${next.type}`,
+    )
+  }
+
+  parseStatementInner() {
+    if (this.match(TokenType.SEMICOLON)) {
+      return EmptyStatement()
+    }
+
+    // A `{` at the start of a statement is always a block (JS rule).
+    if (this.check(TokenType.LBRACE)) {
+      return BlockStatement(this.parseBlockStatements('block'))
+    }
+
+    if (this.isLabelAhead()) {
+      const label = this.advance().value
+      this.advance() // ':'
+      return LabeledStatement(label, this.parseStatement())
+    }
+
+    if (this.isTypeDeclarationAhead()) return this.parseTypeDeclaration()
+    if (this.isEnumAhead()) return this.parseEnum()
+
+    if (this.match(TokenType.RETURN)) {
+      const hasValue =
+        !this.check(TokenType.SEMICOLON) && !this.check(TokenType.RBRACE)
+      const argument = hasValue ? this.parseExpression() : null
+      this.match(TokenType.SEMICOLON)
+      return ReturnStatement(argument)
+    }
+
+    if (this.match(TokenType.THROW)) {
+      const argument = this.parseExpression()
+      this.match(TokenType.SEMICOLON)
+      return ThrowStatement(argument)
+    }
+
+    if (this.match(TokenType.IF)) return this.parseIfStatement()
+    if (this.match(TokenType.WHILE)) return this.parseWhileStatement()
+    if (this.match(TokenType.DO)) return this.parseDoWhileStatement()
+    if (this.match(TokenType.SWITCH)) return this.parseSwitchStatement()
+    if (this.match(TokenType.FOR)) return this.parseForStatement()
+    if (this.match(TokenType.REPEAT)) return this.parseRepeatStatement()
+    if (this.match(TokenType.TRY)) return this.parseTryStatement()
+
+    if (this.check(TokenType.BREAK)) {
+      const tok = this.advance()
+      const label = this.optionalLabel(tok)
+      this.match(TokenType.SEMICOLON)
+      return BreakStatement(label)
+    }
+
+    if (this.check(TokenType.CONTINUE)) {
+      const tok = this.advance()
+      const label = this.optionalLabel(tok)
+      this.match(TokenType.SEMICOLON)
+      return ContinueStatement(label)
+    }
+
+    if (this.isClassAhead(false)) {
+      return this.parseClass(false)
+    }
+
+    // `function name(...)`, `function name<T>(...)`, `async function* name(...)`
+    if (this.isFunctionKeywordAhead()) {
+      let idx = this.pos + (this.check(TokenType.ASYNC) ? 2 : 1)
+      if (this.tokens[idx]?.type === TokenType.STAR) idx++
+      const nameTok = this.tokens[idx]
+      const afterName = this.tokens[idx + 1]
+      if (
+        nameTok &&
+        nameTok.type !== TokenType.LPAREN &&
+        nameTok.type !== TokenType.LT &&
+        afterName &&
+        (afterName.type === TokenType.LPAREN || afterName.type === TokenType.LT)
+      ) {
+        const isAsync = this.match(TokenType.ASYNC)
+        const fn = this.parseFunctionRest(isAsync)
+        return {
+          ...FunctionDeclaration(
+            fn.name,
+            fn.params,
+            fn.body,
+            fn.isAsync,
+            fn.isGenerator,
+          ),
+          ...signatureExtras(fn),
+        }
+      }
+    }
+
+    if (this.check(TokenType.CONST) || this.check(TokenType.LET)) {
+      const kind = this.advance().type === TokenType.CONST ? 'const' : 'let'
+      const decl = this.parseDeclarators(kind)
+      this.match(TokenType.SEMICOLON)
+      return decl
+    }
+
+    this.rejectUnsupportedKeyword()
+
+    const tok = this.peek()
+    const after = this.tokens[this.pos + 1]
+    if (
+      tok.type === TokenType.IDENTIFIER &&
+      tok.value === 'debugger' &&
+      !(
+        after &&
+        (after.type === TokenType.DOT ||
+          after.type === TokenType.LPAREN ||
+          after.type === TokenType.EQUALS)
+      )
+    ) {
+      this.advance()
+      this.match(TokenType.SEMICOLON)
+      return DebuggerStatement()
+    }
+
+    const expression = this.parseExpression()
+    this.match(TokenType.SEMICOLON)
+    return ExpressionStatement(expression)
+  }
+
+  parseIfStatement() {
+    const condition = this.parseCondition()
+    const consequent = this.parseBody('if body')
+
+    let alternate = null
+    if (this.match(TokenType.ELSE)) {
+      if (this.check(TokenType.IF)) {
+        const startLine = this.peek().line
+        this.advance()
+        const nested = this.parseIfStatement()
+        nested.line = nested.line ?? startLine
+        alternate = [nested]
+      } else {
+        alternate = this.parseBody('else body')
+      }
+    }
+
+    return IfStatement(condition, consequent, alternate)
+  }
+
+  parseWhileStatement() {
+    const condition = this.parseCondition()
+    const body = this.parseBody('while body')
+    return WhileStatement(condition, body)
+  }
+
+  parseRepeatStatement() {
+    const count = this.parseCondition()
+    const body = this.parseBody('repeat body')
+    return RepeatStatement(count, body)
+  }
+
+  parseClass(isExpression) {
+    const isAbstract = this.isWord('abstract')
+    if (isAbstract) this.advance()
+    this.advance() // 'class'
+    let name = null
+    if (
+      this.check(TokenType.IDENTIFIER) &&
+      this.peek().value !== 'extends' &&
+      this.peek().value !== 'implements'
+    ) {
+      name = this.advance().value
+    }
+    const typeParams = this.parseOptionalTypeParams()
+    let superClass = null
+    let superTypeArgs = null
+    let implementsList = null
+    if (this.isWord('extends')) {
+      this.advance()
+      superClass = this.parseMemberExpression()
+      superTypeArgs = this.tryParseTypeArguments([
+        TokenType.LBRACE,
+        TokenType.IDENTIFIER,
+      ])
+    }
+    if (this.isWord('implements')) {
+      this.advance()
+      const list = [this.parseTypeExpression()]
+      while (this.match(TokenType.COMMA)) list.push(this.parseTypeExpression())
+      implementsList = list.join(', ')
+    }
+    this.expect(TokenType.LBRACE, "Expected '{' to start the class body")
+    const members = []
+    while (!this.check(TokenType.RBRACE)) {
+      if (this.match(TokenType.SEMICOLON)) continue
+      members.push(this.parseClassMember())
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close the class body")
+    const node = isExpression
+      ? ClassExpr(name, superClass, members)
+      : ClassDeclaration(name, superClass, members)
+    if (typeParams) node.typeParams = typeParams
+    if (isAbstract) node.isAbstract = true
+    if (superTypeArgs) node.superTypeArgs = superTypeArgs
+    if (implementsList) node.implementsList = implementsList
+    return node
+  }
+
+  parseClassMember() {
+    const line = this.peek().line
+
+    // static { ... }
+    if (
+      this.peek().type === TokenType.IDENTIFIER &&
+      this.peek().value === 'static' &&
+      this.tokens[this.pos + 1]?.type === TokenType.LBRACE
+    ) {
+      this.advance()
+      const body = this.parseBlockStatements('static block')
+      return { kind: 'staticBlock', static: true, body, line }
+    }
+
+    let isStatic = false
+    let isAsync = false
+    let isGenerator = false
+    let isReadonly = false
+    let isOverride = false
+    let isAbstract = false
+    let isDeclare = false
+    let accessibility = null
+    let kind = 'method'
+
+    // Modifiers, in any order: static public private protected readonly
+    // override abstract declare
+    while (true) {
+      if (this.modifierAhead('abstract')) {
+        this.advance()
+        isAbstract = true
+        continue
+      }
+      if (this.modifierAhead('declare')) {
+        this.advance()
+        isDeclare = true
+        continue
+      }
+      if (this.modifierAhead('static')) {
+        this.advance()
+        isStatic = true
+        continue
+      }
+      const t = this.peek()
+      if (
+        t.type === TokenType.IDENTIFIER &&
+        (t.value === 'public' || t.value === 'private' || t.value === 'protected') &&
+        this.modifierAhead(t.value)
+      ) {
+        accessibility = this.advance().value
+        continue
+      }
+      if (this.modifierAhead('readonly')) {
+        this.advance()
+        isReadonly = true
+        continue
+      }
+      if (this.modifierAhead('override')) {
+        this.advance()
+        isOverride = true
+        continue
+      }
+      break
+    }
+
+    if (this.modifierAhead('async')) {
+      this.advance()
+      isAsync = true
+    }
+    if (this.match(TokenType.STAR)) {
+      isGenerator = true
+    } else if (!isAsync && (this.modifierAhead('get') || this.modifierAhead('set'))) {
+      kind = this.advance().value
+    }
+
+    let key = null
+    let keyExpr = null
+    let keyKind = 'name'
+    if (this.match(TokenType.LBRACKET)) {
+      keyExpr = this.parseExpression()
+      this.expect(
+        TokenType.RBRACKET,
+        "Expected ']' to close a computed class member name",
+      )
+      keyKind = 'computed'
+    } else if (this.check(TokenType.STRING)) {
+      key = this.advance().value
+      keyKind = 'string'
+    } else if (this.check(TokenType.NUMBER)) {
+      key = String(this.advance().value)
+      keyKind = 'number'
+    } else {
+      key = this.parseNameToken('Expected a class member name')
+    }
+
+    const typeParams = this.check(TokenType.LT) ? this.parseOptionalTypeParams() : ''
+
+    // Method, accessor or constructor
+    if (this.check(TokenType.LPAREN)) {
+      this.advance()
+      const params = this.parseParamList()
+      let returnType = null
+      if (this.match(TokenType.COLON)) {
+        returnType = this.parseReturnType()
+      }
+      // No `{`: an abstract member or an overload signature. It exists
+      // only for the checker and is dropped from the JS output.
+      let body = null
+      if (this.check(TokenType.LBRACE)) {
+        body = this.withGenerator(isGenerator, () =>
+          this.parseBlockStatements('method body'),
+        )
+      } else {
+        this.endSignature('method body')
+      }
+      const isConstructor =
+        !isStatic && keyKind === 'name' && key === 'constructor' && kind === 'method'
+      return {
+        kind: isConstructor ? 'constructor' : kind,
+        static: isStatic,
+        accessibility,
+        isOverride,
+        isAbstract,
+        typeParams,
+        key,
+        keyExpr,
+        keyKind,
+        isAsync,
+        isGenerator,
+        params,
+        body,
+        returnType,
+        line,
+      }
+    }
+
+    // Field
+    if (kind !== 'method' || isAsync || isGenerator || typeParams) {
+      throw new Error(
+        `Expected '(' after the class member name at line ${this.peek().line}`,
+      )
+    }
+    if (!this.match(TokenType.QUESTION)) {
+      // definite-assignment `x!: T` is accepted and ignored
+      if (this.check(TokenType.NOT) && this.peek().value === '!') this.advance()
+    }
+    const typeAnnotation = this.parseOptionalTypeAnnotation()
+    let value = null
+    if (this.match(TokenType.EQUALS)) {
+      value = this.parseAssignment()
+    }
+    this.match(TokenType.SEMICOLON)
+    return {
+      kind: 'field',
+      static: isStatic,
+      accessibility,
+      isReadonly,
+      isOverride,
+      isAbstract,
+      isDeclare,
+      key,
+      keyExpr,
+      keyKind,
+      typeAnnotation,
+      value,
+      line,
+    }
+  }
+
+  tryParseArrowFunction() {
+    const generic = this.tryParseGenericArrow()
+    if (generic) return generic
+
+    if (this.check(TokenType.ASYNC)) {
+      const next = this.tokens[this.pos + 1]
+      const startsParams =
+        next &&
+        (next.type === TokenType.LPAREN ||
+          next.type === TokenType.IDENTIFIER ||
+          (next.type !== TokenType.ARROW && KEYWORD_TOKEN_TYPES.has(next.type)))
+      if (startsParams) {
+        const savedPos = this.pos
+        this.advance() // consume 'async'
+        const arrow = this.tryParseSyncArrow()
+        if (arrow) return { ...arrow, isAsync: true }
+        this.pos = savedPos
+        return null
+      }
+    }
+    return this.tryParseSyncArrow()
+  }
+
+  // `<T>(x: T) => x` and `async <T>(x: T) => x`
+  tryParseGenericArrow() {
+    const savedPos = this.pos
+    let isAsync = false
+    if (this.check(TokenType.ASYNC) && this.tokens[this.pos + 1]?.type === TokenType.LT) {
+      this.advance()
+      isAsync = true
+    }
+    if (!this.check(TokenType.LT)) {
+      this.pos = savedPos
+      return null
+    }
+    let typeParams
+    try {
+      typeParams = this.parseOptionalTypeParams()
+    } catch {
+      this.pos = savedPos
+      return null
+    }
+    if (!this.check(TokenType.LPAREN)) {
+      this.pos = savedPos
+      return null
+    }
+    const arrow = this.tryParseSyncArrow()
+    if (!arrow) {
+      this.pos = savedPos
+      return null
+    }
+    return { ...arrow, isAsync, typeParams }
+  }
+
+  parseTypeExpression() {
+    const left = this.parseUnionType()
+    // Conditional type: `T extends U ? X : Y`
+    if (this.isWord('extends')) {
+      this.advance()
+      const constraint = this.parseUnionType()
+      this.expect(TokenType.QUESTION, "Expected '?' in conditional type")
+      const whenTrue = this.parseTypeExpression()
+      this.expect(TokenType.COLON, "Expected ':' in conditional type")
+      const whenFalse = this.parseTypeExpression()
+      return `${left} extends ${constraint} ? ${whenTrue} : ${whenFalse}`
+    }
+    return left
+  }
+
+  parseUnionType() {
+    this.match(TokenType.PIPE) // leading "|" of a multi-line union
+    let left = this.parseIntersectionType()
+    while (this.match(TokenType.PIPE)) {
+      left = `${left} | ${this.parseIntersectionType()}`
+    }
+    return left
+  }
+
   tryParseFunctionType() {
     const savedPos = this.pos
     try {
+      const typeParams = this.parseOptionalTypeParams()
       const params = this.parseTypeParamList()
       this.expect(TokenType.ARROW, "Expected '=>' in function type")
-      const returnType = this.parseTypeExpression()
-      return `(${params}) => ${returnType}`
+      const returnType = this.parseReturnType()
+      return `${typeParams}(${params}) => ${returnType}`
     } catch {
       this.pos = savedPos
       return null
@@ -2529,8 +2957,24 @@ export class Parser {
     const members = []
     while (!this.check(TokenType.RBRACKET)) {
       const rest = this.match(TokenType.SPREAD)
-      let member = this.parseTypeExpression()
-      if (this.match(TokenType.QUESTION)) member += '?'
+      const t = this.peek()
+      const n = this.tokens[this.pos + 1]
+      const n2 = this.tokens[this.pos + 2]
+      const isLabel =
+        this.isNameToken(t) &&
+        n &&
+        (n.type === TokenType.COLON ||
+          (n.type === TokenType.QUESTION && n2?.type === TokenType.COLON))
+      let member
+      if (isLabel) {
+        const label = this.advance().value
+        const optional = this.match(TokenType.QUESTION)
+        this.expect(TokenType.COLON, "Expected ':' after tuple member name")
+        member = `${label}${optional ? '?' : ''}: ${this.parseTypeExpression()}`
+      } else {
+        member = this.parseTypeExpression()
+        if (this.match(TokenType.QUESTION)) member += '?'
+      }
       members.push(`${rest ? '...' : ''}${member}`)
       if (!this.match(TokenType.COMMA)) break
     }
@@ -2542,37 +2986,78 @@ export class Parser {
     this.expect(TokenType.LBRACE, "Expected '{' to start object type")
     const members = []
     while (!this.check(TokenType.RBRACE)) {
+      let prefix = ''
+      const sign = this.peek()
+      if (
+        (sign.type === TokenType.MINUS || sign.type === TokenType.PLUS) &&
+        this.tokens[this.pos + 1]?.value === 'readonly'
+      ) {
+        this.advance()
+        this.advance()
+        prefix = `${sign.value}readonly `
+      } else if (this.modifierAhead('readonly')) {
+        this.advance()
+        prefix = 'readonly '
+      }
+
       if (this.check(TokenType.LBRACKET)) {
-        // index signature: [key: string]: T
         this.advance()
         const keyName = this.parseNameToken('Expected an index signature name')
-        this.expect(TokenType.COLON, "Expected ':' in index signature")
-        const keyType = this.parseTypeExpression()
-        this.expect(TokenType.RBRACKET, "Expected ']' to close index signature")
-        this.expect(TokenType.COLON, "Expected ':' after index signature")
-        const valueType = this.parseTypeExpression()
-        members.push(`[${keyName}: ${keyType}]: ${valueType}`)
+        if (this.match(TokenType.IN)) {
+          // mapped type: [K in keyof T as X]?: V
+          const constraint = this.parseTypeExpression()
+          let asClause = ''
+          if (this.isWord('as')) {
+            this.advance()
+            asClause = ` as ${this.parseTypeExpression()}`
+          }
+          this.expect(TokenType.RBRACKET, "Expected ']' to close mapped type key")
+          let mod = ''
+          if (this.check(TokenType.MINUS) || this.check(TokenType.PLUS)) {
+            mod = this.advance().value
+            this.expect(TokenType.QUESTION, "Expected '?' after '+'/'-'")
+            mod += '?'
+          } else if (this.match(TokenType.QUESTION)) {
+            mod = '?'
+          }
+          this.expect(TokenType.COLON, "Expected ':' in mapped type")
+          const valueType = this.parseTypeExpression()
+          members.push(
+            `${prefix}[${keyName} in ${constraint}${asClause}]${mod}: ${valueType}`,
+          )
+        } else {
+          // index signature: [key: string]: T
+          this.expect(TokenType.COLON, "Expected ':' in index signature")
+          const keyType = this.parseTypeExpression()
+          this.expect(TokenType.RBRACKET, "Expected ']' to close index signature")
+          this.expect(TokenType.COLON, "Expected ':' after index signature")
+          const valueType = this.parseTypeExpression()
+          members.push(`${prefix}[${keyName}: ${keyType}]: ${valueType}`)
+        }
       } else {
         const key = this.check(TokenType.STRING)
           ? JSON.stringify(this.advance().value)
           : this.parseNameToken('Expected a property name')
         const optional = this.match(TokenType.QUESTION)
 
-        if (this.check(TokenType.LPAREN)) {
-          // method signature: name(a: T): R
+        if (this.check(TokenType.LPAREN) || this.check(TokenType.LT)) {
+          // method signature: name<T>(a: T): R
+          const generics = this.parseOptionalTypeParams()
           const params = this.parseTypeParamList()
           let returnType = 'any'
           if (this.match(TokenType.COLON)) {
-            returnType = this.parseTypeExpression()
+            returnType = this.parseReturnType()
           }
-          members.push(`${key}${optional ? '?' : ''}(${params}): ${returnType}`)
+          members.push(
+            `${prefix}${key}${optional ? '?' : ''}${generics}(${params}): ${returnType}`,
+          )
         } else {
           this.expect(
             TokenType.COLON,
             "Expected ':' after property name in object type",
           )
           const valueType = this.parseTypeExpression()
-          members.push(`${key}${optional ? '?' : ''}: ${valueType}`)
+          members.push(`${prefix}${key}${optional ? '?' : ''}: ${valueType}`)
         }
       }
       if (!this.match(TokenType.COMMA)) this.match(TokenType.SEMICOLON)
@@ -2580,7 +3065,7 @@ export class Parser {
     this.expect(TokenType.RBRACE, "Expected '}' to close object type")
     return `{ ${members.join('; ')} }`
   }
-
+ 
   // Array literal after the opening '['. A comma with nothing before
   // it is a hole (`[1, , 3]`), stored as `null` in `elements`.
   parseArrayLiteral() {
@@ -2700,21 +3185,27 @@ export class Parser {
         )
       }
 
-      // Method shorthand / accessor
-      if (this.check(TokenType.LPAREN)) {
-        this.advance()
-        const params = this.parseParamList()
-        if (this.match(TokenType.COLON)) this.parseTypeExpression()
-        const body = this.withGenerator(isGenerator, () =>
-          this.parseBlockStatements('method body'),
-        )
-        properties.push({
-          key,
-          keyExpr,
-          method: true,
-          kind: accessorKind ?? 'method',
-          value: FunctionExpr(params, body, isAsync, null, isGenerator),
-        })
+              // Method shorthand / accessor
+         const methodTypeParams = this.check(TokenType.LT)
+           ? this.parseOptionalTypeParams()
+           : ''
+         if (this.check(TokenType.LPAREN)) {
+           this.advance()
+           const params = this.parseParamList()
+           const returnType = this.match(TokenType.COLON) ? this.parseReturnType() : null
+           const body = this.withGenerator(isGenerator, () =>
+             this.parseBlockStatements('method body'),
+           )
+           properties.push({
+             key,
+             keyExpr,
+             method: true,
+             kind: accessorKind ?? 'method',
+             value: {
+               ...FunctionExpr(params, body, isAsync, null, isGenerator),
+               ...signatureExtras({ typeParams: methodTypeParams, returnType }),
+             },
+           })
         this.match(TokenType.COMMA)
         continue
       }
@@ -2726,8 +3217,18 @@ export class Parser {
       }
 
       if (keyKind === 'name' && !this.check(TokenType.COLON)) {
-        // Shorthand: { name } means { name: name }
-        properties.push({ key, value: Identifier(key) })
+                  // Shorthand: { name } means { name: name }. `{ name = 1 }` is only
+           // valid as a destructuring assignment target; see generateExpression.
+           if (this.match(TokenType.EQUALS)) {
+             const fallback = this.parseAssignment()
+             properties.push({
+               key,
+               shorthandInit: true,
+               value: AssignmentExpr(Identifier(key), fallback),
+             })
+           } else {
+             properties.push({ key, value: Identifier(key) })
+           }
         this.match(TokenType.COMMA)
         continue
       }

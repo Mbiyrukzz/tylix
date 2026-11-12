@@ -16,6 +16,7 @@ export function PageNode({
   meta = [],
   computed = [],
   actions = [],
+  helpers = [],
   onMount = null,
 }) {
   return {
@@ -32,6 +33,7 @@ export function PageNode({
     meta,
     computed,
     actions,
+    helpers,
     onMount,
   }
 }
@@ -208,6 +210,12 @@ export function IfStatement(condition, consequent, alternate) {
 
 export function UnaryExpr(operator, argument) {
   return { type: 'UnaryExpression', operator, argument }
+}
+
+// `++x` / `x++` / `--x` / `x--`. Kept as its own node (not desugared to
+// `x = x + 1`) so a postfix update evaluates to the old value.
+export function UpdateExpr(operator, argument, prefix) {
+  return { type: 'UpdateExpression', operator, argument, prefix }
 }
 
 export function NullishCoalescingExpr(left, right) {
@@ -416,4 +424,15 @@ export function DoWhileStatement(body, condition) {
 // tests === null marks the `default` clause.
 export function SwitchStatement(discriminant, cases) {
   return { type: 'SwitchStatement', discriminant, cases }
+}
+
+// `type X = ...` / `interface X {...}`. `source` is the full TS text;
+// it only appears in the virtual .ts file, never in real JS output.
+export function TypeDeclaration(kind, name, source) {
+  return { type: 'TypeDeclaration', kind, name, source }
+}
+
+// members: [{ name, init: expression | null }]
+export function EnumDeclaration(name, members) {
+  return { type: 'EnumDeclaration', name, members }
 }

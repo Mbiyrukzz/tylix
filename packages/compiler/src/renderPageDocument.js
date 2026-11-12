@@ -11,6 +11,10 @@ import { normalizeLanguageOptions } from './parser/languageOptions.js'
 import { generatePage } from './codegen/generatePage.js'
 import { generateTemplate } from './codegen/generateTemplate.js'
 import { generateCapability } from './codegen/generateCapability.js'
+import {
+  generateStatement,
+  declaredNames,
+} from './codegen/generateStatement.js'
 import { substituteCapabilityRefs } from './ast/substituteCapabilityRefs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -37,6 +41,18 @@ const USE_CHANNEL_SOURCE = fs
 const NOT_FOUND_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'notFound.js'), 'utf-8')
   .replace(/export\s+/g, '')
+
+// Attaches a class's module-level helpers (see withHelpers) to a fresh
+// instance, so templates can call them: a bare `formatPrice(x)` in a
+// template compiles to `instance.formatPrice(x)`.
+const EXPOSE_HELPERS_SOURCE = `
+function __tylixExpose(instance, cls) {
+  var helpers = cls && cls.__helpers;
+  if (helpers) {
+    for (var key of Object.keys(helpers)) instance[key] = helpers[key];
+  }
+  return instance;
+}`
 
 function escapeHtml(text) {
   return String(text)
@@ -197,7 +213,14 @@ async function loadLoadingPage(loadingFile) {
   return source
 }
 
-const EMPTY_PAGE = { props: [], state: [], computed: [], actions: [], uses: [] }
+const EMPTY_PAGE = {
+  props: [],
+  state: [],
+  computed: [],
+  actions: [],
+  uses: [],
+  helpers: [],
+}
 
 // Turns a registry key (a tag name such as "AdminCard" or "my-card")
 // into a class name that is always a valid, unique identifier. The
@@ -206,6 +229,32 @@ const EMPTY_PAGE = { props: [], state: [], computed: [], actions: [], uses: [] }
 // the global of the same name inside the shared inline script.
 function childClassName(name, index) {
   return `__C${index}_${String(name).replace(/[^A-Za-z0-9_$]/g, '_')}`
+}
+
+// Module-level declarations of a page or component (`function`,
+// `const`, `let`, `class`, `enum`; `type`/`interface` are erased) are
+// emitted in a function scope of their own around that class, so two
+// components can both define a helper with the same name. The names are
+// stored on the class (`__helpers`) and attached to every instance by
+// __tylixExpose, which is how templates reach them. With no runtime
+// helpers the class source is returned untouched.
+function withHelpers(classSource, className, helpers) {
+  const source = (helpers ?? [])
+    .map((h) => generateStatement(h, false))
+    .filter((s) => s.trim().length > 0)
+    .join('\n')
+  if (source.length === 0) return classSource
+
+  const exposed = helpers
+    .flatMap(declaredNames)
+    .map((n) => `${JSON.stringify(n)}: ${n}`)
+    .join(', ')
+  return `const ${className} = (() => {
+${source}
+const __Class = ${classSource};
+__Class.__helpers = { ${exposed} };
+return __Class;
+})();`
 }
 
 // `fallbackClassName` ALWAYS decides the class name -- for native
@@ -222,7 +271,11 @@ function compileComponentSource(source, fallbackClassName, language) {
         : EMPTY_PAGE,
     )
 
-    const classSource = generatePage(pageNode, fallbackClassName)
+    const classSource = withHelpers(
+      generatePage(pageNode, fallbackClassName),
+      fallbackClassName,
+      pageNode.helpers,
+    )
     const templateNodes = parseTemplate(template, language)
     const { code, rootVar } = generateTemplate(templateNodes)
 
@@ -237,7 +290,11 @@ function compileComponentSource(source, fallbackClassName, language) {
       : EMPTY_PAGE,
   )
 
-  const classSource = generatePage(pageNode, fallbackClassName)
+  const classSource = withHelpers(
+    generatePage(pageNode, fallbackClassName),
+    fallbackClassName,
+    pageNode.helpers,
+  )
   const templateNodes = parseTemplate(template, language)
   const { code, rootVar } = generateTemplate(templateNodes)
 
@@ -327,7 +384,11 @@ export async function renderPageDocument(
       : EMPTY_PAGE,
   )
 
-  const classSource = generatePage(pageNode, pageName)
+  const classSource = withHelpers(
+    generatePage(pageNode, pageName),
+    pageName,
+    pageNode.helpers,
+  )
 
   const templateNodes = parseTemplateWithLineOffset(
     template,
@@ -366,7 +427,7 @@ export async function renderPageDocument(
     loadingClassSource = loadingCompiled.classSource
     loadingMountCode = `
     try {
-      const loadingInstance = new ${loadingCompiled.className}({ loading: __tylixLoading });
+      const loadingInstance = __tylixExpose(new ${loadingCompiled.className}({ loading: __tylixLoading }), ${loadingCompiled.className});
       (function (document, instance) {
 ${loadingCompiled.code}
         document.body.appendChild(${loadingCompiled.rootVar});
@@ -408,7 +469,7 @@ ${loadingCompiled.code}
       const { code: childCode, rootVar: childRootVar, className } = compiled
       return `  components[${label}] = {
     mount(document, props = {}) {
-      const instance = new ${className}(props);
+      const instance = __tylixExpose(new ${className}(props), ${className});
       const node = (function (document, instance) {
 ${childCode}
         return ${childRootVar};
@@ -439,7 +500,7 @@ ${childCode}
     }
     layoutClassSource = layoutCompiled.classSource
     layoutMountCode = `
-    const layoutInstance = new ${layoutCompiled.className}();
+    const layoutInstance = __tylixExpose(new ${layoutCompiled.className}(), ${layoutCompiled.className});
     if (typeof layoutInstance.__ready === "function") {
       try {
         await layoutInstance.__ready();
@@ -477,6 +538,8 @@ ${loadingClassSource || !loadingBar ? 'window.__TYLIX_CUSTOM_LOADING__ = true;' 
 
 ${RUNTIME_SOURCE}
 
+${EXPOSE_HELPERS_SOURCE}
+
 ${CAPABILITY_SOURCE}
 
 ${capabilityDefinitions}
@@ -500,7 +563,7 @@ ${layoutClassSource}
 ${loadingClassSource}
 
 document.addEventListener("DOMContentLoaded", () => {
-  const instance = new ${pageName}(${JSON.stringify(props)});
+  const instance = __tylixExpose(new ${pageName}(${JSON.stringify(props)}), ${pageName});
   const components = {};
 ${childRegistrations}
   (async function (document, instance, components) {

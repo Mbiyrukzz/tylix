@@ -1,10 +1,11 @@
-import { generateExpression, generateParams } from './generateExpression.js'
 import {
   declarationSource,
   forHeaderSource,
   generateDeclarationTarget,
   generateStatement,
 } from './generateStatement.js'
+
+import { generateExpression, generateParams, functionSignature } from './generateExpression.js'
 
 // Structurally the same cases as generateStatement.js, but emits one
 // line at a time through `sink.pushLine(text, originalLine)` instead
@@ -76,13 +77,26 @@ export function emitStatementLines(node, sink, indent = '    ') {
       for (const text of generateStatement(node, true).split('\n')) push(text)
       break
 
-    case 'FunctionDeclaration':
-      push(
-        `${node.isAsync ? 'async ' : ''}function${node.isGenerator ? '*' : ''} ${node.name}(${generateParams(node.params, true)}) {`,
-      )
+       case 'TypeDeclaration':
+      push(node.source)
+      break
+
+    case 'EnumDeclaration':
+      push(generateStatement(node, true))
+      break
+
+    case 'FunctionDeclaration': {
+      const { generics, ret } = functionSignature(node, true)
+      const head = `${node.isAsync ? 'async ' : ''}function${node.isGenerator ? '*' : ''} ${node.name}${generics}(${generateParams(node.params, true)})${ret}`
+      if (node.body == null) {
+        push(`${head};`) // overload signature
+        break
+      }
+      push(`${head} {`)
       nested(node.body)
       push('}')
       break
+    }
 
     case 'IfStatement':
       push(`if (${expr(node.condition)}) {`)

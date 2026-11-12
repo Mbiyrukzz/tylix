@@ -30,6 +30,47 @@ function memberObjectSource(node, typed) {
     : src
 }
 
+// Renders an object/array literal used as a destructuring ASSIGNMENT
+// target (`[a = 1, b] = arr`, `({ x, y = 2 } = obj)`). In a pattern, a
+// default is `target = value` without the parentheses an ordinary
+// assignment expression gets. `gen` renders ordinary expressions, so
+// the script, template and virtual-.ts generators can all share this.
+export function assignmentPatternSource(node, gen) {
+  const pat = (n) => assignmentPatternSource(n, gen)
+  if (node.type === 'ArrayExpression') {
+    return `[${joinArrayElements(node.elements.map((e) => (e === null ? '' : pat(e))))}]`
+  }
+  if (node.type === 'ObjectExpression') {
+    const parts = node.properties.map((p) => {
+      if (p.spread) return `...${pat(p.value)}`
+      if (p.method) {
+        throw new Error('Methods are not allowed in a destructuring assignment target')
+      }
+      const keySrc = p.keyExpr ? `[${gen(p.keyExpr)}]` : JSON.stringify(p.key)
+      return `${keySrc}: ${pat(p.value)}`
+    })
+    return `{ ${parts.join(', ')} }`
+  }
+  if (node.type === 'SpreadElement') return `...${pat(node.argument)}`
+  if (node.type === 'AssignmentExpression') {
+    return `${pat(node.target)} = ${gen(node.value)}`
+  }
+  return gen(node)
+}
+
+// Generic parameters and return type text for functions, virtual .ts
+// only. Async functions are written with the INNER type (like
+// methods), so it is wrapped in Promise<>; generators are left alone.
+export function functionSignature(node, typed) {
+  if (!typed) return { generics: '', ret: '' }
+  const generics = node.typeParams ?? ''
+  let ret = ''
+  if (node.returnType && !node.isGenerator) {
+    ret = `: ${node.isAsync ? `Promise<${node.returnType}>` : node.returnType}`
+  }
+  return { generics, ret }
+}
+
 /**
  * Renders a parameter list: [{ name, typeAnnotation, defaultValue,
  * rest, optional }]. `typed` adds `: Type` annotations (falling back
@@ -48,7 +89,13 @@ export function generateParams(params, typed = false) {
       const def = p.defaultValue
         ? ` = ${generateExpression(p.defaultValue, typed)}`
         : ''
-      return `${rest}${p.name}${type}${def}`
+      // Parameter-property modifiers stay for the checker; JS gets
+      // explicit `this.x = x` assignments instead (classMemberSource).
+      const mods =
+        typed && p.isProperty
+          ? `${p.accessibility ? `${p.accessibility} ` : ''}${p.isOverride ? 'override ' : ''}${p.isReadonly ? 'readonly ' : ''}`
+          : ''
+      return `${mods}${rest}${p.name}${type}${def}`
     })
     .join(', ')
 }
@@ -62,7 +109,17 @@ function classMemberSource(m, typed) {
     return `static { ${statementsInline(m.body, typed)} }`
   }
 
+  // Modifiers: accessibility / override / readonly exist only in the
+  // virtual .ts; real JS keeps just `static`.
+  // Abstract members, `declare` fields and overload signatures carry no
+  // runtime code; they exist only in the virtual .ts.
+  const isSignature = m.kind !== 'field' && m.body == null
+  if (!typed && (m.isAbstract || m.isDeclare || isSignature)) return null
+
   const stat = m.static ? 'static ' : ''
+  const mods = typed
+    ? `${m.isDeclare ? 'declare ' : ''}${m.accessibility ? `${m.accessibility} ` : ''}${stat}${m.isAbstract ? 'abstract ' : ''}${m.isOverride ? 'override ' : ''}${m.isReadonly ? 'readonly ' : ''}`
+    : stat
   const keySrc =
     m.keyKind === 'computed'
       ? `[${generateExpression(m.keyExpr, typed)}]`
@@ -76,41 +133,82 @@ function classMemberSource(m, typed) {
     if (typed) {
       const type = m.typeAnnotation ?? 'any'
       // An instance field with no initializer needs `!` under strict;
-      // TypeScript forbids `!` on static fields.
-      annotation = !m.value && !m.static ? `!: ${type}` : `: ${type}`
+      // TypeScript forbids `!` on static, abstract and declare fields.
+      const definite = !m.value && !m.static && !m.isAbstract && !m.isDeclare
+      annotation = definite ? `!: ${type}` : `: ${type}`
     }
-    return `${stat}${keySrc}${annotation}${init};`
+    return `${mods}${keySrc}${annotation}${init};`
   }
 
+  const generics = typed ? (m.typeParams ?? '') : ''
   const params = generateParams(m.params, typed)
-  const body = statementsInline(m.body, typed)
   let ret = ''
   if (typed && m.returnType && !m.isGenerator) {
     ret = m.isAsync ? `: Promise<${m.returnType}>` : `: ${m.returnType}`
   }
 
-  if (m.kind === 'constructor') return `constructor(${params}) { ${body} }`
-  if (m.kind === 'get') return `${stat}get ${keySrc}()${ret} { ${body} }`
-  if (m.kind === 'set') return `${stat}set ${keySrc}(${params}) { ${body} }`
-  return `${stat}${m.isAsync ? 'async ' : ''}${m.isGenerator ? '*' : ''}${keySrc}(${params})${ret} { ${body} }`
+  // Body-less (typed only, by the early return above): end with `;`.
+  if (isSignature) {
+    if (m.kind === 'constructor') return `constructor(${params});`
+    if (m.kind === 'get') return `${mods}get ${keySrc}()${ret};`
+    if (m.kind === 'set') return `${mods}set ${keySrc}(${params});`
+    return `${mods}${m.isAsync ? 'async ' : ''}${m.isGenerator ? '*' : ''}${keySrc}${generics}(${params})${ret};`
+  }
+
+  const body = statementsInline(m.body, typed)
+  if (m.kind === 'constructor') {
+    return `constructor(${params}) { ${typed ? body : withParamProperties(m, body, typed)} }`
+  }
+  if (m.kind === 'get') return `${mods}get ${keySrc}()${ret} { ${body} }`
+  if (m.kind === 'set') return `${mods}set ${keySrc}(${params}) { ${body} }`
+  return `${mods}${m.isAsync ? 'async ' : ''}${m.isGenerator ? '*' : ''}${keySrc}${generics}(${params})${ret} { ${body} }`
+}
+
+// JS for `constructor(public x)`: assign `this.x = x` right after the
+// top-level `super(...)` call when there is one (before it `this` is
+// unusable), otherwise at the very start, matching TypeScript.
+function withParamProperties(m, body, typed) {
+  const props = m.params.filter((p) => p.isProperty)
+  if (props.length === 0) return body
+  const assigns = props.map((p) => `this.${p.name} = ${p.name};`).join(' ')
+  const superIdx = m.body.findIndex(
+    (s) =>
+      s.type === 'ExpressionStatement' &&
+      s.expression.type === 'CallExpression' &&
+      s.expression.callee.type === 'Identifier' &&
+      s.expression.callee.name === 'super',
+  )
+  if (superIdx === -1) return `${assigns} ${body}`
+  const before = statementsInline(m.body.slice(0, superIdx + 1), typed)
+  const after = statementsInline(m.body.slice(superIdx + 1), typed)
+  return `${before} ${assigns} ${after}`
 }
 
 /**
  * Renders a ClassDeclaration / ClassExpression node. Statement form
  * has no trailing semicolon; the expression form wraps it in parens
- * in generateExpression.
+ * in generateExpression. Generics, `implements` and member modifiers
+ * are emitted only in typed mode.
  */
 export function generateClass(node, typed = false) {
   const name = node.name ? ` ${node.name}` : ''
-  const ext = node.superClass
-    ? ` extends ${generateExpression(node.superClass, typed)}`
-    : ''
-    const members = node.members.map((m) => `    ${classMemberSource(m, typed)}`)
+  const generics = typed ? (node.typeParams ?? '') : ''
+  let ext = ''
+  if (node.superClass) {
+    const args = typed && node.superTypeArgs ? `<${node.superTypeArgs}>` : ''
+    ext = ` extends ${generateExpression(node.superClass, typed)}${args}`
+  }
+  const impl = typed && node.implementsList ? ` implements ${node.implementsList}` : ''
+  const members = node.members
+    .map((m) => classMemberSource(m, typed))
+    .filter((src) => src !== null)
+    .map((src) => `    ${src}`)
   // JS classes often create fields in the constructor (`this.n = n`).
   // The index signature stops the checker from rejecting those, the
   // same way the page class does.
   if (typed) members.unshift('    [key: string]: any;')
-  return `class${name}${ext} {\n${members.join('\n')}\n  }`
+  const abstract = typed && node.isAbstract ? 'abstract ' : ''
+  return `${abstract}class${name}${generics}${ext}${impl} {\n${members.join('\n')}\n  }`
 }
 
 /**
@@ -121,8 +219,8 @@ export function generateClass(node, typed = false) {
  * (typed=true) -- one source of truth for expression -> source
  * translation, so the two outputs can never structurally drift from
  * each other. `typed` only changes whether parameters get `: Type`
- * annotations and whether `as` / `!` are kept. Everything else emits
- * identically either way.
+ * annotations and whether `as` / `!` / generics are kept. Everything
+ * else emits identically either way.
  *
  * `await`, `yield` and assignment are always parenthesized:
  * `(await f()).x` and `ok && (count = count + 1)` are only valid JS
@@ -149,7 +247,8 @@ export function generateExpression(node, typed = false) {
 
     case 'NewExpression': {
       const args = node.args.map((a) => generateExpression(a, typed)).join(', ')
-      return `new ${generateExpression(node.callee, typed)}(${args})`
+      const typeArgs = typed && node.typeArgs ? `<${node.typeArgs}>` : ''
+      return `new ${generateExpression(node.callee, typed)}${typeArgs}(${args})`
     }
 
     case 'BinaryExpression':
@@ -157,6 +256,11 @@ export function generateExpression(node, typed = false) {
 
     case 'UnaryExpression':
       return `(${unaryPrefix(node.operator)}${generateExpression(node.argument, typed)})`
+
+    case 'UpdateExpression': {
+      const arg = generateExpression(node.argument, typed)
+      return node.prefix ? `(${node.operator}${arg})` : `(${arg}${node.operator})`
+    }
 
     case 'TernaryExpression':
       return `(${generateExpression(node.condition, typed)} ? ${generateExpression(node.consequent, typed)} : ${generateExpression(node.alternate, typed)})`
@@ -206,6 +310,7 @@ export function generateExpression(node, typed = false) {
         })
         .join(', ')
       const asyncPrefix = node.isAsync ? 'async ' : ''
+      const generics = typed ? (node.typeParams ?? '') : ''
       const returnType =
         typed && node.returnType ? `: ${node.returnType}` : ''
 
@@ -213,19 +318,20 @@ export function generateExpression(node, typed = false) {
       // one line separated by spaces; multi-line statements (if,
       // for, try) keep their own newlines, which is still valid JS.
       if (node.body.type === 'BlockStatement') {
-        return `${asyncPrefix}(${params})${returnType} => { ${statementsInline(node.body.body, typed)} }`
+        return `${asyncPrefix}${generics}(${params})${returnType} => { ${statementsInline(node.body.body, typed)} }`
       }
 
       // Expression body is always parenthesized so an object literal
       // body (`x => ({ ...x })`) is never parsed as a block.
-      return `${asyncPrefix}(${params})${returnType} => (${generateExpression(node.body, typed)})`
+      return `${asyncPrefix}${generics}(${params})${returnType} => (${generateExpression(node.body, typed)})`
     }
 
     case 'FunctionExpression': {
+      const { generics, ret } = functionSignature(node, typed)
       const asyncPrefix = node.isAsync ? 'async ' : ''
       const star = node.isGenerator ? '*' : ''
       const name = node.name ? ` ${node.name}` : ''
-      return `(${asyncPrefix}function${star}${name}(${generateParams(node.params, typed)}) { ${statementsInline(node.body, typed)} })`
+      return `(${asyncPrefix}function${star}${name}${generics}(${generateParams(node.params, typed)})${ret} { ${statementsInline(node.body, typed)} })`
     }
 
     case 'ClassExpression':
@@ -261,8 +367,15 @@ export function generateExpression(node, typed = false) {
       return `${generateExpression(node.tag, typed)}\`${inner}\``
     }
 
-    case 'AssignmentExpression':
-      return `(${generateExpression(node.target, typed)} = ${generateExpression(node.value, typed)})`
+    case 'AssignmentExpression': {
+      const isPattern =
+        node.target.type === 'ObjectExpression' ||
+        node.target.type === 'ArrayExpression'
+      const target = isPattern
+        ? assignmentPatternSource(node.target, (n) => generateExpression(n, typed))
+        : generateExpression(node.target, typed)
+      return `(${target} = ${generateExpression(node.value, typed)})`
+    }
 
     case 'CallExpression': {
       const args = node.args
@@ -275,7 +388,8 @@ export function generateExpression(node, typed = false) {
       if (node.callee.type === 'ArrowFunctionExpression') {
         callee = `(${callee})`
       }
-      return `${callee}${node.optional ? '?.' : ''}(${args})`
+      const typeArgs = typed && node.typeArgs ? `<${node.typeArgs}>` : ''
+      return `${callee}${node.optional ? '?.' : ''}${typeArgs}(${args})`
     }
 
     case 'AwaitExpression':
@@ -293,6 +407,11 @@ export function generateExpression(node, typed = false) {
       const props = node.properties
         .map((p) => {
           if (p.spread) return `...${generateExpression(p.value, typed)}`
+          if (p.shorthandInit) {
+            throw new Error(
+              `"{ ${p.key} = ... }" is only valid as a destructuring assignment target, e.g. ({ ${p.key} = 1 } = obj)`,
+            )
+          }
           const keySrc = p.keyExpr
             ? `[${generateExpression(p.keyExpr, typed)}]`
             : JSON.stringify(p.key)
@@ -300,9 +419,10 @@ export function generateExpression(node, typed = false) {
             const f = p.value
             const body = statementsInline(f.body, typed)
             const params = generateParams(f.params, typed)
+            const { generics, ret } = functionSignature(f, typed)
             if (p.kind === 'get') return `get ${keySrc}() { ${body} }`
             if (p.kind === 'set') return `set ${keySrc}(${params}) { ${body} }`
-            return `${f.isAsync ? 'async ' : ''}${f.isGenerator ? '*' : ''}${keySrc}(${params}) { ${body} }`
+            return `${f.isAsync ? 'async ' : ''}${f.isGenerator ? '*' : ''}${keySrc}${generics}(${params})${ret} { ${body} }`
           }
           return `${keySrc}: ${generateExpression(p.value, typed)}`
         })

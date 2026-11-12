@@ -51,6 +51,10 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
     },
   }
 
+       // Module-level helpers and type declarations go before the class.
+     const helpers = pageNode.helpers ?? []
+     for (const h of helpers) emitStatementLines(h, sink, '')
+
   if (pageNode.props.length > 0) {
     sink.pushLine(`interface ${className}Props {`, null)
     for (const p of pageNode.props) {
@@ -91,7 +95,7 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
       : ''
     sink.pushLine(``, null)
     sink.pushLine(
-      `  ${a.isAsync ? 'async ' : ''}${a.name}(${generateParams(a.params, true)})${returnType ? `: ${returnType}` : ''} {`,
+      `  ${a.isAsync ? 'async ' : ''}${a.name}${a.typeParams ?? ''}(${generateParams(a.params, true)})${returnType ? `: ${returnType}` : ''} {`,
       a.line,
     )
     for (const stmt of a.body) emitStatementLines(stmt, sink, '    ')
@@ -120,6 +124,12 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
   }
 
   sink.pushLine(`}`, null)
+
+       // Module-level helpers (e.g. `const name = ...`) would clash with DOM
+     // globals in a script file; `export {}` makes it a module.
+     if (helpers.some((h) => h.type !== 'TypeDeclaration')) {
+       sink.pushLine('export {};', null)
+     }
 
   return { source: lines.join('\n') + '\n', lineMap }
 }

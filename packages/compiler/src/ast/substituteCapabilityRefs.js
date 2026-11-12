@@ -69,6 +69,7 @@ function rewriteExpr(node, names) {
         right: rewriteExpr(node.right, names),
       }
     case 'UnaryExpression':
+    case 'UpdateExpression':
     case 'AwaitExpression':
     case 'SpreadElement':
     case 'YieldExpression':
@@ -171,7 +172,7 @@ function rewriteStatement(stmt, names) {
       return {
         ...stmt,
         params: rewriteParams(stmt.params, names),
-        body: rewriteList(stmt.body, names),
+        body: stmt.body ? rewriteList(stmt.body, names) : stmt.body,
       }
     case 'IfStatement':
       return {
@@ -265,12 +266,14 @@ export function substituteCapabilityRefs(pageNode) {
     ...pageNode,
     computed: (pageNode.computed ?? []).map((c) => ({
       ...c,
+      helpers: rewriteList(pageNode.helpers ?? [], capabilityNames),
       params: rewriteParams(c.params ?? [], capabilityNames),
       body: rewriteList(c.body, capabilityNames),
     })),
     actions: (pageNode.actions ?? []).map((a) => ({
       ...a,
       params: rewriteParams(a.params ?? [], capabilityNames),
+      helpers: rewriteList(pageNode.helpers ?? [], capabilityNames),
       body: rewriteList(a.body, capabilityNames),
     })),
     onMount: pageNode.onMount

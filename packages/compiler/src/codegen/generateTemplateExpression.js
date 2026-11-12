@@ -1,4 +1,4 @@
-import { generateExpression, joinArrayElements } from './generateExpression.js'
+import { generateExpression, joinArrayElements, assignmentPatternSource } from './generateExpression.js'
 import { JS_GLOBALS, paramNames } from './jsGlobals.js'
 
 // JS_GLOBALS (see jsGlobals.js) lists the plain JS/browser globals that
@@ -62,6 +62,11 @@ export function generateTemplateExpression(node, scope = new Set()) {
     return `(${unaryPrefix(node.operator)}${generateTemplateExpression(node.argument, scope)})`
   }
 
+  if (node.type === 'UpdateExpression') {
+    const arg = generateTemplateExpression(node.argument, scope)
+    return node.prefix ? `(${node.operator}${arg})` : `(${arg}${node.operator})`
+  }
+
   // `(a, b)` -- the comma operator.
   if (node.type === 'SequenceExpression') {
     return `(${node.expressions.map((e) => generateTemplateExpression(e, scope)).join(', ')})`
@@ -83,8 +88,13 @@ export function generateTemplateExpression(node, scope = new Set()) {
 
   // Parenthesized so `ok and count++` -> `(ok && (count = ...))` is
   // valid JS rather than an assignment on the right of `&&`.
-  if (node.type === 'AssignmentExpression') {
-    return `(${generateTemplateExpression(node.target, scope)} = ${generateTemplateExpression(node.value, scope)})`
+   if (node.type === 'AssignmentExpression') {
+    const isPattern =
+      node.target.type === 'ObjectExpression' || node.target.type === 'ArrayExpression'
+    const target = isPattern
+      ? assignmentPatternSource(node.target, (n) => generateTemplateExpression(n, scope))
+      : generateTemplateExpression(node.target, scope)
+    return `(${target} = ${generateTemplateExpression(node.value, scope)})`
   }
 
   if (node.type === 'CallExpression') {

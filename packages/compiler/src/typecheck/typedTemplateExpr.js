@@ -1,6 +1,5 @@
 import { JS_GLOBALS, paramNames } from '../codegen/jsGlobals.js'
-import { joinArrayElements } from '../codegen/generateExpression.js'
-
+import { joinArrayElements, assignmentPatternSource } from '../codegen/generateExpression.js'
 // generateTemplateExpression's twin, for the virtual .ts class body
 // built in buildVirtualPageTs. The REAL compiled template (see
 // codegen/generateTemplateExpression.js) prefixes state reads with
@@ -47,6 +46,10 @@ export function typedTemplateExpr(node, scope) {
   if (node.type === 'UnaryExpression') {
     return `(${unaryPrefix(node.operator)}${typedTemplateExpr(node.argument, scope)})`
   }
+  if (node.type === 'UpdateExpression') {
+    const arg = typedTemplateExpr(node.argument, scope)
+    return node.prefix ? `(${node.operator}${arg})` : `(${arg}${node.operator})`
+  }
 
   // `(a, b)` -- the comma operator.
   if (node.type === 'SequenceExpression') {
@@ -73,17 +76,24 @@ export function typedTemplateExpr(node, scope) {
     return `(${typedTemplateExpr(node.left, scope)} ?? ${typedTemplateExpr(node.right, scope)})`
   }
 
-  if (node.type === 'AssignmentExpression') {
-    return `(${typedTemplateExpr(node.target, scope)} = ${typedTemplateExpr(node.value, scope)})`
-  }
-  if (node.type === 'CallExpression') {
-    const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
-    return `${typedTemplateExpr(node.callee, scope)}${node.optional ? '?.' : ''}(${args})`
-  }
-  if (node.type === 'NewExpression') {
-    const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
-    return `new ${typedTemplateExpr(node.callee, scope)}(${args})`
-  }
+      if (node.type === 'AssignmentExpression') {
+       const isPattern =
+         node.target.type === 'ObjectExpression' || node.target.type === 'ArrayExpression'
+       const target = isPattern
+         ? assignmentPatternSource(node.target, (n) => typedTemplateExpr(n, scope))
+         : typedTemplateExpr(node.target, scope)
+       return `(${target} = ${typedTemplateExpr(node.value, scope)})`
+     }
+     if (node.type === 'CallExpression') {
+       const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
+       const typeArgs = node.typeArgs ? `<${node.typeArgs}>` : ''
+       return `${typedTemplateExpr(node.callee, scope)}${node.optional ? '?.' : ''}${typeArgs}(${args})`
+     }
+     if (node.type === 'NewExpression') {
+       const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
+       const typeArgs = node.typeArgs ? `<${node.typeArgs}>` : ''
+       return `new ${typedTemplateExpr(node.callee, scope)}${typeArgs}(${args})`
+     }
 
   // Arrow params are typed `any` (`any[]` for rest) unless annotated,
   // matching what generateExpression does in typed mode. Params become
@@ -112,7 +122,7 @@ export function typedTemplateExpr(node, scope) {
       .join(', ')
     const asyncPrefix = node.isAsync ? 'async ' : ''
     const returnType = node.returnType ? `: ${node.returnType}` : ''
-    return `(${asyncPrefix}(${params})${returnType} => (${typedTemplateExpr(node.body, innerScope)}))`
+    return `(${asyncPrefix}${node.typeParams ?? ''}(${params})${returnType} => (${typedTemplateExpr(node.body, innerScope)}))`
   }
 
   // Holes (`null` elements) become empty slots: [1, , 3]

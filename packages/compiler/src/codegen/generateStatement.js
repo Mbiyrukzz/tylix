@@ -2,6 +2,7 @@ import {
   generateExpression,
   generateParams,
   generateClass,
+  functionSignature,
 } from './generateExpression.js'
 
 /**
@@ -25,6 +26,13 @@ export function generateStatement(node, typed = false) {
     case 'DebuggerStatement':
       return 'debugger;'
 
+    // `type X = ...` / `interface X {...}` exist only for the checker.
+    case 'TypeDeclaration':
+      return typed ? node.source : ''
+
+    case 'EnumDeclaration':
+      return generateEnum(node, typed)
+
     case 'BlockStatement':
       return `{\n${stmts(node.body)}\n  }`
 
@@ -46,8 +54,13 @@ export function generateStatement(node, typed = false) {
     case 'ClassDeclaration':
       return generateClass(node, typed)
 
-    case 'FunctionDeclaration':
-      return `${node.isAsync ? 'async ' : ''}function${node.isGenerator ? '*' : ''} ${node.name}(${generateParams(node.params, typed)}) {\n${stmts(node.body)}\n  }`
+    case 'FunctionDeclaration': {
+      const { generics, ret } = functionSignature(node, typed)
+      const head = `${node.isAsync ? 'async ' : ''}function${node.isGenerator ? '*' : ''} ${node.name}${generics}(${generateParams(node.params, typed)})${ret}`
+      // Overload signature: checker-only.
+      if (node.body == null) return typed ? `${head};` : ''
+      return `${head} {\n${stmts(node.body)}\n  }`
+    }
 
     case 'IfStatement': {
       let out = `if (${expr(node.condition)}) {\n${stmts(node.consequent)}\n  }`
@@ -136,6 +149,61 @@ export function generateStatement(node, typed = false) {
     default:
       throw new Error(`generateStatement: unknown node type "${node.type}"`)
   }
+}
+
+// Real JS: a plain object with TypeScript-style reverse mapping for
+// numeric members. Typed: a real TS `enum`.
+//   enum Color { Red, Green = 5, Blue }  ->  Red 0, Green 5, Blue 6
+function generateEnum(node, typed) {
+  if (typed) {
+    const members = node.members.map((m) => {
+      const key = /^[A-Za-z_$][\w$]*$/.test(m.name) ? m.name : JSON.stringify(m.name)
+      return m.init ? `${key} = ${generateExpression(m.init, true)}` : key
+    })
+    return `enum ${node.name} { ${members.join(', ')} }`
+  }
+  const body = node.members
+    .map((m) => {
+      const k = JSON.stringify(m.name)
+      if (m.init && m.init.type === 'Literal' && typeof m.init.value === 'string') {
+        return `__e[${k}] = ${JSON.stringify(m.init.value)};`
+      }
+      const set = m.init ? `__n = ${generateExpression(m.init)}; ` : ''
+      return `${set}__e[__e[${k}] = __n] = ${k}; __n++;`
+    })
+    .join(' ')
+  return `const ${node.name} = (() => { const __e = {}; let __n = 0; ${body} return __e; })();`
+}
+
+// Names a statement declares at its own scope (functions, classes,
+// enums, const/let including destructured ones). Used to expose
+// module-level helpers to templates.
+export function declaredNames(stmt) {
+  if (
+    stmt.type === 'FunctionDeclaration' ||
+    stmt.type === 'ClassDeclaration' ||
+    stmt.type === 'EnumDeclaration'
+  ) {
+    return stmt.name ? [stmt.name] : []
+  }
+  if (stmt.type === 'VariableDeclaration') {
+    return [stmt.name, ...(stmt.more ?? []).map((m) => m.name)].flatMap(patternNames)
+  }
+  return []
+}
+
+function patternNames(t) {
+  if (typeof t === 'string') return [t]
+  if (t.type === 'ObjectPattern') {
+    return [
+      ...t.properties.flatMap((p) => patternNames(p.binding)),
+      ...(t.rest ? [t.rest] : []),
+    ]
+  }
+  return [
+    ...t.elements.flatMap((el) => (el === null ? [] : patternNames(el.binding))),
+    ...(t.rest ? [t.rest] : []),
+  ]
 }
 
 // `const a: A = 1, { b } = x` -- the declaration WITHOUT a trailing
