@@ -13,7 +13,10 @@ import {
   FunctionExpr,
   FunctionDeclaration,
   TemplateLiteralExpr,
+  TaggedTemplateExpr,
   SpreadElement,
+  SequenceExpr,
+  YieldExpr,
   Identifier,
   MemberExpr,
   Literal,
@@ -23,6 +26,8 @@ import {
   CallExpr,
   NewExpr,
   AwaitExpr,
+  AsExpr,
+  NonNullExpr,
   VariableDeclaration,
   ObjectExpr,
   ArrayExpr,
@@ -37,6 +42,10 @@ import {
   RepeatStatement,
   BreakStatement,
   ContinueStatement,
+  LabeledStatement,
+  DebuggerStatement,
+  ClassDeclaration,
+  ClassExpr,
   CapabilityRefNode,
   MetaEntryNode,
   BlockStatement,
@@ -127,13 +136,70 @@ function adjacent(a, b) {
   return !!a && !!b && b.start === a.start + String(a.value).length
 }
 
+// True when evaluating `node` would run an assignment, ++/--, await
+// or yield. Compound assignment (`a[i++] += 1`) and ++/-- duplicate
+// their target in the desugared AST, so such a target would be
+// evaluated twice. Nested function bodies don't run when the target
+// is evaluated, so they are skipped.
+function containsMutation(node) {
+  if (!node || typeof node !== 'object') return false
+  if (Array.isArray(node)) return node.some(containsMutation)
+  if (node instanceof RegExp) return false
+  if (
+    node.type === 'AssignmentExpression' ||
+    node.type === 'AwaitExpression' ||
+    node.type === 'YieldExpression'
+  ) {
+    return true
+  }
+  if (
+    node.type === 'ArrowFunctionExpression' ||
+    node.type === 'FunctionExpression'
+  ) {
+    return false
+  }
+  return Object.values(node).some(
+    (v) => v && typeof v === 'object' && containsMutation(v),
+  )
+}
+
+// `a has b` works for arrays and strings (includes) AND Sets/Maps
+// (has). Built from ordinary nodes, so every generator (script,
+// template, virtual .ts) handles it with no new node type:
+//   ((__c, __v) => typeof __c.has === "function"
+//       ? __c.has(__v) : __c.includes(__v))(a, b)
+function hasExpr(collection, value) {
+  const c = Identifier('__c')
+  const v = Identifier('__v')
+  const test = BinaryExpr(
+    '===',
+    UnaryExpr('typeof', MemberExpr(c, 'has')),
+    Literal('function'),
+  )
+  const body = TernaryExpr(
+    test,
+    CallExpr(MemberExpr(c, 'has'), [v]),
+    CallExpr(MemberExpr(c, 'includes'), [v]),
+  )
+  const fn = ArrowFunctionExpr(
+    ['__c', '__v'],
+    body,
+    [null, null],
+    false,
+    [null, null],
+  )
+  return CallExpr(fn, [collection, value])
+}
+
 /**
  * Parses the token stream from the Lexer into a Page AST.
  *
  * Expressions are parsed with real precedence-climbing, low to high:
  *   arrow function (x => expr, (a, b = 1) => expr, destructured and
- *     rest params, block bodies x => { ... }, and the async forms of
- *     all of these) -- tried first, with backtracking
+ *     rest params, optional params, return types, block bodies
+ *     x => { ... }, and the async forms of all of these) -- tried
+ *     first, with backtracking
+ *   yield / yield*  (inside generators)
  *   assignment  (= += -= *= /= %= **= ??= ||= &&= &= |= ^= <<= >>= >>>=)
  *   ternary     (?:)
  *   nullish     (??)
@@ -143,17 +209,18 @@ function adjacent(a, b) {
  *   bitwise xor (^)
  *   bitwise and (&)
  *   equality    (is / is not, also ===, !==, ==, !=)
- *   comparison  (> < >= <= instanceof in)
+ *   comparison  (> < >= <= instanceof in, and the `as` / `satisfies` casts)
  *   predicate   (has / exists / missing)
  *   shift       (<< >> >>>)
  *   additive    (+ -)
  *   multiplicative (* / %)
  *   exponent    (**, right-associative)
- *   unary       (not, !, ~, -, await, typeof, delete, void, prefix ++/--)
+ *   unary       (not, !, ~, -, +, await, typeof, delete, void, prefix ++/--)
  *   postfix     (x++, x--)
- *   member/call (a.b, a(), a?.b, a?.())
- *   primary     (literals, regex, bigint, identifiers, grouping, arrays,
- *                objects, template literals, function expressions)
+ *   member/call (a.b, a(), a?.b, a?.(), tag`text`, and the non-null `x!`)
+ *   primary     (literals, regex, bigint, identifiers, grouping and the
+ *                comma operator, arrays, objects, template literals,
+ *                function and class expressions, new.target)
  *
  * `x++` / `++x` desugar to `x = x + 1` (same trick as compound
  * assignment), so the expression's value is the NEW value in both
@@ -162,14 +229,31 @@ function adjacent(a, b) {
  * Shifts are recombined from adjacent LT/GT tokens (see
  * shiftOperatorAt) because the Lexer never emits << or >> as single
  * tokens -- that keeps `Array<Array<T>>` parseable as a type.
+ *
+ * Contextual words (`static`, `get`, `set`, `as`, `satisfies`,
+ * `yield`, `class`, `extends`, `debugger`) are ordinary identifier
+ * tokens; the parser recognises them by position.
  */
 export class Parser {
   constructor(tokens, options = {}) {
-  this.tokens = tokens
-  this.pos = 0
-  this.options = options
-  this.looseNot = options.not === 'loose'
-}
+    this.tokens = tokens
+    this.pos = 0
+    this.options = options
+    this.looseNot = options.not === 'loose'
+    // True while parsing the body of a generator, where `yield` is an
+    // operator instead of an ordinary name.
+    this.inGenerator = false
+  }
+
+  withGenerator(flag, fn) {
+    const previous = this.inGenerator
+    this.inGenerator = flag
+    try {
+      return fn()
+    } finally {
+      this.inGenerator = previous
+    }
+  }
 
   parse() {
     const page = {
@@ -422,11 +506,12 @@ export class Parser {
 
     this.expect(TokenType.COLON, "Expected ':' after state name")
 
-    // A full ternary-level expression, so initializers like
+    // A full assignment-level expression, so initializers like
     // `new Date().toLocaleDateString()`, `Date.now()`, `60 * 60`,
-    // `ready ? 1 : 2` and `[...]` / `{...}` all parse. Entries always
-    // start with a name, so no operator can be the start of the next entry.
-    let value = this.parseTernary()
+    // `ready ? 1 : 2`, `[...]` / `{...}` and arrow functions
+    // (`onSave: () => 1`) all parse. Entries always start with a name,
+    // so no operator can be the start of the next entry.
+    let value = this.parseAssignment()
 
     // Keep `-5` as a plain negative Literal, as before.
     if (
@@ -443,8 +528,8 @@ export class Parser {
 
   // Parses a parameter list. The opening '(' must already be
   // consumed; this consumes the closing ')'. Supports types
-  // (`a: number`), defaults (`a = 1`), rest (`...args`) and
-  // destructured params (`{ id, name }`, `[a, b]`).
+  // (`a: number`), optional (`a?: number`), defaults (`a = 1`), rest
+  // (`...args`) and destructured params (`{ id, name }`, `[a, b]`).
   parseParamList() {
     const params = []
     while (!this.check(TokenType.RPAREN)) {
@@ -455,6 +540,7 @@ export class Parser {
       } else {
         name = this.parseNameToken('Expected parameter name')
       }
+      const optional = this.match(TokenType.QUESTION)
       let typeAnnotation = null
       if (this.match(TokenType.COLON)) {
         typeAnnotation = this.parseTypeExpression()
@@ -463,7 +549,7 @@ export class Parser {
       if (this.match(TokenType.EQUALS)) {
         defaultValue = this.parseAssignment()
       }
-      params.push({ name, typeAnnotation, defaultValue, rest })
+      params.push({ name, typeAnnotation, defaultValue, rest, optional })
       this.match(TokenType.COMMA)
     }
     this.expect(TokenType.RPAREN, "Expected ')' after parameters")
@@ -500,9 +586,9 @@ export class Parser {
   // A binding target is anywhere a name is bound to a value: a plain
   // identifier, or -- for destructuring -- a nested object/array
   // pattern. Shared by top-level const/let targets, object pattern
-  // property values, and array pattern elements, so `const { a: { b } }
-  // = x` and `const [[a, b]] = x` both fall out for free instead of
-  // needing separate one-level-deep parsing logic in three places.
+  // property values, array pattern elements and catch clauses, so
+  // `const { a: { b } } = x` and `const [[a, b]] = x` both fall out
+  // for free instead of needing separate parsing logic in each place.
   parseBindingTarget() {
     if (this.check(TokenType.LBRACE)) return this.parseObjectPattern()
     if (this.check(TokenType.LBRACKET)) return this.parseArrayPattern()
@@ -649,9 +735,10 @@ export class Parser {
   }
 
   // After `function` (and an optional preceding `async`, already
-  // consumed by the caller): `[name] (params) [: ReturnType] { body }`.
+  // consumed by the caller): `[*] [name] (params) [: ReturnType] { body }`.
   parseFunctionRest(isAsync) {
     this.expect(TokenType.FUNCTION, "Expected 'function'")
+    const isGenerator = this.match(TokenType.STAR)
     let name = null
     if (!this.check(TokenType.LPAREN)) {
       name = this.parseNameToken('Expected a function name')
@@ -661,8 +748,10 @@ export class Parser {
     if (this.match(TokenType.COLON)) {
       this.parseTypeExpression() // return type: checked only in the virtual .ts
     }
-    const body = this.parseBlockStatements('function body')
-    return { name, params, body, isAsync }
+    const body = this.withGenerator(isGenerator, () =>
+      this.parseBlockStatements('function body'),
+    )
+    return { name, params, body, isAsync, isGenerator }
   }
 
   isFunctionKeywordAhead() {
@@ -673,9 +762,122 @@ export class Parser {
     )
   }
 
+  // `name:` at the start of a statement is a label (`outer: for ...`).
+  isLabelAhead() {
+    return (
+      this.check(TokenType.IDENTIFIER) &&
+      this.tokens[this.pos + 1]?.type === TokenType.COLON
+    )
+  }
+
+  // The optional label of `break outer` / `continue outer`: an
+  // identifier on the SAME line as the keyword.
+  optionalLabel(keywordToken) {
+    const next = this.peek()
+    if (next.type === TokenType.IDENTIFIER && next.line === keywordToken.line) {
+      this.advance()
+      return next.value
+    }
+    return null
+  }
+
+  // Constructs that exist in JavaScript but not in .tyx scripts. Most
+  // of them lex as plain identifiers, so without this check they
+  // would parse as a bare name and fail later with a confusing
+  // generated-JS error.
+  rejectUnsupportedKeyword() {
+    const tok = this.peek()
+    const next = this.tokens[this.pos + 1]
+    if (!next) return
+
+    if (
+      tok.type === TokenType.AWAIT &&
+      next.type === TokenType.IDENTIFIER &&
+      next.value === 'using' &&
+      next.line === tok.line &&
+      this.tokens[this.pos + 2]?.type === TokenType.IDENTIFIER
+    ) {
+      throw new Error(
+        `'await using' (resource management) is not supported; use try / finally (line ${tok.line})`,
+      )
+    }
+
+    if (tok.type !== TokenType.IDENTIFIER) return
+
+    if (
+      tok.value === 'var' &&
+      (next.type === TokenType.IDENTIFIER ||
+        next.type === TokenType.LBRACE ||
+        next.type === TokenType.LBRACKET)
+    ) {
+      throw new Error(
+        `'var' is not supported; use 'const' or 'let' (line ${tok.line})`,
+      )
+    }
+
+    if (
+      tok.value === 'using' &&
+      next.type === TokenType.IDENTIFIER &&
+      next.line === tok.line
+    ) {
+      throw new Error(
+        `'using' (resource management) is not supported; use try / finally (line ${tok.line})`,
+      )
+    }
+
+    if (tok.value === 'import' && next.type !== TokenType.LPAREN) {
+      throw new Error(
+        `'import' statements and import.meta are not supported inside scripts; put Tylix imports above the template, or use dynamic import("...") (line ${tok.line})`,
+      )
+    }
+
+    if (
+      tok.value === 'export' &&
+      (next.type === TokenType.CONST ||
+        next.type === TokenType.LET ||
+        next.type === TokenType.FUNCTION ||
+        next.type === TokenType.ASYNC ||
+        next.type === TokenType.DEFAULT ||
+        next.type === TokenType.LBRACE ||
+        next.type === TokenType.STAR ||
+        (next.type === TokenType.IDENTIFIER && next.value === 'class'))
+    ) {
+      throw new Error(
+        `'export' is not supported inside scripts; a .tyx file is its own module (line ${tok.line})`,
+      )
+    }
+
+    if (tok.value === 'with' && next.type === TokenType.LPAREN) {
+      let depth = 0
+      let i = this.pos + 1
+      for (; i < this.tokens.length; i++) {
+        const t = this.tokens[i]
+        if (t.type === TokenType.LPAREN) depth++
+        else if (t.type === TokenType.RPAREN) {
+          depth--
+          if (depth === 0) break
+        }
+      }
+      if (this.tokens[i + 1]?.type === TokenType.LBRACE) {
+        throw new Error(`'with' statements are not supported (line ${tok.line})`)
+      }
+    }
+  }
+
   parseStatementInner() {
     if (this.match(TokenType.SEMICOLON)) {
       return EmptyStatement()
+    }
+
+    // A `{` at the start of a statement is always a block (JS rule).
+    if (this.check(TokenType.LBRACE)) {
+      return BlockStatement(this.parseBlockStatements('block'))
+    }
+
+    if (this.isLabelAhead()) {
+      const label = this.advance().value
+      this.advance() // ':'
+      return LabeledStatement(label, this.parseStatement())
     }
 
     if (this.match(TokenType.RETURN)) {
@@ -720,23 +922,33 @@ export class Parser {
       return this.parseTryStatement()
     }
 
-    if (this.match(TokenType.BREAK)) {
+    if (this.check(TokenType.BREAK)) {
+      const tok = this.advance()
+      const label = this.optionalLabel(tok)
       this.match(TokenType.SEMICOLON)
-      return BreakStatement()
+      return BreakStatement(label)
     }
 
-    if (this.match(TokenType.CONTINUE)) {
+    if (this.check(TokenType.CONTINUE)) {
+      const tok = this.advance()
+      const label = this.optionalLabel(tok)
       this.match(TokenType.SEMICOLON)
-      return ContinueStatement()
+      return ContinueStatement(label)
     }
 
-    // `function name(...) { }` / `async function name(...) { }` as a
+    // `class Name { ... }` as a declaration.
+    if (this.isClassAhead(false)) {
+      return this.parseClass(false)
+    }
+
+    // `function name(...) { }` / `async function* name(...) { }` as a
     // declaration. An anonymous `function (...) { }` falls through to
     // the expression-statement path below.
     if (this.isFunctionKeywordAhead()) {
-      const nameIdx = this.pos + (this.check(TokenType.ASYNC) ? 2 : 1)
-      const nameTok = this.tokens[nameIdx]
-      const afterName = this.tokens[nameIdx + 1]
+      let idx = this.pos + (this.check(TokenType.ASYNC) ? 2 : 1)
+      if (this.tokens[idx]?.type === TokenType.STAR) idx++
+      const nameTok = this.tokens[idx]
+      const afterName = this.tokens[idx + 1]
       if (
         nameTok &&
         nameTok.type !== TokenType.LPAREN &&
@@ -745,7 +957,13 @@ export class Parser {
       ) {
         const isAsync = this.match(TokenType.ASYNC)
         const fn = this.parseFunctionRest(isAsync)
-        return FunctionDeclaration(fn.name, fn.params, fn.body, fn.isAsync)
+        return FunctionDeclaration(
+          fn.name,
+          fn.params,
+          fn.body,
+          fn.isAsync,
+          fn.isGenerator,
+        )
       }
     }
 
@@ -756,15 +974,40 @@ export class Parser {
       return decl
     }
 
+    this.rejectUnsupportedKeyword()
+
+    const tok = this.peek()
+    const after = this.tokens[this.pos + 1]
+    if (
+      tok.type === TokenType.IDENTIFIER &&
+      tok.value === 'debugger' &&
+      !(
+        after &&
+        (after.type === TokenType.DOT ||
+          after.type === TokenType.LPAREN ||
+          after.type === TokenType.EQUALS)
+      )
+    ) {
+      this.advance()
+      this.match(TokenType.SEMICOLON)
+      return DebuggerStatement()
+    }
+
     const expression = this.parseExpression()
     this.match(TokenType.SEMICOLON)
     return ExpressionStatement(expression)
   }
 
-  // `target [= init] [, target [= init] ...]` after const/let.
-  // `let x` (no initializer) is allowed; `const x` requires one.
+  // `: Type` after a binding name, or null when there is none.
+  parseOptionalTypeAnnotation() {
+    return this.match(TokenType.COLON) ? this.parseTypeExpression() : null
+  }
+
+  // `target [: Type] [= init] [, target [: Type] [= init] ...]` after
+  // const/let. `let x` (no initializer) is allowed; `const x` requires one.
   parseDeclarators(kind) {
     const target = this.parseBindingTarget()
+    const typeAnnotation = this.parseOptionalTypeAnnotation()
     let init = null
     if (this.match(TokenType.EQUALS)) {
       init = this.parseExpression()
@@ -776,6 +1019,7 @@ export class Parser {
     const more = []
     while (this.match(TokenType.COMMA)) {
       const name = this.parseBindingTarget()
+      const moreType = this.parseOptionalTypeAnnotation()
       let moreInit = null
       if (this.match(TokenType.EQUALS)) {
         moreInit = this.parseExpression()
@@ -784,40 +1028,41 @@ export class Parser {
           `Missing initializer in const declaration at line ${this.peek().line}`,
         )
       }
-      more.push({ name, init: moreInit })
+      more.push({ name, init: moreInit, typeAnnotation: moreType })
     }
-    return VariableDeclaration(kind, target, init, more)
+    return VariableDeclaration(kind, target, init, more, typeAnnotation)
   }
 
   parseIfStatement() {
-  const condition = this.parseExpression()
-  this.expect(TokenType.LBRACE, "Expected '{' to start if body")
-  const consequent = []
-  while (!this.check(TokenType.RBRACE)) {
-    consequent.push(this.parseStatement())
-  }
-  this.expect(TokenType.RBRACE, "Expected '}' to close if body")
-
-  let alternate = null
-  if (this.match(TokenType.ELSE)) {
-    if (this.check(TokenType.IF)) {
-      const startLine = this.peek().line
-      this.advance()
-      const nested = this.parseIfStatement()
-      nested.line = nested.line ?? startLine
-      alternate = [nested]
-    } else {
-      this.expect(TokenType.LBRACE, "Expected '{' to start else body")
-      alternate = []
-      while (!this.check(TokenType.RBRACE)) {
-        alternate.push(this.parseStatement())
-      }
-      this.expect(TokenType.RBRACE, "Expected '}' to close else body")
+    const condition = this.parseExpression()
+    this.expect(TokenType.LBRACE, "Expected '{' to start if body")
+    const consequent = []
+    while (!this.check(TokenType.RBRACE)) {
+      consequent.push(this.parseStatement())
     }
+    this.expect(TokenType.RBRACE, "Expected '}' to close if body")
+
+    let alternate = null
+    if (this.match(TokenType.ELSE)) {
+      if (this.check(TokenType.IF)) {
+        const startLine = this.peek().line
+        this.advance()
+        const nested = this.parseIfStatement()
+        nested.line = nested.line ?? startLine
+        alternate = [nested]
+      } else {
+        this.expect(TokenType.LBRACE, "Expected '{' to start else body")
+        alternate = []
+        while (!this.check(TokenType.RBRACE)) {
+          alternate.push(this.parseStatement())
+        }
+        this.expect(TokenType.RBRACE, "Expected '}' to close else body")
+      }
+    }
+
+    return IfStatement(condition, consequent, alternate)
   }
 
-  return IfStatement(condition, consequent, alternate)
-}
   // `while cond { ... }` or `while (cond) { ... }`. Parentheses need no
   // special handling: `(cond)` already parses as a grouped expression,
   // which also keeps `while (a) and (b) { ... }` working.
@@ -856,6 +1101,7 @@ export class Parser {
         while (this.match(TokenType.COMMA)) {
           tests.push(this.parseExpression())
         }
+        this.rejectSwitchColon()
         cases.push({ tests, body: this.parseBlockStatements('case body') })
       } else if (this.check(TokenType.DEFAULT)) {
         const line = this.advance().line
@@ -863,6 +1109,7 @@ export class Parser {
           throw new Error(`Duplicate 'default' in switch at line ${line}`)
         }
         hasDefault = true
+        this.rejectSwitchColon()
         cases.push({
           tests: null,
           body: this.parseBlockStatements('default body'),
@@ -878,15 +1125,26 @@ export class Parser {
     return SwitchStatement(discriminant, cases)
   }
 
+  rejectSwitchColon() {
+    if (this.check(TokenType.COLON)) {
+      throw new Error(
+        `Switch cases use braces, not a colon: case a, b { ... } (no fallthrough), at line ${this.peek().line}`,
+      )
+    }
+  }
+
   // All the `for` forms:
   //   for x in arr { }                 for x of arr { }
   //   for [k, v] of Object.entries(o)  for const x of arr { }
   //   for i from 0 to n { }
   //   for (const x of arr) { }         for (const k in obj) { }   (keys)
   //   for (let i = 0, n = a.length; i < n; i++) { }
+  //   for await (const x of stream) { }   for await x of stream { }
   parseForStatement() {
+    const isAwait = this.match(TokenType.AWAIT)
+
     if (this.check(TokenType.LPAREN)) {
-      return this.parseParenFor()
+      return this.parseParenFor(isAwait)
     }
 
     let declKind = 'const'
@@ -907,10 +1165,15 @@ export class Parser {
     if (this.match(TokenType.IN) || this.match(TokenType.OF)) {
       const iterable = this.parseExpression()
       const body = this.parseBlockStatements('loop body')
-      return ForInStatement(varName, iterable, body, declKind)
+      return ForInStatement(varName, iterable, body, declKind, isAwait)
     }
 
     if (this.match(TokenType.FROM)) {
+      if (isAwait) {
+        throw new Error(
+          `'for await' needs 'in' or 'of', not 'from ... to' (line ${this.peek().line})`,
+        )
+      }
       if (typeof varName !== 'string') {
         throw new Error(
           `'for ... from ... to' needs a plain loop variable at line ${this.peek().line}`,
@@ -928,7 +1191,7 @@ export class Parser {
     )
   }
 
-  parseParenFor() {
+  parseParenFor(isAwait = false) {
     this.expect(TokenType.LPAREN, "Expected '(' after 'for'")
 
     let init = null
@@ -940,16 +1203,22 @@ export class Parser {
 
       if (this.check(TokenType.OF) || this.check(TokenType.IN)) {
         const isOf = this.advance().type === TokenType.OF
+        if (isAwait && !isOf) {
+          throw new Error(
+            `'for await' needs 'of', not 'in' (line ${this.peek().line})`,
+          )
+        }
         const iterable = this.parseExpression()
         this.expect(TokenType.RPAREN, "Expected ')' after the for header")
         const body = this.parseBlockStatements('loop body')
         return isOf
-          ? ForInStatement(target, iterable, body, kind)
+          ? ForInStatement(target, iterable, body, kind, isAwait)
           : ForKeysStatement(target, iterable, body, kind)
       }
 
       // C-style declaration: re-enter declarator parsing with the
       // target we already consumed.
+      const typeAnnotation = this.parseOptionalTypeAnnotation()
       let first = null
       if (this.match(TokenType.EQUALS)) {
         first = this.parseExpression()
@@ -961,17 +1230,24 @@ export class Parser {
       const more = []
       while (this.match(TokenType.COMMA)) {
         const name = this.parseBindingTarget()
+        const moreType = this.parseOptionalTypeAnnotation()
         let moreInit = null
         if (this.match(TokenType.EQUALS)) moreInit = this.parseExpression()
-        more.push({ name, init: moreInit })
+        more.push({ name, init: moreInit, typeAnnotation: moreType })
       }
-      init = VariableDeclaration(kind, target, first, more)
+      init = VariableDeclaration(kind, target, first, more, typeAnnotation)
     } else {
       const expressions = [this.parseExpression()]
       while (this.match(TokenType.COMMA)) {
         expressions.push(this.parseExpression())
       }
       init = { type: 'ExpressionList', expressions }
+    }
+
+    if (isAwait) {
+      throw new Error(
+        `'for await' needs the form for await (const x of iterable) (line ${this.peek().line})`,
+      )
     }
 
     this.expect(TokenType.SEMICOLON, "Expected ';' after the for-loop init")
@@ -1002,6 +1278,8 @@ export class Parser {
     return RepeatStatement(count, body)
   }
 
+  // `catch (e)`, `catch (e: unknown)`, `catch ({ message })`,
+  // `catch ([first])` and the optional-binding `catch { }`.
   parseTryStatement() {
     this.expect(TokenType.LBRACE, "Expected '{' to start try block")
     const tryBlock = []
@@ -1011,13 +1289,14 @@ export class Parser {
     this.expect(TokenType.RBRACE, "Expected '}' to close try block")
 
     let catchParam = null
+    let catchType = null
     let catchBlock = null
     if (this.match(TokenType.CATCH)) {
       if (this.match(TokenType.LPAREN)) {
-        catchParam = this.expect(
-          TokenType.IDENTIFIER,
-          'Expected catch parameter name',
-        ).value
+        catchParam = this.parseBindingTarget()
+        if (this.match(TokenType.COLON)) {
+          catchType = this.parseTypeExpression()
+        }
         this.expect(TokenType.RPAREN, "Expected ')' after catch parameter")
       }
       this.expect(TokenType.LBRACE, "Expected '{' to start catch block")
@@ -1038,8 +1317,185 @@ export class Parser {
       this.expect(TokenType.RBRACE, "Expected '}' to close finally block")
     }
 
-    return TryStatement(tryBlock, catchParam, catchBlock, finallyBlock)
+    return TryStatement(tryBlock, catchParam, catchBlock, finallyBlock, catchType)
   }
+
+  // ---- classes ----
+
+  // `class Name {` / `class Name extends X {` as a declaration, or
+  // (isExpression) also the anonymous `class {` / `class extends X {`.
+  isClassAhead(isExpression) {
+    const tok = this.peek()
+    const next = this.tokens[this.pos + 1]
+    if (tok.type !== TokenType.IDENTIFIER || tok.value !== 'class' || !next) {
+      return false
+    }
+    if (isExpression) {
+      return next.type === TokenType.LBRACE || next.type === TokenType.IDENTIFIER
+    }
+    return next.type === TokenType.IDENTIFIER && next.value !== 'extends'
+  }
+
+  parseClass(isExpression) {
+    this.advance() // 'class'
+    let name = null
+    if (this.check(TokenType.IDENTIFIER) && this.peek().value !== 'extends') {
+      name = this.advance().value
+    }
+    let superClass = null
+    if (this.check(TokenType.IDENTIFIER) && this.peek().value === 'extends') {
+      this.advance()
+      superClass = this.parseMemberExpression()
+    }
+    this.expect(TokenType.LBRACE, "Expected '{' to start the class body")
+    const members = []
+    while (!this.check(TokenType.RBRACE)) {
+      if (this.match(TokenType.SEMICOLON)) continue
+      members.push(this.parseClassMember())
+    }
+    this.expect(TokenType.RBRACE, "Expected '}' to close the class body")
+    return isExpression
+      ? ClassExpr(name, superClass, members)
+      : ClassDeclaration(name, superClass, members)
+  }
+
+  isMemberKeyStart(tok) {
+    return (
+      !!tok &&
+      (tok.type === TokenType.IDENTIFIER ||
+        KEYWORD_TOKEN_TYPES.has(tok.type) ||
+        tok.type === TokenType.STRING ||
+        tok.type === TokenType.NUMBER ||
+        tok.type === TokenType.LBRACKET ||
+        tok.type === TokenType.STAR)
+    )
+  }
+
+  // True when the current token is the contextual modifier `word`
+  // (static / async / get / set) rather than a member NAME: a name
+  // would be followed by `(`, `=`, `;` or `}`, a modifier by the key.
+  modifierAhead(word) {
+    const tok = this.peek()
+    const next = this.tokens[this.pos + 1]
+    return (
+      (tok.type === TokenType.IDENTIFIER ||
+        KEYWORD_TOKEN_TYPES.has(tok.type)) &&
+      tok.value === word &&
+      this.isMemberKeyStart(next) &&
+      next.line === tok.line
+    )
+  }
+
+  parseClassMember() {
+    const line = this.peek().line
+
+    // static { ... }
+    if (
+      this.peek().type === TokenType.IDENTIFIER &&
+      this.peek().value === 'static' &&
+      this.tokens[this.pos + 1]?.type === TokenType.LBRACE
+    ) {
+      this.advance()
+      const body = this.parseBlockStatements('static block')
+      return { kind: 'staticBlock', static: true, body, line }
+    }
+
+    let isStatic = false
+    let isAsync = false
+    let isGenerator = false
+    let kind = 'method'
+
+    if (this.modifierAhead('static')) {
+      this.advance()
+      isStatic = true
+    }
+    if (this.modifierAhead('async')) {
+      this.advance()
+      isAsync = true
+    }
+    if (this.match(TokenType.STAR)) {
+      isGenerator = true
+    } else if (!isAsync && (this.modifierAhead('get') || this.modifierAhead('set'))) {
+      kind = this.advance().value
+    }
+
+    let key = null
+    let keyExpr = null
+    let keyKind = 'name'
+    if (this.match(TokenType.LBRACKET)) {
+      keyExpr = this.parseExpression()
+      this.expect(
+        TokenType.RBRACKET,
+        "Expected ']' to close a computed class member name",
+      )
+      keyKind = 'computed'
+    } else if (this.check(TokenType.STRING)) {
+      key = this.advance().value
+      keyKind = 'string'
+    } else if (this.check(TokenType.NUMBER)) {
+      key = String(this.advance().value)
+      keyKind = 'number'
+    } else {
+      key = this.parseNameToken('Expected a class member name')
+    }
+
+    // Method, accessor or constructor
+    if (this.check(TokenType.LPAREN)) {
+      this.advance()
+      const params = this.parseParamList()
+      let returnType = null
+      if (this.match(TokenType.COLON)) {
+        returnType = this.parseTypeExpression()
+      }
+      const body = this.withGenerator(isGenerator, () =>
+        this.parseBlockStatements('method body'),
+      )
+      const isConstructor =
+        !isStatic && keyKind === 'name' && key === 'constructor' && kind === 'method'
+      return {
+        kind: isConstructor ? 'constructor' : kind,
+        static: isStatic,
+        key,
+        keyExpr,
+        keyKind,
+        isAsync,
+        isGenerator,
+        params,
+        body,
+        returnType,
+        line,
+      }
+    }
+
+    // Field
+    if (kind !== 'method' || isAsync || isGenerator) {
+      throw new Error(
+        `Expected '(' after the class member name at line ${this.peek().line}`,
+      )
+    }
+    if (!this.match(TokenType.QUESTION)) {
+      // definite-assignment `x!: T` is accepted and ignored
+      if (this.check(TokenType.NOT) && this.peek().value === '!') this.advance()
+    }
+    const typeAnnotation = this.parseOptionalTypeAnnotation()
+    let value = null
+    if (this.match(TokenType.EQUALS)) {
+      value = this.parseAssignment()
+    }
+    this.match(TokenType.SEMICOLON)
+    return {
+      kind: 'field',
+      static: isStatic,
+      key,
+      keyExpr,
+      keyKind,
+      typeAnnotation,
+      value,
+      line,
+    }
+  }
+
+  // ---- expressions ----
 
   parseExpression() {
     return this.parseAssignment()
@@ -1093,7 +1549,45 @@ export class Parser {
     return null
   }
 
+  // Compound assignment and ++/-- repeat their target in the desugared
+  // AST, so a target that mutates or awaits (`a[i++] += 1`) would run
+  // twice. Refuse it instead of silently doing the wrong thing.
+  assertTargetRunsOnce(target) {
+    if (containsMutation(target)) {
+      throw new Error(
+        `This assignment target contains ++, --, = or await, which would run twice; split it into two statements (line ${this.peek().line})`,
+      )
+    }
+  }
+
+  // `yield` is only an operator inside a generator body.
+  isYieldAhead() {
+    const tok = this.peek()
+    return tok.type === TokenType.IDENTIFIER && tok.value === 'yield'
+  }
+
+  parseYield() {
+    const tok = this.advance() // 'yield'
+    const delegate = this.match(TokenType.STAR)
+    const next = this.peek()
+    const endsHere =
+      next.line !== tok.line ||
+      next.type === TokenType.RPAREN ||
+      next.type === TokenType.RBRACKET ||
+      next.type === TokenType.RBRACE ||
+      next.type === TokenType.COMMA ||
+      next.type === TokenType.SEMICOLON ||
+      next.type === TokenType.COLON ||
+      next.type === TokenType.EOF
+    const argument = delegate || !endsHere ? this.parseAssignment() : null
+    return YieldExpr(argument, delegate)
+  }
+
   parseAssignment() {
+    if (this.inGenerator && this.isYieldAhead()) {
+      return this.parseYield()
+    }
+
     const arrow = this.tryParseArrowFunction()
     if (arrow) return arrow
 
@@ -1105,16 +1599,19 @@ export class Parser {
     }
 
     if (this.match(TokenType.NULLISH_EQUALS)) {
+      this.assertTargetRunsOnce(left)
       const value = this.parseAssignment()
       return AssignmentExpr(left, NullishCoalescingExpr(left, value))
     }
 
     if (this.match(TokenType.OR_EQUALS)) {
+      this.assertTargetRunsOnce(left)
       const value = this.parseAssignment()
       return AssignmentExpr(left, BinaryExpr('||', left, value))
     }
 
     if (this.match(TokenType.AND_EQUALS)) {
+      this.assertTargetRunsOnce(left)
       const value = this.parseAssignment()
       return AssignmentExpr(left, BinaryExpr('&&', left, value))
     }
@@ -1122,6 +1619,7 @@ export class Parser {
     const compoundOp = COMPOUND_ASSIGNMENT_OPS[this.peek().type]
 
     if (compoundOp) {
+      this.assertTargetRunsOnce(left)
       this.advance()
       const value = this.parseAssignment()
       return AssignmentExpr(left, BinaryExpr(compoundOp, left, value))
@@ -1129,6 +1627,7 @@ export class Parser {
 
     const shiftAssign = this.compoundShiftAt()
     if (shiftAssign) {
+      this.assertTargetRunsOnce(left)
       this.pos += shiftAssign.len
       const value = this.parseAssignment()
       return AssignmentExpr(left, BinaryExpr(shiftAssign.op, left, value))
@@ -1175,11 +1674,15 @@ export class Parser {
   // can't resolve are `{}`, `{ name }`, `{ [key]: v }` and
   // `{ method() {} }`; those are blocks, exactly as in JS. Wrap an
   // object literal in parentheses: `x => ({ ... })`.
+  //
+  // `yield` is never an operator inside an arrow body.
   parseArrowBody() {
-    if (this.check(TokenType.LBRACE) && !this.looksLikeObjectLiteral()) {
-      return BlockStatement(this.parseBlockStatements('arrow function body'))
-    }
-    return this.parseAssignment()
+    return this.withGenerator(false, () => {
+      if (this.check(TokenType.LBRACE) && !this.looksLikeObjectLiteral()) {
+        return BlockStatement(this.parseBlockStatements('arrow function body'))
+      }
+      return this.parseAssignment()
+    })
   }
 
   looksLikeObjectLiteral() {
@@ -1239,8 +1742,9 @@ export class Parser {
   // BlockStatement in their expression generators).
   //
   // Parenthesized params may be plain names, destructuring patterns
-  // ([k, v], { id, name }), rest params (...args), typed (a: number)
-  // and have defaults (a = 1).
+  // ([k, v], { id, name }), rest params (...args), typed (a: number),
+  // optional (a?: number) and have defaults (a = 1). A return type may
+  // follow the closing paren: `(a: number): number => a * 2`.
   tryParseSyncArrow() {
     // single-param form: x => expr  or  x: Type => expr
     if (
@@ -1271,7 +1775,7 @@ export class Parser {
       return null
     }
 
-    // (a, b) => expr  or  (a: Type, b = 1, ...rest) => expr
+    // (a, b) => expr  or  (a: Type, b?: T, c = 1, ...rest) => expr
     // also ([k, v]) => expr, ({ id }) => expr
     if (this.check(TokenType.LPAREN)) {
       const savedPos = this.pos
@@ -1280,6 +1784,7 @@ export class Parser {
       const params = []
       const paramTypes = []
       const paramDefaults = []
+      const paramOptional = []
       let isValidParamList = true
 
       if (!this.check(TokenType.RPAREN)) {
@@ -1311,6 +1816,11 @@ export class Parser {
           }
           params.push(name)
 
+          // `(a ? b : c)` also reaches here, but then `b` is neither
+          // `:`, `,` nor `)`, so the list is rejected below and the
+          // whole attempt backs out to a grouped expression.
+          paramOptional.push(this.match(TokenType.QUESTION))
+
           let paramType = null
           if (this.match(TokenType.COLON)) {
             paramType = this.tryParseTypeExpression()
@@ -1339,10 +1849,32 @@ export class Parser {
 
       if (isValidParamList && this.check(TokenType.RPAREN)) {
         this.pos++
+
+        // Optional return type: `(x): number => ...`. In a ternary
+        // (`c ? (x) : y`) the type parses but no `=>` follows, so the
+        // whole attempt backs out.
+        let returnType = null
+        if (this.check(TokenType.COLON)) {
+          this.pos++
+          returnType = this.tryParseTypeExpression()
+          if (returnType === null || !this.check(TokenType.ARROW)) {
+            this.pos = savedPos
+            return null
+          }
+        }
+
         if (this.check(TokenType.ARROW)) {
           this.pos++
           const body = this.parseArrowBody()
-          return ArrowFunctionExpr(params, body, paramTypes, false, paramDefaults)
+          return ArrowFunctionExpr(
+            params,
+            body,
+            paramTypes,
+            false,
+            paramDefaults,
+            paramOptional,
+            returnType,
+          )
         }
       }
 
@@ -1381,29 +1913,29 @@ export class Parser {
     return left
   }
 
-parseLogicalAnd() {
-  let left = this.parseNotOperand()
-  while (this.match(TokenType.AND)) {
-    const right = this.parseNotOperand()
-    left = BinaryExpr('&&', left, right)
+  parseLogicalAnd() {
+    let left = this.parseNotOperand()
+    while (this.match(TokenType.AND)) {
+      const right = this.parseNotOperand()
+      left = BinaryExpr('&&', left, right)
+    }
+    return left
   }
-  return left
-}
 
-// Loose mode only: the WORD `not` (value 'not') sits above is/has/
-// exists. In tight mode, or for the symbol `!`, this falls straight
-// through and parseUnary handles it as before.
-parseNotOperand() {
-  if (
-    this.looseNot &&
-    this.check(TokenType.NOT) &&
-    this.peek().value === 'not'
-  ) {
-    this.advance()
-    return UnaryExpr('!', this.parseNotOperand())
+  // Loose mode only: the WORD `not` (value 'not') sits above is/has/
+  // exists. In tight mode, or for the symbol `!`, this falls straight
+  // through and parseUnary handles it as before.
+  parseNotOperand() {
+    if (
+      this.looseNot &&
+      this.check(TokenType.NOT) &&
+      this.peek().value === 'not'
+    ) {
+      this.advance()
+      return UnaryExpr('!', this.parseNotOperand())
+    }
+    return this.parseBitwiseOr()
   }
-  return this.parseBitwiseOr()
-}
 
   parseBitwiseOr() {
     let left = this.parseBitwiseXor()
@@ -1443,14 +1975,58 @@ parseNotOperand() {
     return left
   }
 
+  // `as` / `satisfies` lex as plain identifiers, so they only count as
+  // a cast when they sit on the same line as the end of the previous
+  // token and a type can follow. That keeps them usable as ordinary
+  // names on a line of their own.
+  isAsCast() {
+    const tok = this.peek()
+    if (
+      tok.type !== TokenType.IDENTIFIER ||
+      (tok.value !== 'as' && tok.value !== 'satisfies')
+    ) {
+      return false
+    }
+    const prev = this.tokens[this.pos - 1]
+    const next = this.tokens[this.pos + 1]
+    if (!prev || !next || prev.line !== tok.line) return false
+    return (
+      next.type === TokenType.IDENTIFIER ||
+      next.type === TokenType.CONST ||
+      next.type === TokenType.LBRACE ||
+      next.type === TokenType.LBRACKET ||
+      next.type === TokenType.LPAREN ||
+      next.type === TokenType.STRING ||
+      next.type === TokenType.NUMBER ||
+      next.type === TokenType.TYPEOF ||
+      next.type === TokenType.VOID ||
+      next.type === TokenType.MINUS
+    )
+  }
+
   parseComparison() {
     let left = this.parsePredicate()
-    // `>>=` / `<<=` start with a GT/LT token; those belong to
-    // parseAssignment, not to a comparison.
-    while (COMPARISON_SYMBOLS[this.peek().type] && !this.compoundShiftAt()) {
-      const operator = COMPARISON_SYMBOLS[this.advance().type]
-      const right = this.parsePredicate()
-      left = BinaryExpr(operator, left, right)
+    while (true) {
+      if (this.isAsCast()) {
+        const keyword = this.advance().value // 'as' | 'satisfies'
+        let type
+        if (keyword === 'as' && this.match(TokenType.CONST)) {
+          type = 'const'
+        } else {
+          type = this.parseTypeExpression()
+        }
+        left = AsExpr(left, type, keyword)
+        continue
+      }
+      // `>>=` / `<<=` start with a GT/LT token; those belong to
+      // parseAssignment, not to a comparison.
+      if (COMPARISON_SYMBOLS[this.peek().type] && !this.compoundShiftAt()) {
+        const operator = COMPARISON_SYMBOLS[this.advance().type]
+        const right = this.parsePredicate()
+        left = BinaryExpr(operator, left, right)
+        continue
+      }
+      break
     }
     return left
   }
@@ -1466,7 +2042,7 @@ parseNotOperand() {
     }
     if (this.match(TokenType.HAS)) {
       const right = this.parseShift()
-      return CallExpr(MemberExpr(left, 'includes'), [right])
+      return hasExpr(left, right)
     }
 
     return left
@@ -1528,6 +2104,9 @@ parseNotOperand() {
     if (this.match(TokenType.MINUS)) {
       return UnaryExpr('-', this.parseUnary())
     }
+    if (this.match(TokenType.PLUS)) {
+      return UnaryExpr('+', this.parseUnary())
+    }
     if (this.match(TokenType.TYPEOF)) {
       return UnaryExpr('typeof', this.parseUnary())
     }
@@ -1539,26 +2118,71 @@ parseNotOperand() {
     }
     if (this.match(TokenType.PLUS_PLUS)) {
       const target = this.parseUnary()
+      this.assertTargetRunsOnce(target)
       return AssignmentExpr(target, BinaryExpr('+', target, Literal(1)))
     }
     if (this.match(TokenType.MINUS_MINUS)) {
       const target = this.parseUnary()
+      this.assertTargetRunsOnce(target)
       return AssignmentExpr(target, BinaryExpr('-', target, Literal(1)))
     }
 
     const expr = this.parseMemberExpression()
     if (this.match(TokenType.PLUS_PLUS)) {
+      this.assertTargetRunsOnce(expr)
       return AssignmentExpr(expr, BinaryExpr('+', expr, Literal(1)))
     }
     if (this.match(TokenType.MINUS_MINUS)) {
+      this.assertTargetRunsOnce(expr)
       return AssignmentExpr(expr, BinaryExpr('-', expr, Literal(1)))
     }
     return expr
   }
 
+  // The parts of a lexed template literal, with each ${...} span
+  // parsed as an expression. Text parts keep both `value` (cooked)
+  // and `raw`.
+  templateLiteralFromParts(rawParts) {
+    return TemplateLiteralExpr(
+      rawParts.map((p) =>
+        p.type === 'text'
+          ? p
+          : {
+              type: 'expr',
+              // Same language options as the enclosing parser, so
+              // `${ not items has x }` follows the project's `not` mode.
+              expression: parseExpressionString(p.source, this.options),
+            },
+      ),
+    )
+  }
+
   parseMemberExpression() {
     let expr = this.parsePrimary()
     while (true) {
+      // Non-null assertion `x!` / `x!.y`: only when the `!` is written
+      // directly against the previous token, so a prefix `!` or a
+      // `not` on the next line is never taken for it.
+      if (
+        this.check(TokenType.NOT) &&
+        this.peek().value === '!' &&
+        adjacent(this.tokens[this.pos - 1], this.peek())
+      ) {
+        this.advance()
+        expr = NonNullExpr(expr)
+        continue
+      }
+      // Tagged template: tag`text ${x}`. Must start on the same line
+      // as the tag, so a template literal on its own line is never
+      // glued to the previous statement.
+      if (this.check(TokenType.TEMPLATE_LITERAL)) {
+        const prev = this.tokens[this.pos - 1]
+        if (prev && prev.line === this.peek().line) {
+          const quasi = this.templateLiteralFromParts(this.advance().value)
+          expr = TaggedTemplateExpr(expr, quasi)
+          continue
+        }
+      }
       if (this.match(TokenType.DOT)) {
         const property = this.parsePropertyName("after '.'")
         expr = MemberExpr(expr, property)
@@ -1618,106 +2242,116 @@ parseNotOperand() {
     return args
   }
 
-parsePrimary() {
-  if (this.match(TokenType.NEW)) {
-    let callee = this.parsePrimary()
-        while (this.match(TokenType.DOT)) {
-      const property = this.parsePropertyName("after '.'")
-      callee = MemberExpr(callee, property)
+  parsePrimary() {
+    if (this.match(TokenType.NEW)) {
+      // new.target
+      if (this.check(TokenType.DOT)) {
+        this.advance()
+        const prop = this.parsePropertyName("after 'new.'")
+        if (prop !== 'target') {
+          throw new Error(
+            `Expected 'new.target' at line ${this.peek().line}, got 'new.${prop}'`,
+          )
+        }
+        return Identifier('new.target')
+      }
+      let callee = this.parsePrimary()
+      while (this.match(TokenType.DOT)) {
+        const property = this.parsePropertyName("after '.'")
+        callee = MemberExpr(callee, property)
+      }
+      let args = []
+      if (this.check(TokenType.LPAREN)) {
+        args = this.parseCallArguments()
+      }
+      return NewExpr(callee, args)
     }
-    let args = []
-    if (this.check(TokenType.LPAREN)) {
-      args = this.parseCallArguments()
+
+    // function (a, b) { ... } / async function* name(a) { ... }
+    if (this.isFunctionKeywordAhead()) {
+      const isAsync = this.match(TokenType.ASYNC)
+      const fn = this.parseFunctionRest(isAsync)
+      return FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name, fn.isGenerator)
     }
-    return NewExpr(callee, args)
-  }
 
-  // function (a, b) { ... } / async function name(a) { ... }
-  if (this.isFunctionKeywordAhead()) {
-    const isAsync = this.match(TokenType.ASYNC)
-    const fn = this.parseFunctionRest(isAsync)
-    return FunctionExpr(fn.params, fn.body, fn.isAsync, fn.name)
-  }
+    // class { ... } / class Name extends Base { ... } as an expression
+    if (this.isClassAhead(true)) {
+      return this.parseClass(true)
+    }
 
-  // Regex literal. String(regex) yields "/pattern/flags", which
-  // every generator already emits for Literal nodes, so no codegen
-  // changes are needed.
-  if (this.check(TokenType.REGEX)) {
-    const tok = this.advance()
-    try {
-      return Literal(new RegExp(tok.value.pattern, tok.value.flags))
-    } catch (err) {
-      throw new Error(
-        `Invalid regular expression at line ${tok.line}: ${err.message}`,
+    // Regex literal. String(regex) yields "/pattern/flags", which
+    // every generator already emits for Literal nodes, so no codegen
+    // changes are needed.
+    if (this.check(TokenType.REGEX)) {
+      const tok = this.advance()
+      try {
+        return Literal(new RegExp(tok.value.pattern, tok.value.flags))
+      } catch (err) {
+        throw new Error(
+          `Invalid regular expression at line ${tok.line}: ${err.message}`,
+        )
+      }
+    }
+
+    // 10n -> BigInt("10"), so every generator handles it as a normal
+    // call to the BigInt global.
+    if (this.check(TokenType.BIGINT)) {
+      const text = this.advance().value
+      return CallExpr(Identifier('BigInt'), [Literal(text)])
+    }
+
+    if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
+      return Literal(this.advance().value)
+    }
+
+    if (this.check(TokenType.TEMPLATE_LITERAL)) {
+      return this.templateLiteralFromParts(this.advance().value)
+    }
+
+    if (
+      this.check(TokenType.IDENTIFIER) ||
+      KEYWORD_TOKEN_TYPES.has(this.peek().type)
+    ) {
+      const name = this.advance().value
+      // "null"/"true"/"false"/"undefined" are lexed as plain identifier
+      // tokens (there's no separate keyword TokenType for them), but
+      // they're JS keyword literals, not variable/state references.
+      // Emitting them as Literal here -- instead of Identifier -- means
+      // every downstream consumer treats them correctly by construction.
+      if (name === 'null') return Literal(null)
+      if (name === 'undefined') return Literal(undefined)
+      if (name === 'true') return Literal(true)
+      if (name === 'false') return Literal(false)
+      return Identifier(name)
+    }
+
+    // Grouping, and the comma operator: (a, b, c)
+    if (this.match(TokenType.LPAREN)) {
+      let expr = this.parseExpression()
+      if (this.check(TokenType.COMMA)) {
+        const expressions = [expr]
+        while (this.match(TokenType.COMMA)) {
+          expressions.push(this.parseExpression())
+        }
+        expr = SequenceExpr(expressions)
+      }
+      this.expect(
+        TokenType.RPAREN,
+        "Expected ')' to close a grouped expression",
       )
+      return expr
     }
-  }
-
-  // 10n -> BigInt("10"), so every generator handles it as a normal
-  // call to the BigInt global.
-  if (this.check(TokenType.BIGINT)) {
-    const text = this.advance().value
-    return CallExpr(Identifier('BigInt'), [Literal(text)])
-  }
-
-  if (this.check(TokenType.NUMBER) || this.check(TokenType.STRING)) {
-    return Literal(this.advance().value)
-  }
-
-  if (this.check(TokenType.TEMPLATE_LITERAL)) {
-    const rawParts = this.advance().value
-    const parts = rawParts.map((p) =>
-      p.type === 'text'
-        ? p
-        : {
-            type: 'expr',
-            // Same language options as the enclosing parser, so
-            // `${ not items has x }` follows the project's `not` mode.
-            expression: parseExpressionString(p.source, this.options),
-          },
+    if (this.match(TokenType.LBRACE)) {
+      return this.parseObjectLiteral()
+    }
+    if (this.match(TokenType.LBRACKET)) {
+      return this.parseArrayLiteral()
+    }
+    throw new Error(
+      `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
     )
-    return TemplateLiteralExpr(parts)
   }
 
-  if (
-    this.check(TokenType.IDENTIFIER) ||
-    KEYWORD_TOKEN_TYPES.has(this.peek().type)
-  ) {
-    const name = this.advance().value
-    // "null"/"true"/"false"/"undefined" are lexed as plain identifier
-    // tokens (there's no separate keyword TokenType for them), but
-    // they're JS keyword literals, not variable/state references.
-    // Emitting them as Literal here -- instead of Identifier -- means
-    // every downstream consumer treats them correctly by construction.
-    if (name === 'null') return Literal(null)
-    if (name === 'undefined') return Literal(undefined)
-    if (name === 'true') return Literal(true)
-    if (name === 'false') return Literal(false)
-    return Identifier(name)
-  }
-
-  if (this.match(TokenType.LPAREN)) {
-    const expr = this.parseExpression()
-    this.expect(
-      TokenType.RPAREN,
-      "Expected ')' to close a grouped expression",
-    )
-    return expr
-  }
-  if (this.match(TokenType.LBRACE)) {
-    return this.parseObjectLiteral()
-  }
-  if (this.match(TokenType.LBRACKET)) {
-    return this.parseArrayLiteral()
-  }
-  throw new Error(
-    `Unexpected token ${this.peek().type} at line ${this.peek().line}`,
-  )
-}
-  // Type expressions are captured as plain strings, not a full type
-  // AST -- Tylix's own codegen never interprets them, it only needs
-  // the exact TS source text to paste into the virtual .ts file handed
-  // to the TypeScript compiler API.
   // Type expressions are captured as plain strings, not a full type
   // AST -- Tylix's own codegen never interprets them, it only needs
   // the exact TS source text to paste into the virtual .ts file handed
@@ -1947,9 +2581,16 @@ parsePrimary() {
     return `{ ${members.join('; ')} }`
   }
 
+  // Array literal after the opening '['. A comma with nothing before
+  // it is a hole (`[1, , 3]`), stored as `null` in `elements`.
   parseArrayLiteral() {
     const elements = []
     while (!this.check(TokenType.RBRACKET)) {
+      if (this.check(TokenType.COMMA)) {
+        elements.push(null)
+        this.advance()
+        continue
+      }
       if (this.match(TokenType.SPREAD)) {
         elements.push(SpreadElement(this.parseExpression()))
       } else {
@@ -1968,6 +2609,9 @@ parsePrimary() {
   //   { [expr]: value }               computed keys
   //   { save(x) { ... } }             method shorthand
   //   { async load() { ... } }        async method shorthand
+  //   { *items() { ... } }            generator method (also async *)
+  //   { get total() { ... } }         getter
+  //   { set total(v) { ... } }        setter
   parseObjectLiteral() {
     const properties = []
     while (!this.check(TokenType.RBRACE)) {
@@ -1983,10 +2627,33 @@ parsePrimary() {
         continue
       }
 
+      // `get name() {}` / `set name(v) {}`. `{ get }`, `{ get: 1 }`,
+      // `{ get, set }` and `get() {}` stay ordinary keys/methods.
+      let accessorKind = null
+      if (
+        this.check(TokenType.IDENTIFIER) &&
+        (this.peek().value === 'get' || this.peek().value === 'set')
+      ) {
+        const word = this.peek()
+        const n = this.tokens[this.pos + 1]
+        if (
+          n &&
+          n.line === word.line &&
+          (n.type === TokenType.IDENTIFIER ||
+            KEYWORD_TOKEN_TYPES.has(n.type) ||
+            n.type === TokenType.STRING ||
+            n.type === TokenType.NUMBER ||
+            n.type === TokenType.LBRACKET)
+        ) {
+          accessorKind = word.value
+          this.advance()
+        }
+      }
+
       // `async name(...) { }` -- but `async: x`, `async,` and `async()`
       // are ordinary keys/methods named "async".
       let isAsync = false
-      if (this.check(TokenType.ASYNC)) {
+      if (!accessorKind && this.check(TokenType.ASYNC)) {
         const n = this.tokens[this.pos + 1]
         if (
           n &&
@@ -1998,6 +2665,12 @@ parsePrimary() {
           this.advance()
           isAsync = true
         }
+      }
+
+      // `*name() { }` generator method
+      let isGenerator = false
+      if (!accessorKind && this.match(TokenType.STAR)) {
+        isGenerator = true
       }
 
       let key = null
@@ -2027,25 +2700,28 @@ parsePrimary() {
         )
       }
 
-      // Method shorthand
+      // Method shorthand / accessor
       if (this.check(TokenType.LPAREN)) {
         this.advance()
         const params = this.parseParamList()
         if (this.match(TokenType.COLON)) this.parseTypeExpression()
-        const body = this.parseBlockStatements('method body')
+        const body = this.withGenerator(isGenerator, () =>
+          this.parseBlockStatements('method body'),
+        )
         properties.push({
           key,
           keyExpr,
           method: true,
-          value: FunctionExpr(params, body, isAsync),
+          kind: accessorKind ?? 'method',
+          value: FunctionExpr(params, body, isAsync, null, isGenerator),
         })
         this.match(TokenType.COMMA)
         continue
       }
 
-      if (isAsync) {
+      if (isAsync || isGenerator || accessorKind) {
         throw new Error(
-          `Expected '(' after async method name at line ${this.peek().line}`,
+          `Expected '(' after the method name at line ${this.peek().line}`,
         )
       }
 

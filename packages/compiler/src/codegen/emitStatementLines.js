@@ -3,6 +3,7 @@ import {
   declarationSource,
   forHeaderSource,
   generateDeclarationTarget,
+  generateStatement,
 } from './generateStatement.js'
 
 // Structurally the same cases as generateStatement.js, but emits one
@@ -21,7 +22,8 @@ import {
 //
 // Block-bodied arrows never reach this file directly: they are
 // emitted by generateExpression, which delegates their statements to
-// generateStatement (typed), so there is no BlockStatement case here.
+// generateStatement (typed). A standalone `{ ... }` block statement
+// does reach it and is handled below.
 export function emitStatementLines(node, sink, indent = '    ') {
   const line = node.line
   const push = (text) => sink.pushLine(`${indent}${text}`, line)
@@ -33,6 +35,22 @@ export function emitStatementLines(node, sink, indent = '    ') {
   switch (node.type) {
     case 'EmptyStatement':
       push(';')
+      break
+
+    case 'DebuggerStatement':
+      push('debugger;')
+      break
+
+    case 'BlockStatement':
+      push('{')
+      nested(node.body)
+      push('}')
+      break
+
+    // The label sits on its own line, directly above its statement.
+    case 'LabeledStatement':
+      push(`${node.label}:`)
+      emitStatementLines(node.body, sink, indent)
       break
 
     case 'ReturnStatement':
@@ -51,9 +69,16 @@ export function emitStatementLines(node, sink, indent = '    ') {
       push(`${declarationSource(node, true)};`)
       break
 
+    // A class is rendered by generateStatement as one multi-line
+    // string; split it so every generated line gets its own lineMap
+    // entry (embedded newlines would shift all later line numbers).
+    case 'ClassDeclaration':
+      for (const text of generateStatement(node, true).split('\n')) push(text)
+      break
+
     case 'FunctionDeclaration':
       push(
-        `${node.isAsync ? 'async ' : ''}function ${node.name}(${generateParams(node.params, true)}) {`,
+        `${node.isAsync ? 'async ' : ''}function${node.isGenerator ? '*' : ''} ${node.name}(${generateParams(node.params, true)}) {`,
       )
       nested(node.body)
       push('}')
@@ -104,7 +129,7 @@ export function emitStatementLines(node, sink, indent = '    ') {
 
     case 'ForInStatement':
       push(
-        `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, true)} of ${expr(node.iterable)}) {`,
+        `for ${node.isAwait ? 'await ' : ''}(${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, true)} of ${expr(node.iterable)}) {`,
       )
       nested(node.body)
       push('}')
@@ -139,18 +164,29 @@ export function emitStatementLines(node, sink, indent = '    ') {
       break
 
     case 'BreakStatement':
-      push('break;')
+      push(node.label ? `break ${node.label};` : 'break;')
       break
 
     case 'ContinueStatement':
-      push('continue;')
+      push(node.label ? `continue ${node.label};` : 'continue;')
       break
 
     case 'TryStatement':
       push('try {')
       nested(node.tryBlock)
       if (node.catchBlock) {
-        push(node.catchParam ? `} catch (${node.catchParam}) {` : '} catch {')
+        if (node.catchParam == null) {
+          push('} catch {')
+        } else if (typeof node.catchParam === 'string') {
+          // JS gives the catch variable `any` semantics; TypeScript's
+          // default under strict is `unknown`.
+          push(`} catch (${node.catchParam}: ${node.catchType ?? 'any'}) {`)
+        } else {
+          push('} catch (__caught: any) {')
+          push(
+            `  const ${generateDeclarationTarget(node.catchParam, true)} = __caught;`,
+          )
+        }
         nested(node.catchBlock)
       }
       if (node.finallyBlock) {

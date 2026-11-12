@@ -1,12 +1,17 @@
-import { generateExpression, generateParams } from './generateExpression.js'
+import {
+  generateExpression,
+  generateParams,
+  generateClass,
+} from './generateExpression.js'
 
 /**
  * Compiles a single statement AST node into a JS source line.
  *
  * `typed` is threaded through to generateExpression so a block-bodied
  * arrow compiled for the virtual .ts file keeps its `: any` param
- * annotations on nested arrows. It defaults to false, so every
- * existing caller (generateMethod, generateCapability) is unchanged.
+ * annotations on nested arrows, and so local declarations keep their
+ * `: Type`. It defaults to false, so every existing caller
+ * (generateMethod, generateCapability) is unchanged.
  */
 export function generateStatement(node, typed = false) {
   const expr = (n) => generateExpression(n, typed)
@@ -16,6 +21,15 @@ export function generateStatement(node, typed = false) {
   switch (node.type) {
     case 'EmptyStatement':
       return ';'
+
+    case 'DebuggerStatement':
+      return 'debugger;'
+
+    case 'BlockStatement':
+      return `{\n${stmts(node.body)}\n  }`
+
+    case 'LabeledStatement':
+      return `${node.label}: ${generateStatement(node.body, typed)}`
 
     case 'ReturnStatement':
       return node.argument ? `return ${expr(node.argument)};` : 'return;'
@@ -29,8 +43,11 @@ export function generateStatement(node, typed = false) {
     case 'VariableDeclaration':
       return `${declarationSource(node, typed)};`
 
+    case 'ClassDeclaration':
+      return generateClass(node, typed)
+
     case 'FunctionDeclaration':
-      return `${node.isAsync ? 'async ' : ''}function ${node.name}(${generateParams(node.params, typed)}) {\n${stmts(node.body)}\n  }`
+      return `${node.isAsync ? 'async ' : ''}function${node.isGenerator ? '*' : ''} ${node.name}(${generateParams(node.params, typed)}) {\n${stmts(node.body)}\n  }`
 
     case 'IfStatement': {
       let out = `if (${expr(node.condition)}) {\n${stmts(node.consequent)}\n  }`
@@ -63,7 +80,7 @@ export function generateStatement(node, typed = false) {
     }
 
     case 'ForInStatement':
-      return `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, typed)} of ${expr(node.iterable)}) {\n${stmts(node.body)}\n  }`
+      return `for ${node.isAwait ? 'await ' : ''}(${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, typed)} of ${expr(node.iterable)}) {\n${stmts(node.body)}\n  }`
 
     case 'ForKeysStatement':
       return `for (${node.declKind ?? 'const'} ${generateDeclarationTarget(node.varName, typed)} in ${expr(node.object)}) {\n${stmts(node.body)}\n  }`
@@ -78,19 +95,35 @@ export function generateStatement(node, typed = false) {
       return `for (let __i = 0; __i < ${expr(node.count)}; __i++) {\n${stmts(node.body)}\n  }`
 
     case 'BreakStatement':
-      return 'break;'
+      return node.label ? `break ${node.label};` : 'break;'
 
     case 'ContinueStatement':
-      return 'continue;'
+      return node.label ? `continue ${node.label};` : 'continue;'
 
     case 'TryStatement': {
       let out = `try {\n${stmts(node.tryBlock)}\n  }`
 
       if (node.catchBlock) {
-        const catchHeader = node.catchParam
-          ? `catch (${node.catchParam})`
-          : 'catch'
-        out += ` ${catchHeader} {\n${stmts(node.catchBlock)}\n  }`
+        let header = 'catch'
+        let prelude = ''
+        if (node.catchParam != null) {
+          if (typeof node.catchParam === 'string') {
+            // Typed: JS gives the catch variable `any` semantics, so
+            // the virtual file does too (TypeScript's default would
+            // be `unknown` under strict).
+            header = typed
+              ? `catch (${node.catchParam}: ${node.catchType ?? 'any'})`
+              : `catch (${node.catchParam})`
+          } else if (typed) {
+            // TypeScript forbids a destructuring pattern directly in
+            // a catch clause with a type, so bind it on the next line.
+            header = 'catch (__caught: any)'
+            prelude = `    const ${generateDeclarationTarget(node.catchParam, true)} = __caught;\n`
+          } else {
+            header = `catch (${generateDeclarationTarget(node.catchParam)})`
+          }
+        }
+        out += ` ${header} {\n${prelude}${stmts(node.catchBlock)}\n  }`
       }
 
       if (node.finallyBlock) {
@@ -105,17 +138,21 @@ export function generateStatement(node, typed = false) {
   }
 }
 
-// `const a = 1, { b } = x` -- the declaration WITHOUT a trailing
+// `const a: A = 1, { b } = x` -- the declaration WITHOUT a trailing
 // semicolon (used by statements and by C-style for headers). A null
-// init (`let x`) emits just the target.
+// init (`let x`) emits just the target. Type annotations are emitted
+// only in typed mode (the virtual .ts); real JS output omits them.
 export function declarationSource(node, typed = false) {
-  const one = (name, init) =>
-    init == null
-      ? generateDeclarationTarget(name, typed)
-      : `${generateDeclarationTarget(name, typed)} = ${generateExpression(init, typed)}`
+  const one = (name, init, type) => {
+    const target = generateDeclarationTarget(name, typed)
+    const annotation = typed && type ? `: ${type}` : ''
+    return init == null
+      ? `${target}${annotation}`
+      : `${target}${annotation} = ${generateExpression(init, typed)}`
+  }
   const parts = [
-    one(node.name, node.init),
-    ...(node.more ?? []).map((m) => one(m.name, m.init)),
+    one(node.name, node.init, node.typeAnnotation),
+    ...(node.more ?? []).map((m) => one(m.name, m.init, m.typeAnnotation)),
   ]
   return `${node.kind} ${parts.join(', ')}`
 }

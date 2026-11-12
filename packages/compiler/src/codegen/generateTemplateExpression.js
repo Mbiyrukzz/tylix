@@ -1,4 +1,4 @@
-import { generateExpression } from './generateExpression.js'
+import { generateExpression, joinArrayElements } from './generateExpression.js'
 import { JS_GLOBALS, paramNames } from './jsGlobals.js'
 
 // JS_GLOBALS (see jsGlobals.js) lists the plain JS/browser globals that
@@ -17,6 +17,14 @@ function unaryPrefix(operator) {
   return /^[a-z]/i.test(operator) ? `${operator} ` : operator
 }
 
+// `5.toFixed(1)` is a syntax error; `(5).toFixed(1)` is not.
+function memberObject(node, scope) {
+  const src = generateTemplateExpression(node, scope)
+  return node.type === 'Literal' && typeof node.value === 'number'
+    ? `(${src})`
+    : src
+}
+
 export function generateTemplateExpression(node, scope = new Set()) {
   if (node.type === 'Identifier') {
     if (node.name === '$event' || scope.has(node.name)) {
@@ -33,9 +41,9 @@ export function generateTemplateExpression(node, scope = new Set()) {
 
   if (node.type === 'MemberExpression') {
     if (node.computed) {
-      return `${generateTemplateExpression(node.object, scope)}${node.optional ? '?.' : ''}[${generateTemplateExpression(node.property, scope)}]`
+      return `${memberObject(node.object, scope)}${node.optional ? '?.' : ''}[${generateTemplateExpression(node.property, scope)}]`
     }
-    return `${generateTemplateExpression(node.object, scope)}${node.optional ? '?.' : '.'}${node.property}`
+    return `${memberObject(node.object, scope)}${node.optional ? '?.' : '.'}${node.property}`
   }
 
   if (node.type === 'BinaryExpression') {
@@ -52,6 +60,17 @@ export function generateTemplateExpression(node, scope = new Set()) {
 
   if (node.type === 'UnaryExpression') {
     return `(${unaryPrefix(node.operator)}${generateTemplateExpression(node.argument, scope)})`
+  }
+
+  // `(a, b)` -- the comma operator.
+  if (node.type === 'SequenceExpression') {
+    return `(${node.expressions.map((e) => generateTemplateExpression(e, scope)).join(', ')})`
+  }
+
+  // `x as T` and `x!` only matter to the typechecker; the real
+  // template code is just the inner expression.
+  if (node.type === 'AsExpression' || node.type === 'NonNullExpression') {
+    return generateTemplateExpression(node.expression, scope)
   }
 
   // Only valid inside an `async` arrow (`{{ async () => await ... }}`)
@@ -90,6 +109,11 @@ export function generateTemplateExpression(node, scope = new Set()) {
   // function is parenthesized so it is safe both as a call argument
   // and as an event handler that gets invoked immediately.
   if (node.type === 'ArrowFunctionExpression') {
+    if (node.body.type === 'BlockStatement') {
+      throw new Error(
+        'Block-bodied arrow functions (x => { ... }) are not allowed in templates; use an expression body or move the code into an action',
+      )
+    }
     const innerScope = new Set([...scope, ...paramNames(node.params)])
     const defaults = node.paramDefaults ?? []
     const params = node.params
@@ -104,11 +128,12 @@ export function generateTemplateExpression(node, scope = new Set()) {
     return `(${asyncPrefix}(${params}) => ${body})`
   }
 
+  // Holes (`null` elements) become empty slots: [1, , 3]
   if (node.type === 'ArrayExpression') {
-    const elements = node.elements
-      .map((e) => generateTemplateExpression(e, scope))
-      .join(', ')
-    return `[${elements}]`
+    const parts = node.elements.map((e) =>
+      e === null ? '' : generateTemplateExpression(e, scope),
+    )
+    return `[${joinArrayElements(parts)}]`
   }
 
   // Parenthesized so an object literal is never mistaken for a block
@@ -119,7 +144,7 @@ export function generateTemplateExpression(node, scope = new Set()) {
         if (p.spread) return `...${generateTemplateExpression(p.value, scope)}`
         if (p.method) {
           throw new Error(
-            'Method shorthand ({ fn() {} }) is only allowed in script code, not in template expressions',
+            'Methods and getters/setters in object literals ({ fn() {} }, { get x() {} }) are only allowed in script code, not in template expressions',
           )
         }
         const keySrc = p.keyExpr
@@ -146,8 +171,26 @@ export function generateTemplateExpression(node, scope = new Set()) {
     return `\`${body}\``
   }
 
+  // tag`text ${x}` -- text parts are emitted as written (`raw`).
+  if (node.type === 'TaggedTemplateExpression') {
+    const body = node.quasi.parts
+      .map((part) =>
+        part.type === 'text'
+          ? (part.raw ?? escapeTemplateLiteralText(part.value))
+          : `\${${generateTemplateExpression(part.expression, scope)}}`,
+      )
+      .join('')
+    return `${generateTemplateExpression(node.tag, scope)}\`${body}\``
+  }
+
   if (node.type === 'Literal') {
     return generateExpression(node)
+  }
+
+  if (node.type === 'ClassExpression') {
+    throw new Error(
+      'Classes are only allowed in script code, not in template expressions',
+    )
   }
 
   throw new Error(

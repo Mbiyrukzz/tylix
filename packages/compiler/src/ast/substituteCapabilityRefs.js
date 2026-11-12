@@ -1,10 +1,10 @@
 import { Identifier, CallExpr, Literal } from './nodes.js'
 
 // A bare capability name (`Auth`) used to become `this.Auth`, which is
-// wrong inside `function () {}` bodies and object-method shorthand,
-// where `this` is not the page. resolveCapability("Auth") is a global
-// of the inline script and returns the same memoized singleton, so it
-// works in every kind of function.
+// wrong inside `function () {}` bodies, object-method shorthand and
+// class methods, where `this` is not the page. resolveCapability("Auth")
+// is a global of the inline script and returns the same memoized
+// singleton, so it works in every kind of function.
 function capabilityRef(name) {
   return CallExpr(Identifier('resolveCapability'), [Literal(name)])
 }
@@ -19,6 +19,20 @@ function rewriteParams(params, names) {
       ? { ...p, defaultValue: rewriteExpr(p.defaultValue, names) }
       : p,
   )
+}
+
+function rewriteClass(node, names) {
+  return {
+    ...node,
+    superClass: rewriteExpr(node.superClass, names),
+    members: node.members.map((m) => ({
+      ...m,
+      keyExpr: m.keyExpr ? rewriteExpr(m.keyExpr, names) : m.keyExpr,
+      params: m.params ? rewriteParams(m.params, names) : m.params,
+      body: m.body ? rewriteList(m.body, names) : m.body,
+      value: m.value ? rewriteExpr(m.value, names) : m.value,
+    })),
+  }
 }
 
 function rewriteExpr(node, names) {
@@ -57,7 +71,24 @@ function rewriteExpr(node, names) {
     case 'UnaryExpression':
     case 'AwaitExpression':
     case 'SpreadElement':
+    case 'YieldExpression':
       return { ...node, argument: rewriteExpr(node.argument, names) }
+    case 'AsExpression':
+    case 'NonNullExpression':
+      return { ...node, expression: rewriteExpr(node.expression, names) }
+    case 'SequenceExpression':
+      return {
+        ...node,
+        expressions: node.expressions.map((e) => rewriteExpr(e, names)),
+      }
+    case 'TaggedTemplateExpression':
+      return {
+        ...node,
+        tag: rewriteExpr(node.tag, names),
+        quasi: rewriteExpr(node.quasi, names),
+      }
+    case 'ClassExpression':
+      return rewriteClass(node, names)
     case 'TernaryExpression':
       return {
         ...node,
@@ -130,6 +161,12 @@ function rewriteStatement(stmt, names) {
       return { ...stmt, argument: rewriteExpr(stmt.argument, names) }
     case 'VariableDeclaration':
       return rewriteDeclaration(stmt, names)
+    case 'ClassDeclaration':
+      return rewriteClass(stmt, names)
+    case 'BlockStatement':
+      return { ...stmt, body: rewriteList(stmt.body, names) }
+    case 'LabeledStatement':
+      return { ...stmt, body: rewriteStatement(stmt.body, names) }
     case 'FunctionDeclaration':
       return {
         ...stmt,

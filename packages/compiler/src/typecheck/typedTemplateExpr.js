@@ -1,4 +1,5 @@
 import { JS_GLOBALS, paramNames } from '../codegen/jsGlobals.js'
+import { joinArrayElements } from '../codegen/generateExpression.js'
 
 // generateTemplateExpression's twin, for the virtual .ts class body
 // built in buildVirtualPageTs. The REAL compiled template (see
@@ -19,6 +20,14 @@ function unaryPrefix(operator) {
   return /^[a-z]/i.test(operator) ? `${operator} ` : operator
 }
 
+// `5.toFixed(1)` is a syntax error; `(5).toFixed(1)` is not.
+function memberObject(node, scope) {
+  const src = typedTemplateExpr(node, scope)
+  return node.type === 'Literal' && typeof node.value === 'number'
+    ? `(${src})`
+    : src
+}
+
 export function typedTemplateExpr(node, scope) {
   if (node.type === 'Identifier') {
     if (node.name === '$event' || scope.has(node.name)) return node.name
@@ -28,15 +37,28 @@ export function typedTemplateExpr(node, scope) {
   }
   if (node.type === 'MemberExpression') {
     if (node.computed) {
-      return `${typedTemplateExpr(node.object, scope)}${node.optional ? '?.' : ''}[${typedTemplateExpr(node.property, scope)}]`
+      return `${memberObject(node.object, scope)}${node.optional ? '?.' : ''}[${typedTemplateExpr(node.property, scope)}]`
     }
-    return `${typedTemplateExpr(node.object, scope)}${node.optional ? '?.' : '.'}${node.property}`
+    return `${memberObject(node.object, scope)}${node.optional ? '?.' : '.'}${node.property}`
   }
   if (node.type === 'BinaryExpression') {
     return `(${typedTemplateExpr(node.left, scope)} ${node.operator} ${typedTemplateExpr(node.right, scope)})`
   }
   if (node.type === 'UnaryExpression') {
     return `(${unaryPrefix(node.operator)}${typedTemplateExpr(node.argument, scope)})`
+  }
+
+  // `(a, b)` -- the comma operator.
+  if (node.type === 'SequenceExpression') {
+    return `(${node.expressions.map((e) => typedTemplateExpr(e, scope)).join(', ')})`
+  }
+
+  // The casts are the whole point of the virtual file: keep them.
+  if (node.type === 'AsExpression') {
+    return `(${typedTemplateExpr(node.expression, scope)} ${node.keyword ?? 'as'} ${node.typeAnnotation})`
+  }
+  if (node.type === 'NonNullExpression') {
+    return `${typedTemplateExpr(node.expression, scope)}!`
   }
 
   if (node.type === 'AwaitExpression') {
@@ -51,9 +73,9 @@ export function typedTemplateExpr(node, scope) {
     return `(${typedTemplateExpr(node.left, scope)} ?? ${typedTemplateExpr(node.right, scope)})`
   }
 
- if (node.type === 'AssignmentExpression') {
-  return `(${typedTemplateExpr(node.target, scope)} = ${typedTemplateExpr(node.value, scope)})`
-}
+  if (node.type === 'AssignmentExpression') {
+    return `(${typedTemplateExpr(node.target, scope)} = ${typedTemplateExpr(node.value, scope)})`
+  }
   if (node.type === 'CallExpression') {
     const args = node.args.map((a) => typedTemplateExpr(a, scope)).join(', ')
     return `${typedTemplateExpr(node.callee, scope)}${node.optional ? '?.' : ''}(${args})`
@@ -63,32 +85,42 @@ export function typedTemplateExpr(node, scope) {
     return `new ${typedTemplateExpr(node.callee, scope)}(${args})`
   }
 
-  // Arrow params are typed `any` unless annotated, matching what
-  // generateExpression does in typed mode. Params become locals, so
-  // they are referenced bare in the body. Destructured/rest params are
-  // stored as source strings; paramNames() extracts the names they
-  // bind. Defaults are checked in the arrow's own scope.
+  // Arrow params are typed `any` (`any[]` for rest) unless annotated,
+  // matching what generateExpression does in typed mode. Params become
+  // locals, so they are referenced bare in the body. Destructured/rest
+  // params are stored as source strings; paramNames() extracts the
+  // names they bind. Defaults are checked in the arrow's own scope.
   if (node.type === 'ArrowFunctionExpression') {
+    if (node.body.type === 'BlockStatement') {
+      throw new Error(
+        'Block-bodied arrow functions (x => { ... }) are not allowed in templates; use an expression body or move the code into an action',
+      )
+    }
     const innerScope = new Set([...scope, ...paramNames(node.params)])
     const types = node.paramTypes ?? node.params.map(() => null)
     const defaults = node.paramDefaults ?? []
+    const optionals = node.paramOptional ?? []
     const params = node.params
       .map((name, i) => {
-        const base = `${name}: ${types[i] ?? 'any'}`
+        const fallback = name.startsWith('...') ? 'any[]' : 'any'
+        const optional = optionals[i] && !defaults[i] ? '?' : ''
+        const base = `${name}${optional}: ${types[i] ?? fallback}`
         return defaults[i]
           ? `${base} = ${typedTemplateExpr(defaults[i], innerScope)}`
           : base
       })
       .join(', ')
     const asyncPrefix = node.isAsync ? 'async ' : ''
-    return `(${asyncPrefix}(${params}) => (${typedTemplateExpr(node.body, innerScope)}))`
+    const returnType = node.returnType ? `: ${node.returnType}` : ''
+    return `(${asyncPrefix}(${params})${returnType} => (${typedTemplateExpr(node.body, innerScope)}))`
   }
 
+  // Holes (`null` elements) become empty slots: [1, , 3]
   if (node.type === 'ArrayExpression') {
-    const elements = node.elements
-      .map((e) => typedTemplateExpr(e, scope))
-      .join(', ')
-    return `[${elements}]`
+    const parts = node.elements.map((e) =>
+      e === null ? '' : typedTemplateExpr(e, scope),
+    )
+    return `[${joinArrayElements(parts)}]`
   }
 
   if (node.type === 'ObjectExpression') {
@@ -97,7 +129,7 @@ export function typedTemplateExpr(node, scope) {
         if (p.spread) return `...${typedTemplateExpr(p.value, scope)}`
         if (p.method) {
           throw new Error(
-            'Method shorthand ({ fn() {} }) is only allowed in script code, not in template expressions',
+            'Methods and getters/setters in object literals ({ fn() {} }, { get x() {} }) are only allowed in script code, not in template expressions',
           )
         }
         const keySrc = p.keyExpr
@@ -124,11 +156,30 @@ export function typedTemplateExpr(node, scope) {
     return `\`${body}\``
   }
 
+  // tag`text ${x}` -- text parts are emitted as written (`raw`).
+  if (node.type === 'TaggedTemplateExpression') {
+    const body = node.quasi.parts
+      .map((part) =>
+        part.type === 'text'
+          ? (part.raw ?? escapeTemplateText(part.value))
+          : `\${${typedTemplateExpr(part.expression, scope)}}`,
+      )
+      .join('')
+    return `${typedTemplateExpr(node.tag, scope)}\`${body}\``
+  }
+
   if (node.type === 'Literal') {
     return typeof node.value === 'string'
       ? JSON.stringify(node.value)
       : String(node.value)
   }
+
+  if (node.type === 'ClassExpression') {
+    throw new Error(
+      'Classes are only allowed in script code, not in template expressions',
+    )
+  }
+
   throw new Error(`typedTemplateExpr: unsupported node type "${node.type}"`)
 }
 
@@ -189,7 +240,9 @@ const EVENT_TYPES = {
 }
 
 function eventTypesFor(eventName) {
-  return EVENT_TYPES[eventName.toLowerCase()] ?? ['Event', 'HTMLElement']
+  return Object.hasOwn(EVENT_TYPES, eventName.toLowerCase())
+    ? EVENT_TYPES[eventName.toLowerCase()]
+    : ['Event', 'HTMLElement']
 }
 
 // Walks a parsed template AST (from parseTemplate) collecting every

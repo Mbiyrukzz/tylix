@@ -2,6 +2,17 @@ import { TokenType, KEYWORDS } from './tokenTypes.js'
 
 const T = TokenType
 
+// Identifier characters follow the JS spec (Unicode ID_Start /
+// ID_Continue plus $ and _), so names like `café` or `変数` work.
+const ID_START = /^[\p{ID_Start}_$]$/u
+const ID_PART = /^[\p{ID_Continue}$\u200c\u200d]$/u
+
+// The whole code point at index i (handles surrogate pairs), or ''.
+function codePointStringAt(src, i) {
+  const cp = src.codePointAt(i)
+  return cp === undefined ? '' : String.fromCodePoint(cp)
+}
+
 // Multi-character operators, matched longest-first. JS-style spellings
 // of Tylix word operators are aliased here:
 //   == / ===  -> is        != / !==  -> is not
@@ -128,6 +139,8 @@ const REGEX_PRECEDERS = new Set([
   T.IN,
   T.OF,
   T.IF,
+  T.ELSE,
+  T.DO,
   T.WHILE,
   T.SWITCH,
   T.INSTANCEOF,
@@ -193,7 +206,13 @@ export class Lexer {
         continue
       }
 
-      if (/[a-zA-Z_$]/.test(char)) {
+      // Identifiers: any Unicode ID_Start character, or `#name` (a
+      // class private name, lexed as one identifier token).
+      const ch = codePointStringAt(src, this.pos)
+      if (
+        ID_START.test(ch) ||
+        (ch === '#' && ID_START.test(codePointStringAt(src, this.pos + 1)))
+      ) {
         this.readIdentifierOrKeyword()
         continue
       }
@@ -277,8 +296,6 @@ export class Lexer {
 
   // True when a "/" (or a ".5") at the current position should start a
   // regex literal (or number) based on the previous token.
-   // True when a "/" (or a ".5") at the current position should start a
-  // regex literal (or number) based on the previous token.
   regexAllowed() {
     const prev = this.tokens[this.tokens.length - 1]
     if (!prev) return true
@@ -288,6 +305,8 @@ export class Lexer {
     if (before && (before.type === T.DOT || before.type === T.QUESTION_DOT)) {
       return false
     }
+    // `yield /re/` -- yield is a plain identifier token.
+    if (prev.type === T.IDENTIFIER && prev.value === 'yield') return true
     return REGEX_PRECEDERS.has(prev.type)
   }
 
@@ -412,32 +431,36 @@ export class Lexer {
     this.pushToken(T.STRING, value, startLine)
   }
 
-   // Scans a backtick template literal into a flat list of parts --
-  // { type: "text", value } for literal text, { type: "expr", source }
-  // for each ${...} span -- rather than re-entering full tokenization
-  // mid-string. Each expr span's raw source gets parsed later via
-  // parseExpressionString, reusing the same mechanism already used for
-  // {{ }} interpolations and #if/#each headers.
+  // Scans a backtick template literal into a flat list of parts --
+  // { type: "text", value, raw } for literal text, { type: "expr",
+  // source } for each ${...} span -- rather than re-entering full
+  // tokenization mid-string. `value` is the cooked text (escapes
+  // resolved); `raw` is the text exactly as written, which tagged
+  // templates need for String.raw. Each expr span's raw source gets
+  // parsed later via parseExpressionString.
   readTemplateLiteral() {
+    const src = this.source
     const startLine = this.line
     this.pos++ // skip opening backtick
     const parts = []
     let textBuf = ''
+    let rawBuf = ''
 
     const flushText = () => {
-      if (textBuf.length > 0) {
-        parts.push({ type: 'text', value: textBuf })
+      if (textBuf.length > 0 || rawBuf.length > 0) {
+        parts.push({ type: 'text', value: textBuf, raw: rawBuf })
         textBuf = ''
+        rawBuf = ''
       }
     }
 
     while (true) {
-      if (this.pos >= this.source.length) {
+      if (this.pos >= src.length) {
         throw new Error(
           `Unterminated template literal starting at line ${startLine}`,
         )
       }
-      const char = this.source[this.pos]
+      const char = src[this.pos]
 
       if (char === '`') {
         this.pos++ // skip closing backtick
@@ -445,11 +468,13 @@ export class Lexer {
       }
 
       if (char === '\\') {
+        const escStart = this.pos
         textBuf += this.readEscape()
+        rawBuf += src.slice(escStart, this.pos)
         continue
       }
 
-      if (char === '$' && this.source[this.pos + 1] === '{') {
+      if (char === '$' && src[this.pos + 1] === '{') {
         flushText()
         this.pos += 2 // skip "${"
         const exprStart = this.pos
@@ -459,7 +484,7 @@ export class Lexer {
             `Unterminated \${...} in template literal starting at line ${startLine}`,
           )
         }
-        const exprSource = this.source.slice(exprStart, exprEnd)
+        const exprSource = src.slice(exprStart, exprEnd)
         // Newlines inside the span still count toward line numbers.
         this.line += (exprSource.match(/\n/g) ?? []).length
         this.pos = exprEnd + 1 // skip closing "}"
@@ -469,6 +494,7 @@ export class Lexer {
 
       if (char === '\n') this.line++
       textBuf += char
+      rawBuf += char
       this.pos++
     }
 
@@ -595,15 +621,22 @@ export class Lexer {
   }
 
   readIdentifierOrKeyword() {
+    const src = this.source
     const start = this.pos
-    while (
-      this.pos < this.source.length &&
-      /[a-zA-Z0-9_$]/.test(this.source[this.pos])
-    ) {
-      this.pos++
+    if (src[this.pos] === '#') this.pos++ // private name: #field
+    while (this.pos < src.length) {
+      const ch = codePointStringAt(src, this.pos)
+      if (!ID_PART.test(ch)) break
+      this.pos += ch.length
     }
-    const text = this.source.slice(start, this.pos)
-    const type = KEYWORDS[text] ?? T.IDENTIFIER
+    const text = src.slice(start, this.pos)
+    // Own-property lookup only: a plain `KEYWORDS[text]` also finds
+    // inherited names, so `toString`, `constructor` and
+    // `hasOwnProperty` used to come out as function "token types".
+    const type =
+      !text.startsWith('#') && Object.hasOwn(KEYWORDS, text)
+        ? KEYWORDS[text]
+        : T.IDENTIFIER
     this.pushToken(type, text)
   }
 

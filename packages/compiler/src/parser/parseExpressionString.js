@@ -16,6 +16,11 @@ export function parseExpressionString(source, options = {}) {
   const expression = parser.parseExpression()
   if (!parser.check(TokenType.EOF)) {
     const next = parser.peek()
+    if (next.type === TokenType.SEMICOLON) {
+      throw new Error(
+        `Only one expression is allowed in a template binding ("${source.trim()}"); to run several statements, put them in an action and call it`,
+      )
+    }
     throw new Error(
       `Unexpected "${next.value ?? next.type}" in expression "${source.trim()}"`,
     )

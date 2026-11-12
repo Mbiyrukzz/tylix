@@ -59,17 +59,19 @@ export function MethodNode(name, params, body, returnType = null) {
 }
 
 // A function/method parameter:
-//   name          plain name, or destructuring source text ("{ a, b }")
+//   name            plain name, or destructuring source text ("{ a, b }")
 //   typeAnnotation  TS type text or null
-//   defaultValue  expression node or null
-//   rest          true for `...name`
+//   defaultValue    expression node or null
+//   rest            true for `...name`
+//   optional        true for `name?: Type`
 export function Param(
   name,
   typeAnnotation = null,
   defaultValue = null,
   rest = false,
+  optional = false,
 ) {
-  return { name, typeAnnotation, defaultValue, rest }
+  return { name, typeAnnotation, defaultValue, rest, optional }
 }
 
 export function AssignmentExpr(target, value) {
@@ -173,19 +175,29 @@ export function AwaitExpr(argument) {
 }
 
 // `more` holds extra declarators of `const a = 1, b = 2`:
-// [{ name, init }]. init may be null for `let x`.
-export function VariableDeclaration(kind, name, init, more = []) {
-  return { type: 'VariableDeclaration', kind, name, init, more }
+// [{ name, init, typeAnnotation }]. init may be null for `let x`.
+// typeAnnotation (TS type text or null) belongs to the FIRST declarator;
+// extra declarators carry their own in `more[i].typeAnnotation`.
+export function VariableDeclaration(
+  kind,
+  name,
+  init,
+  more = [],
+  typeAnnotation = null,
+) {
+  return { type: 'VariableDeclaration', kind, name, init, more, typeAnnotation }
 }
 
 export function ObjectExpr(properties) {
   // properties: [{ key, value }]            plain
   //             [{ key: null, keyExpr, value }]   computed key
-  //             [{ key, keyExpr, method: true, value: FunctionExpr }]
+  //             [{ key, keyExpr, method: true, kind: 'method' | 'get' | 'set',
+  //                value: FunctionExpr }]   method shorthand / accessors
   //             [{ key: null, spread: true, value }]
   return { type: 'ObjectExpression', properties }
 }
 
+// elements may contain `null` for array holes: [1, , 3]
 export function ArrayExpr(elements) {
   return { type: 'ArrayExpression', elements }
 }
@@ -207,9 +219,16 @@ export function TernaryExpr(condition, consequent, alternate) {
 }
 
 // varName: a plain name or a destructuring pattern node. declKind is
-// 'const' (default) or 'let'. Iterates VALUES (for...of).
-export function ForInStatement(varName, iterable, body, declKind = 'const') {
-  return { type: 'ForInStatement', varName, iterable, body, declKind }
+// 'const' (default) or 'let'. Iterates VALUES (for...of). isAwait
+// marks `for await (... of ...)`.
+export function ForInStatement(
+  varName,
+  iterable,
+  body,
+  declKind = 'const',
+  isAwait = false,
+) {
+  return { type: 'ForInStatement', varName, iterable, body, declKind, isAwait }
 }
 
 // JS `for (const k in obj)` -- iterates KEYS.
@@ -233,12 +252,22 @@ export function RepeatStatement(count, body) {
   return { type: 'RepeatStatement', count, body }
 }
 
-export function BreakStatement() {
-  return { type: 'BreakStatement' }
+// label is the target of `break outer` / `continue outer`, or null.
+export function BreakStatement(label = null) {
+  return { type: 'BreakStatement', label }
 }
 
-export function ContinueStatement() {
-  return { type: 'ContinueStatement' }
+export function ContinueStatement(label = null) {
+  return { type: 'ContinueStatement', label }
+}
+
+// `outer: for (...) { ... }`
+export function LabeledStatement(label, body) {
+  return { type: 'LabeledStatement', label, body }
+}
+
+export function DebuggerStatement() {
+  return { type: 'DebuggerStatement' }
 }
 
 export function ArrowFunctionExpr(
@@ -247,14 +276,18 @@ export function ArrowFunctionExpr(
   paramTypes = null,
   isAsync = false,
   paramDefaults = null,
+  paramOptional = null,
+  returnType = null,
 ) {
   // body is either an expression node, or a BlockStatement node for
   // block-bodied arrows (`x => { ... }`). Block bodies are only valid
   // in script code; the template generators reject BlockStatement
-  // with their normal "unsupported node type" error.
+  // with a clear error.
   // isAsync marks `async x => ...` / `async (a, b) => ...`.
   // params are source strings ("x", "[k, v]", "{ id }", "...rest");
-  // paramDefaults is a parallel array of expression nodes or null.
+  // paramDefaults is a parallel array of expression nodes or null;
+  // paramOptional is a parallel array of booleans (`b?: string`);
+  // returnType is TS type text or null (`(x): number => ...`).
   return {
     type: 'ArrowFunctionExpression',
     params,
@@ -262,32 +295,102 @@ export function ArrowFunctionExpr(
     paramTypes,
     isAsync,
     paramDefaults,
+    paramOptional,
+    returnType,
   }
 }
 
 // `function name(a, b = 1, ...rest) { ... }` used as an expression
-// (also the value of object-literal method shorthand). Script only.
-export function FunctionExpr(params, body, isAsync = false, name = null) {
-  return { type: 'FunctionExpression', params, body, isAsync, name }
+// (also the value of object-literal methods and accessors).
+// isGenerator marks `function*`. Script only.
+export function FunctionExpr(
+  params,
+  body,
+  isAsync = false,
+  name = null,
+  isGenerator = false,
+) {
+  return { type: 'FunctionExpression', params, body, isAsync, name, isGenerator }
 }
 
-export function FunctionDeclaration(name, params, body, isAsync = false) {
-  return { type: 'FunctionDeclaration', name, params, body, isAsync }
+export function FunctionDeclaration(
+  name,
+  params,
+  body,
+  isAsync = false,
+  isGenerator = false,
+) {
+  return {
+    type: 'FunctionDeclaration',
+    name,
+    params,
+    body,
+    isAsync,
+    isGenerator,
+  }
 }
 
 export function TemplateLiteralExpr(parts) {
   return { type: 'TemplateLiteralExpression', parts }
 }
 
+// tag`text ${x}` -- quasi is a TemplateLiteralExpression whose text
+// parts carry `raw` (the text as written) for String.raw.
+export function TaggedTemplateExpr(tag, quasi) {
+  return { type: 'TaggedTemplateExpression', tag, quasi }
+}
+
 export function SpreadElement(argument) {
   return { type: 'SpreadElement', argument }
 }
 
-export function TryStatement(tryBlock, catchParam, catchBlock, finallyBlock) {
+// `(a, b, c)` -- the comma operator.
+export function SequenceExpr(expressions) {
+  return { type: 'SequenceExpression', expressions }
+}
+
+// `yield x` / `yield* x` / bare `yield` (argument null).
+export function YieldExpr(argument, delegate = false) {
+  return { type: 'YieldExpression', argument, delegate }
+}
+
+// `expr as Type` / `expr satisfies Type` -- the cast exists only in
+// the virtual .ts file; real JS output is just the inner expression.
+export function AsExpr(expression, typeAnnotation, keyword = 'as') {
+  return { type: 'AsExpression', expression, typeAnnotation, keyword }
+}
+
+// `expr!` -- non-null assertion, same deal: .ts only.
+export function NonNullExpr(expression) {
+  return { type: 'NonNullExpression', expression }
+}
+
+// members: see Parser.parseClassMember. Each is
+//   { kind: 'constructor' | 'method' | 'get' | 'set' | 'field' | 'staticBlock',
+//     static, key, keyExpr, keyKind: 'name' | 'string' | 'number' | 'computed',
+//     isAsync, isGenerator, params, body, returnType, typeAnnotation, value }
+export function ClassDeclaration(name, superClass, members) {
+  return { type: 'ClassDeclaration', name, superClass, members }
+}
+
+export function ClassExpr(name, superClass, members) {
+  return { type: 'ClassExpression', name, superClass, members }
+}
+
+// catchParam: null, a plain name, or a destructuring pattern node.
+// catchType: optional `any` / `unknown` written after a plain name.
+export function TryStatement(
+  tryBlock,
+  catchParam,
+  catchBlock,
+  finallyBlock,
+  catchType = null,
+) {
   return {
     type: 'TryStatement',
     tryBlock,
     catchParam,
+    catchType,
     catchBlock,
     finallyBlock,
   }

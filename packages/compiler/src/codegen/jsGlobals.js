@@ -73,17 +73,25 @@ export const JS_GLOBALS = new Set([
   'XMLHttpRequest',
   'BroadcastChannel',
   'Worker',
+  'EventTarget',
+
+  // streams
+  'ReadableStream',
+  'WritableStream',
+  'TransformStream',
 
   // core objects (Date and Intl cover toLocaleDateString,
   // Intl.DateTimeFormat, Intl.NumberFormat, ...)
   'Math',
   'JSON',
   'Date',
+  'Temporal',
   'Number',
   'String',
   'Boolean',
   'Array',
   'Object',
+  'Function',
   'Set',
   'Map',
   'WeakSet',
@@ -98,6 +106,8 @@ export const JS_GLOBALS = new Set([
   'Proxy',
   'Intl',
   'Atomics',
+  'Iterator',
+  'WebAssembly',
 
   // errors
   'Error',
@@ -135,9 +145,20 @@ export const JS_GLOBALS = new Set([
   'HTMLInputElement',
   'HTMLTextAreaElement',
   'HTMLSelectElement',
+  'HTMLOptionElement',
   'HTMLButtonElement',
   'HTMLFormElement',
   'HTMLCanvasElement',
+  'HTMLImageElement',
+  'HTMLAnchorElement',
+  'HTMLDivElement',
+  'HTMLSpanElement',
+  'HTMLDialogElement',
+  'HTMLVideoElement',
+  'HTMLAudioElement',
+  'HTMLIFrameElement',
+  'HTMLTableElement',
+  'HTMLLabelElement',
   'SVGElement',
   'Element',
   'Node',
@@ -154,6 +175,7 @@ export const JS_GLOBALS = new Set([
   'DragEvent',
   'TouchEvent',
   'SubmitEvent',
+  'ClipboardEvent',
   'MutationObserver',
   'IntersectionObserver',
   'ResizeObserver',
@@ -174,11 +196,16 @@ export const JS_GLOBALS = new Set([
   'reportError',
 ])
 
+// Identifiers follow the same Unicode rules as the Lexer, so a param
+// named `é` or `変数` is still recognised as a local.
+const IDENTIFIER_RE = /^[\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*$/u
+const IDENTIFIER_GLOBAL_RE = /[\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*/gu
+
 // Arrow params are stored as source strings ("x", "[k, v]", "{ id }",
 // "...args"). This returns the names those params actually bind, so
 // they can be treated as locals inside the arrow body.
 export function paramNames(params) {
   return params.flatMap((p) =>
-    /^[A-Za-z_$][\w$]*$/.test(p) ? [p] : (p.match(/[A-Za-z_$][\w$]*/g) ?? []),
+    IDENTIFIER_RE.test(p) ? [p] : (p.match(IDENTIFIER_GLOBAL_RE) ?? []),
   )
 }
