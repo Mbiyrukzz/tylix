@@ -5,9 +5,12 @@ import { inspect } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { loadConfig, detectLanguage } from '@tylix/shared'
-import { cache, discoverFeatures } from '@tylix/core'
+import { cache, discoverFeatures, dispatch } from '@tylix/core'
 import { ConnectionManager } from '@tylix/orm'
 import { migrate } from './migrate.js'
+import { createApp } from '../server/createApp.js'
+import { createRequester } from '../testing.js'
+import { routeFile } from '../frontend/generateFiles.js'
 
 const MASK = '••••••••'
 
@@ -85,7 +88,8 @@ function pageRoute(file) {
   return '/' + parts.join('/')
 }
 
-// Import every model in app/models into `target`.
+// Import every file in a folder (app/models, app/services) into `target`,
+// by its export named like the file (User.ts -> User).
 // `bust` adds a query string so edited files are re-imported fresh.
 async function loadModels(modelsDir, ext, target, bust = false) {
   const loaded = []
@@ -172,17 +176,33 @@ async function describeModel(model) {
   console.log('')
 }
 
-export async function tinker() {
+// tylix tinker               interactive REPL
+// tylix tinker --eval "code"  run code (await is implicit), print, exit
+export async function tinker({ evalCode = null } = {}) {
   const baseDir = process.cwd()
-  await bootstrapDatabase()
-
   const language = await detectLanguage(baseDir)
   const ext = language === 'typescript' ? 'ts' : 'js'
 
+  // The app's API, without a frontend: every route the server would serve,
+  // for routes() and request(). It also connects the database. If the app
+  // can't be built (say, a broken routes file), connect directly so tinker
+  // still opens and can help find the problem.
+  let app = null
+  try {
+    app = await createApp(baseDir, { frontend: false })
+  } catch (err) {
+    console.warn(`⚠ Could not build the app (${err.message}). routes() and request() are unavailable.`)
+    await bootstrapDatabase()
+  }
+  const config = app?.config ?? (await loadConfig(baseDir, language))
+  const requestAs = app ? createRequester(app) : null
+
   const modelsDir = path.join(baseDir, 'app', 'models')
+  const servicesDir = path.join(baseDir, 'app', 'services')
   const context = {}
 
   await loadModels(modelsDir, ext, context)
+  const serviceNames = await loadModels(servicesDir, ext, context)
 
   const modelNames = () =>
     Object.keys(replServer?.context ?? context).filter(
@@ -191,6 +211,17 @@ export async function tinker() {
 
   context.migrate = migrate
   context.cache = cache
+  context.dispatch = dispatch
+
+  // Calls the app's own API in-process, through the same middleware and
+  // auth as a real request:
+  //   request('GET', '/api/posts', { as: 1 })                as user 1
+  //   request('POST', '/api/posts', { as: user, body: { title: 'Hi', body: '...' } })
+  //   request('GET', '/api/public/posts')                    as a guest
+  context.request = async (method, url, options) => {
+    if (!requestAs) throw new Error('The app could not be built; see the warning above.')
+    return requestAs(method, url, options)
+  }
   context.methods = listMethods
   context.info = describeModel
 
@@ -252,7 +283,15 @@ export async function tinker() {
     console.log(safe)
   }
 
+  const driver = config.frontend.driver
+  const hosted = driver !== 'tylix'
+
   context.pages = async () => {
+    if (hosted) {
+      console.log(`${driver} pages (routes in app/frontend/${routeFile(driver, language === 'typescript')}):`)
+      console.log(await listFiles(path.join(baseDir, 'app', 'frontend', 'pages'), ''))
+      return
+    }
     console.log(await listFiles(path.join(baseDir, 'app', 'pages'), '.tyx'))
   }
 
@@ -278,55 +317,40 @@ export async function tinker() {
     console.log(await CacheRecord.all())
   }
 
-  context.exit = () => process.exit(0)
+  context.exit = async () => {
+    await ConnectionManager.getAdapter()?.close?.()
+    process.exit(0)
+  }
 
+  // Every API route the server registers (feature CRUD, app/routes files,
+  // auth), as recorded while building the app, plus where pages come from.
   context.routes = async () => {
-    const pageFiles = await listFiles(
-      path.join(baseDir, 'app', 'pages'),
-      '.tyx',
-    )
+    if (app) {
+      const width = Math.max(...app.routes.map((r) => r.pattern.length), 10)
+      console.log('API routes:')
+      for (const route of app.routes) {
+        const method = route.method.padEnd(7)
+        const from = { routes: 'app/routes', feature: 'feature', auth: 'built-in auth' }[route.source] ?? route.source
+        const note = [route.auth ? '🔒 login required' : '', `(${from})`].filter(Boolean).join('  ')
+        console.log(`  ${method} ${route.pattern.padEnd(width)}  ${note}`)
+      }
+      if (app.routes.length === 0) console.log('  (none)')
+    } else {
+      console.log('API routes: unavailable (the app could not be built).')
+    }
+
+    console.log('')
+    if (hosted) {
+      console.log(`Pages: a ${driver} app; its routes are in app/frontend/${routeFile(driver, language === 'typescript')}.`)
+      return
+    }
+    const pageFiles = await listFiles(path.join(baseDir, 'app', 'pages'), '.tyx')
     const routable = pageFiles.filter(isRoutablePage)
     const pageRoutes = routable.map(pageRoute).sort()
     // Home.tyx is served at both /home and /
     if (routable.includes('Home.tyx')) pageRoutes.unshift('/')
-
     console.log('Page routes:')
-    console.log(pageRoutes)
-
-    const features = await discoverFeatures(baseDir)
-    console.log('\nFeature routes:')
-    if (features.length === 0) {
-      console.log('(none found in app/Features)')
-    }
-    for (const { manifest } of features) {
-      const authNote = manifest.auth ? '  (auth required)' : ''
-      console.log(`  GET     /api/${manifest.table}${authNote}`)
-      console.log(`  POST    /api/${manifest.table}${authNote}`)
-      console.log(`  GET     /api/${manifest.table}/:id${authNote}`)
-      console.log(`  PUT     /api/${manifest.table}/:id${authNote}`)
-      console.log(`  DELETE  /api/${manifest.table}/:id${authNote}`)
-    }
-
-    const authControllerExists = await pathExists(
-      path.join(baseDir, 'app', 'controllers', `AuthController.${ext}`),
-    )
-    if (authControllerExists) {
-      console.log('\nAuth routes:')
-      console.log([
-        'POST /api/register',
-        'POST /api/login',
-        'POST /api/auth/refresh',
-        'POST /api/auth/logout',
-        'GET  /api/auth/verify-email',
-        'POST /api/auth/forgot-password',
-        'POST /api/auth/reset-password',
-        'GET  /api/me',
-      ])
-    }
-
-    console.log(
-      '\nNote: custom routes registered under app/routes/ are not shown here.',
-    )
+    for (const route of pageRoutes) console.log(`  GET     ${route}`)
   }
 
   context.mail = async () => {
@@ -405,6 +429,16 @@ Relations
   Post.belongsTo(post, "customer_id", Customer)
   Customer.hasMany(customer, Post, "customer_id")
 
+Your API (in-process, same middleware and auth as a real request)
+  request("GET", "/api/posts", { as: 1 })               as user 1
+  request("POST", "/api/posts", { as: 1, body: { title: "Hi", body: "…" } })
+  request("GET", "/api/public/posts")                   as a guest
+  routes()              every API route; 🔒 marks login-required ones
+
+Jobs and services
+  dispatch("SendWelcomeEmail", { userId: 1 })   queue a job (run: tylix queue:work)
+  Services in app/services are loaded by name, like models.
+
 Inspect
   models()              list loaded models and their tables
   info(Model)           table, fillable fields, timestamps, row count
@@ -422,13 +456,17 @@ Database
 
 Project
   features()            print each feature's feature.json
-  pages()               list page files under app/pages
-  routes()              page and feature routes (custom routes not shown)
+  pages()               list page files (app/pages or app/frontend/pages)
   config()              print the resolved config (secrets masked)
   env()                 print environment variables (secrets masked)
   mail()                show the mail driver and load mailer functions
   cacheEntries()        list current cache table rows
   cache                 cache.get/set/has/forget/clear
+
+Scripting
+  tylix tinker --eval 'User.count()'           prints the value, then exits
+  tylix tinker --eval 'const u = await User.first(); return u.email'
+                        several statements: return what should be printed
 
 REPL
   .exit / exit()        leave Tinker
@@ -437,10 +475,17 @@ REPL
   }
 
   const loadedNames = Object.keys(context).filter((k) => context[k]?.getTable)
+
+  if (evalCode !== null) {
+    await runEval(evalCode, context)
+    await ConnectionManager.getAdapter()?.close?.()
+    return
+  }
+
   console.log(
     `Tylix Tinker — type help() for commands.\nModels loaded: ${
       loadedNames.join(', ') || '(none found in app/models)'
-    }\n`,
+    }${serviceNames.length ? `\nServices loaded: ${serviceNames.join(', ')}` : ''}\n`,
   )
 
   const replServer = repl.start({
@@ -476,4 +521,27 @@ REPL
 
   Object.assign(replServer.context, context)
   replServer.on('exit', () => process.exit(0))
+}
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+
+// tylix tinker --eval: runs `code` with tinker's helpers in scope. An
+// expression's value is printed; statements just run. await is implicit.
+async function runEval(code, context) {
+  const names = Object.keys(context)
+  const values = names.map((name) => context[name])
+  let fn
+  try {
+    fn = new AsyncFunction(...names, `return (${code}\n)`)
+  } catch {
+    fn = new AsyncFunction(...names, code)
+  }
+  try {
+    const result = await fn(...values)
+    if (result !== undefined) {
+      console.log(inspect(result, { colors: process.stdout.isTTY, depth: 6, maxArrayLength: 100, breakLength: 100 }))
+    }
+  } catch (err) {
+    console.error(err)
+    process.exitCode = 1
+  }
 }

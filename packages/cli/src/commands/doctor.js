@@ -6,24 +6,29 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
 import { discoverFeatures } from '@tylix/core'
 import { bootstrapDatabase } from '../bootstrap.js'
+import { FRONTEND_PACKAGES, NATIVE_DRIVER, SSR_OUTLET, loadFrontendAdapter } from '../frontend/frontendHost.js'
+import { resolveFromProject } from '../frontend/importFromProject.js'
+import { routeFile, ROUTES_MARKER } from '../frontend/generateFiles.js'
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-function printSectionHeader(title) {
-  console.log(title)
-}
+const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
+const LABEL_WIDTH = 22
+const MIN_NODE_MAJOR = 22
 
-async function check(label, fn) {
-  try {
-    const detail = await fn()
-    console.log(`✔ ${label.padEnd(18)}${detail || ''}`)
-    return { ok: true, detail }
-  } catch (err) {
-    console.log(`✘ ${label.padEnd(18)}${err.message}`)
-    return { ok: false, detail: null }
+// Folders the make:* commands write into. Missing ones aren't errors: the
+// commands create them. They're reported so an unusual layout is visible.
+const APP_FOLDERS = ['controllers', 'models', 'routes', 'services', 'middleware', 'validators', 'jobs', 'mail', 'seeders']
+
+// A check returns a detail string (pass), warn('...') (shown, not a
+// failure), or throws (failure).
+class Warning {
+  constructor(message) {
+    this.message = message
   }
 }
+const warn = (message) => new Warning(message)
 
 async function pathExists(p) {
   return fs
@@ -32,204 +37,270 @@ async function pathExists(p) {
     .catch(() => false)
 }
 
-async function walkPagesDir(dir) {
-  const exists = await pathExists(dir)
-  if (!exists) return []
-  const entries = await fs.readdir(dir, { withFileTypes: true })
+async function walk(dir, keep) {
+  if (!(await pathExists(dir))) return []
   const files = []
-  for (const entry of entries) {
-    if (entry.isDirectory() && entry.name === 'components') continue
-    const fullPath = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      files.push(...(await walkPagesDir(fullPath)))
-    } else if (entry.name.endsWith('.tyx') && entry.name !== '_layout.tyx') {
-      files.push(fullPath)
-    }
+  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) files.push(...(await walk(full, keep)))
+    else if (keep(entry.name, full)) files.push(full)
   }
   return files
+}
+
+function createReporter() {
+  const counts = { ok: 0, warn: 0, fail: 0 }
+  async function check(label, fn) {
+    const name = label.padEnd(LABEL_WIDTH)
+    try {
+      const result = await fn()
+      if (result instanceof Warning) {
+        counts.warn++
+        console.log(`⚠ ${name}${result.message}`)
+      } else {
+        counts.ok++
+        console.log(`✔ ${name}${result ?? ''}`)
+      }
+      return result
+    } catch (err) {
+      counts.fail++
+      console.log(`✘ ${name}${err.message}`)
+      return null
+    }
+  }
+  return { check, counts }
 }
 
 export async function doctor() {
   const baseDir = process.cwd()
   const startedAt = performance.now()
-  const results = []
+  const { check, counts } = createReporter()
   const language = await detectLanguage(baseDir)
-  const ext = language === 'typescript' ? 'ts' : 'js'
+  const ts = language === 'typescript'
+  const ext = ts ? 'ts' : 'js'
+  const rel = (p) => path.relative(baseDir, p)
 
   console.log('Tylix Doctor')
-  console.log('─'.repeat(28))
+  console.log('─'.repeat(40))
 
   // ---- Environment ----
-  printSectionHeader('Environment')
-  results.push(
-    await check('Node.js', async () => process.version.replace(/^v/, '')),
-  )
-  results.push(
-    await check('npm', async () => {
-      const { stdout } = await execFileAsync('npm', ['--version'])
-      return stdout.trim()
-    }),
-  )
-  results.push(
-    await check('Tylix', async () => {
-      const cliPkgPath = path.resolve(__dirname, '..', '..', 'package.json')
-      const pkg = JSON.parse(await fs.readFile(cliPkgPath, 'utf-8'))
-      return pkg.version
-    }),
-  )
+  console.log('Environment')
+  await check('Node.js', async () => {
+    const major = Number(process.versions.node.split('.')[0])
+    if (major < MIN_NODE_MAJOR) throw new Error(`${process.versions.node}: Tylix needs Node ${MIN_NODE_MAJOR} or newer`)
+    return process.versions.node
+  })
+  await check('npm', async () => {
+    const { stdout } = await execFileAsync('npm', ['--version'])
+    return stdout.trim()
+  })
+  await check('Tylix', async () => {
+    const pkg = JSON.parse(await fs.readFile(path.resolve(__dirname, '..', '..', 'package.json'), 'utf-8'))
+    return pkg.version
+  })
   console.log()
 
   // ---- Project ----
-  printSectionHeader('Project')
-  results.push(
-    await check('tylix.config.js', async () => {
-      await loadConfig(baseDir)
-    }),
-  )
-
-  results.push(
-    await check('.env', async () => {
-      const exists = await pathExists(path.join(baseDir, '.env'))
-      if (!exists) throw new Error('missing — add one or re-run create-tylix')
-    }),
-  )
+  console.log('Project')
   await loadEnv(baseDir)
+  const production = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production'
 
-  results.push(
-    await check('routes', async () => {
-      const routesPath = path.join(baseDir, 'app', 'routes', `web.${ext}`)
-      if (!(await pathExists(routesPath))) {
-        throw new Error(`app/routes/web.${ext} missing`)
+  let config = null
+  await check(`tylix.config.${ext}`, async () => {
+    config = await loadConfig(baseDir, language)
+    const { driver, ssr } = config.frontend
+    return `${language}, frontend: ${driver}${ssr ? ' with SSR' : ''}`
+  })
+  await check('.env', async () => {
+    if (!(await pathExists(path.join(baseDir, '.env')))) throw new Error('missing: copy .env.example to .env')
+    return production ? 'production' : process.env.APP_ENV || 'development'
+  })
+  if (config) {
+    await check('auth secret', async () => {
+      const secret = config.auth?.secret
+      if (!secret || secret === DEV_AUTH_SECRET) {
+        const message = 'AUTH_SECRET is unset or the public dev default'
+        if (production) throw new Error(`${message}: anyone could forge logins. Set AUTH_SECRET.`)
+        return warn(`${message} (fine for development; set it before production)`)
       }
-      const mod = await import(pathToFileURL(routesPath).href)
-      if (typeof mod.routes !== 'function') {
-        throw new Error('does not export an async "routes" function')
-      }
-    }),
-  )
+      if (secret.length < 32) return warn(`AUTH_SECRET is only ${secret.length} characters; use 32 or more`)
+      return 'set'
+    })
+    await check('debug output', async () => {
+      const debug = process.env.APP_DEBUG === 'true'
+      if (debug && production) throw new Error('APP_DEBUG=true in production exposes SQL and stack traces. Set it to false.')
+      return debug ? 'on (development)' : 'off'
+    })
+  }
 
-  results.push(
-    await check('scheduler', async () => {
-      const schedulePath = path.join(baseDir, 'app', `schedule.${ext}`)
-      if (!(await pathExists(schedulePath))) {
-        throw new Error(`app/schedule.${ext} missing`)
-      }
-      const mod = await import(pathToFileURL(schedulePath).href)
-      if (typeof mod.schedule !== 'function') {
-        throw new Error('does not export an async "schedule" function')
-      }
-    }),
-  )
-
-  results.push(
-    await check('middleware', async () => {
-      const middlewareDir = path.join(baseDir, 'app', 'middleware')
-      if (!(await pathExists(middlewareDir))) {
-        throw new Error('app/middleware/ missing')
-      }
-    }),
-  )
+  await check(`routes/web.${ext}`, async () => {
+    const file = path.join(baseDir, 'app', 'routes', `web.${ext}`)
+    if (!(await pathExists(file))) return warn(`app/routes/web.${ext} is missing (optional)`)
+    const mod = await import(pathToFileURL(file).href)
+    const exported = ['publicRoutes', 'protectedRoutes', 'routes'].filter((name) => typeof mod[name] === 'function')
+    if (exported.length === 0) throw new Error('exports none of publicRoutes(), protectedRoutes() or routes()')
+    return exported.map((name) => `${name}()`).join(', ')
+  })
+  await check(`schedule.${ext}`, async () => {
+    const file = path.join(baseDir, 'app', `schedule.${ext}`)
+    if (!(await pathExists(file))) return warn(`app/schedule.${ext} is missing (only needed for scheduled tasks)`)
+    const mod = await import(pathToFileURL(file).href)
+    if (typeof mod.schedule !== 'function') throw new Error('does not export a schedule() function')
+    return 'schedule()'
+  })
+  await check('app folders', async () => {
+    const missing = []
+    for (const folder of APP_FOLDERS) {
+      if (!(await pathExists(path.join(baseDir, 'app', folder)))) missing.push(folder)
+    }
+    if (missing.length) return warn(`no app/${missing.join(', app/')} yet (make:* commands create them)`)
+    return `${APP_FOLDERS.length} present`
+  })
   console.log()
 
   // ---- Database ----
-  printSectionHeader('Database')
+  console.log('Database')
   let adapter = null
-  const dbConnected = await check('database connects', async () => {
+  await check('connection', async () => {
     adapter = await bootstrapDatabase()
+    return config?.database?.driver ?? ''
   })
-  results.push(dbConnected)
 
-  if (dbConnected.ok && adapter) {
-    results.push(
-      await check('pending migrations', async () => {
-        const migrationsDir = path.join(baseDir, 'database', 'migrations')
-        if (!(await pathExists(migrationsDir))) return 'no migrations directory'
+  const migrationsDir = path.join(baseDir, 'database', 'migrations')
+  const migrationFiles = (await pathExists(migrationsDir))
+    ? (await fs.readdir(migrationsDir)).filter((f) => f.endsWith(`.${ext}`)).sort()
+    : []
 
-        const files = (await fs.readdir(migrationsDir)).filter((f) =>
-          f.endsWith(`.${ext}`),
-        )
-        const ranRows = await adapter
-          .all('SELECT * FROM migrations')
-          .catch(() => null)
-        if (ranRows === null) {
-          throw new Error(
-            'no migrations table — run "tylix migrate" at least once',
-          )
+  await check('duplicate migrations', async () => {
+    const byName = new Map()
+    for (const file of migrationFiles) {
+      const name = file.replace(/^\d+_/, '')
+      byName.set(name, [...(byName.get(name) ?? []), file])
+    }
+    const dupes = [...byName.values()].filter((files) => files.length > 1)
+    if (dupes.length) {
+      return warn(`${dupes.map((files) => files.join(' and ')).join('; ')} create the same thing`)
+    }
+    return 'none'
+  })
+
+  if (adapter) {
+    await check('pending migrations', async () => {
+      const ran = await adapter.all('SELECT * FROM migrations').catch(() => null)
+      if (ran === null) return warn('no migrations table yet: run "tylix migrate"')
+      const done = new Set(ran.map((r) => r.filename))
+      const pending = migrationFiles.filter((f) => !done.has(f))
+      if (pending.length === 0) return `none (${migrationFiles.length} applied)`
+      const shown = pending.slice(0, 3).join(', ') + (pending.length > 3 ? ', …' : '')
+      return warn(`${pending.length} pending (${shown}): run "tylix migrate"`)
+    })
+  }
+
+  await check('models', async () => {
+    const files = await walk(path.join(baseDir, 'app', 'models'), (name) => name.endsWith(`.${ext}`))
+    const broken = []
+    for (const file of files) {
+      try {
+        await import(pathToFileURL(file).href)
+      } catch (err) {
+        broken.push(`${rel(file)}: ${err.message.split('\n')[0]}`)
+      }
+    }
+    if (broken.length) throw new Error(`${broken.length} failed to load: ${broken.join('; ')}`)
+    return `${files.length} loaded`
+  })
+  await adapter?.close?.()
+  console.log()
+
+  // ---- Frontend ----
+  const driver = config?.frontend?.driver ?? NATIVE_DRIVER
+  console.log(`Frontend (${driver})`)
+  if (driver === NATIVE_DRIVER) {
+    await check('compiler', async () => {
+      const { renderPageDocument } = await import('@tylix/compiler')
+      await renderPageDocument('page Doctor\nstate\n  ok: true\ntemplate\n  <div>{{ ok }}</div>\n', {})
+      return 'compiles a sample page'
+    })
+    await check('pages', async () => {
+      const pages = await walk(path.join(baseDir, 'app', 'pages'), (name, full) =>
+        name.endsWith('.tyx') && name !== '_layout.tyx' && !full.includes(`${path.sep}components${path.sep}`),
+      )
+      return `${pages.length} .tyx page(s)`
+    })
+  } else {
+    const frontendDir = path.join(baseDir, 'app', 'frontend')
+    let adapter = null
+    await check(FRONTEND_PACKAGES[driver], async () => {
+      ;({ adapter } = await loadFrontendAdapter(baseDir, driver))
+      return 'installed'
+    })
+    if (adapter) {
+      await check('frontend packages', async () => {
+        const missing = []
+        for (const name of adapter.requires ?? []) {
+          if (!(await resolveFromProject(baseDir, name).catch(() => null))) missing.push(name)
         }
-        const ranSet = new Set(ranRows.map((r) => r.filename))
-        const pending = files.filter((f) => !ranSet.has(f))
-        return pending.length > 0 ? `${pending.length} pending` : '0 pending'
-      }),
-    )
-
-    results.push(
-      await check('models loaded', async () => {
-        const modelsDir = path.join(baseDir, 'app', 'models')
-        if (!(await pathExists(modelsDir))) return '0 models'
-        const files = (await fs.readdir(modelsDir)).filter((f) =>
-          f.endsWith(`.${ext}`),
-        )
-        for (const file of files) {
-          await import(pathToFileURL(path.join(modelsDir, file)).href)
-        }
-        return `${files.length} model(s)`
-      }),
-    )
-
-    await adapter.close()
+        if (missing.length) throw new Error(`missing ${missing.join(', ')}: run "npm install ${missing.join(' ')}"`)
+        return (adapter.requires ?? []).join(', ')
+      })
+      if (ts && adapter.typecheck) {
+        await check('type checker', async () => {
+          const bin = path.join(baseDir, 'node_modules', '.bin', adapter.typecheck.bin)
+          if (!(await pathExists(bin))) return warn(`${adapter.typecheck.bin} is not installed, so "tylix build" skips the frontend typecheck`)
+          return adapter.typecheck.bin
+        })
+      }
+    }
+    let html = null
+    await check('index.html', async () => {
+      html = await fs.readFile(path.join(frontendDir, 'index.html'), 'utf-8').catch(() => null)
+      if (html === null) throw new Error('app/frontend/index.html is missing')
+      return 'present'
+    })
+    if (config.frontend.ssr) {
+      await check('SSR entry', async () => {
+        const names = ['entry-server.tsx', 'entry-server.ts', 'entry-server.jsx', 'entry-server.js']
+        for (const name of names) if (await pathExists(path.join(frontendDir, name))) return name
+        throw new Error('frontend.ssr is on but app/frontend has no entry-server file')
+      })
+      if (html !== null) {
+        await check('SSR outlet', async () => {
+          if (!html.includes(SSR_OUTLET)) throw new Error(`index.html has no ${SSR_OUTLET} where rendered pages go`)
+          return SSR_OUTLET
+        })
+      }
+    }
+    await check('route markers', async () => {
+      const file = path.join(frontendDir, routeFile(driver, ts))
+      const source = await fs.readFile(file, 'utf-8').catch(() => null)
+      if (source === null) return warn(`${rel(file)} not found, so make:page can't add routes`)
+      if (!source.includes(ROUTES_MARKER)) return warn(`${rel(file)} has no "${ROUTES_MARKER}" marker; make:page will print routes to add by hand`)
+      return `make:page adds routes to ${rel(file)}`
+    })
+    await check('production build', async () => {
+      const client = await pathExists(path.join(baseDir, 'dist', 'client', 'index.html'))
+      const server = await pathExists(path.join(baseDir, 'dist', 'server', 'entry-server.js'))
+      if (!client || (config.frontend.ssr && !server)) {
+        const message = 'not built yet: run "tylix build" before "tylix start"'
+        if (production) throw new Error(message)
+        return warn(message)
+      }
+      return config.frontend.ssr ? 'dist/client and dist/server' : 'dist/client'
+    })
   }
   console.log()
 
-  // ---- Compiler ----
-  printSectionHeader('Compiler')
-  results.push(
-    await check('parser', async () => {
-      const { renderPageDocument } = await import('@tylix/compiler')
-      const sample = `page Doctor\nstate\n  ok: true\ntemplate\n  <div>{{ ok }}</div>\n`
-      await renderPageDocument(sample, {})
-    }),
-  )
-
-  results.push(
-    await check('runtime', async () => {
-      const compilerEntryPath = fileURLToPath(
-        await import.meta.resolve('@tylix/compiler'),
-      )
-      const compilerSrcDir = path.dirname(compilerEntryPath)
-      const runtimeFile = path.join(compilerSrcDir, 'runtime', 'reactive.js')
-      if (!(await pathExists(runtimeFile))) {
-        throw new Error(
-          'runtime/reactive.js not found alongside @tylix/compiler',
-        )
-      }
-    }),
-  )
-
-  results.push(
-    await check('HMR', async () => {
-      await import('../hotReload.js')
-    }),
-  )
-  console.log()
-
-  // ---- Performance ----
-  printSectionHeader('Performance')
-  const pagesDir = path.join(baseDir, 'app', 'pages')
-  const pageCount = (await walkPagesDir(pagesDir)).length
-  const features = await discoverFeatures(baseDir)
-
-  const elapsedMs = Math.round(performance.now() - startedAt)
-  console.log(`✔ ${'startup'.padEnd(18)}${elapsedMs}ms`)
-  console.log(`✔ ${'pages'.padEnd(18)}${pageCount}`)
-  console.log(`✔ ${'features'.padEnd(18)}${features.length}`)
-  console.log()
-
-  const failures = results.filter((r) => !r.ok).length
+  // ---- Summary ----
+  const features = await discoverFeatures(baseDir).catch(() => [])
+  const elapsed = Math.round(performance.now() - startedAt)
+  console.log(`${features.length} feature(s) · checked in ${elapsed}ms`)
+  const parts = [`${counts.ok} ok`]
+  if (counts.warn) parts.push(`${counts.warn} warning${counts.warn === 1 ? '' : 's'}`)
+  if (counts.fail) parts.push(`${counts.fail} failed`)
   console.log(
-    failures === 0
-      ? 'Everything looks healthy.'
-      : `${failures} check${failures === 1 ? '' : 's'} failed — see above.`,
+    counts.fail === 0
+      ? `Healthy: ${parts.join(', ')}.`
+      : `Needs attention: ${parts.join(', ')}. Fix the ✘ items above.`,
   )
-
-  process.exitCode = failures === 0 ? 0 : 1
+  process.exitCode = counts.fail === 0 ? 0 : 1
 }

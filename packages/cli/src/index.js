@@ -137,7 +137,12 @@ async function main() {
   }
 
   if (command === 'tinker') {
-    await tinker()
+    const evalAt = rest.findIndex((a) => a === '--eval' || a === '-e')
+    if (evalAt !== -1 && rest[evalAt + 1] === undefined) {
+      console.error('Usage: tylix tinker [--eval "code"]')
+      process.exit(1)
+    }
+    await tinker({ evalCode: evalAt === -1 ? null : rest[evalAt + 1] })
     return
   }
 

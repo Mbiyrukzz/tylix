@@ -41,6 +41,7 @@ import { writeIndexHtml } from './steps/writeIndexHtml.js'
 import { runMigrations } from './steps/runMigrations.js'
 import { writeCapabilities } from './steps/writeCapabilities.js'
 import { writeFrontend } from './steps/writeFrontend.js'
+import { writeBackendStructure } from './steps/writeBackendStructure.js'
 import { initGit } from './steps/initGit.js'
 
 const FRONTEND_LABELS = { tylix: 'Tylix', react: 'React', svelte: 'Svelte', vue: 'Vue', angular: 'Angular' }
@@ -373,6 +374,7 @@ async function runBuildSteps(config) {
     )
   }
   steps.push({ label: 'Creating API routes', fn: () => writeApiRoutes(config) })
+  steps.push({ label: 'Creating backend folders and tests', fn: () => writeBackendStructure(config) })
 
   if (config.starter === 'starter' && config.authEnabled) {
     steps.push(

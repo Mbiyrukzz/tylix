@@ -668,9 +668,10 @@ export async function createProjectStructure(config) {
 
     await fs.mkdir(path.join(targetDir, 'app', 'mail'), { recursive: true })
 
-    await fs.mkdir(path.join(targetDir, 'app', 'capabilities'), {
-      recursive: true,
-    })
+    // Capabilities are a .tyx feature; hosted frontends don't use them.
+    if (!hosted) {
+      await fs.mkdir(path.join(targetDir, 'app', 'capabilities'), { recursive: true })
+    }
 
     await fs.mkdir(path.join(targetDir, 'app', 'seeders'), { recursive: true })
 
@@ -739,6 +740,13 @@ export async function createProjectStructure(config) {
       build: 'tylix build',
       start: 'tylix start',
       migrate: 'tylix migrate',
+      // API tests in tests/ with Node's test runner. TypeScript runs through
+      // tsx, the same loader the tylix CLI uses for .ts app code.
+      test: isTs
+        ? 'node --import tsx --test "tests/**/*.test.ts"'
+        : 'node --test "tests/**/*.test.js"',
+      doctor: 'tylix doctor',
+      tinker: 'tylix tinker',
     }
     if (config.styling === 'tailwind' && !hosted) {
       scripts['css:build'] =

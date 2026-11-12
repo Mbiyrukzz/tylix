@@ -7,6 +7,15 @@
     "cli"
   ],
   "main": "./src/index.js",
+  "types": "./src/testing.d.ts",
+  "exports": {
+    ".": "./src/index.js",
+    "./testing": {
+      "types": "./src/testing.d.ts",
+      "default": "./src/testing.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "tylix": "src/index.js"
   },

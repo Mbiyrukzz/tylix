@@ -811,9 +811,12 @@ function assertProductionConfig(config) {
 // Builds the router and everything behind it, shared by `tylix dev`
 // and `tylix start`. Returns the pieces the caller needs to create the
 // Server; the caller owns HMR, file watching, banners and listening.
+//
+// frontend: false builds the API only (no pages, no Vite): for tools such
+// as tinker that need every backend route without serving a frontend.
 export async function createApp(
   baseDir,
-  { production = false, hotReloadCompiler = false } = {},
+  { production = false, hotReloadCompiler = false, frontend = true } = {},
 ) {
   await loadEnv(baseDir)
   const language = await detectLanguage(baseDir)
@@ -912,7 +915,9 @@ export async function createApp(
   const protectedPaths = config.frontend?.protected ?? []
   const loginPath = config.frontend?.loginPath ?? '/login'
 
-  if (frontendDriver === NATIVE_DRIVER) {
+  if (!frontend) {
+    // API only: no page routes, no frontend host.
+  } else if (frontendDriver === NATIVE_DRIVER) {
     ;({ routes: pageRoutes, renderNotFound } = await registerPageRoutes(
       router,
       baseDir,

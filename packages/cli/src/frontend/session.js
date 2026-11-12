@@ -16,53 +16,59 @@ import { parseCookies, parseQuery } from '@tylix/core'
 //   - a protected-page redirect goes to the login page with ?next=, and
 //     the login page sends a user whose refresh still works straight back
 
-// Answers a GET for one of the app's own API routes in-process, as the
-// visitor of `req` (same cookies, so the same session). Used by
-// server-side rendering, which needs the data a page asks for before it can
-// render it, and by the session lookup below. It runs the full middleware
-// chain plus requireAuth, exactly like a real request.
-//
-// Resolves { status, data } and never throws. Only /api/ paths are
-// allowed: SSR must not be turned into a way to reach other URLs.
-export function createInternalFetch(router) {
-  return async function internalFetch(req, url) {
-    if (typeof url !== 'string' || !url.startsWith('/api/')) {
-      return { status: 400, data: { error: 'Server rendering can only load /api/ URLs.' } }
+// Runs one request through the app's router in-process: the full
+// middleware chain plus requireAuth, exactly like a real request, without
+// a socket. Resolves { status, data, headers } and never throws.
+//   method, url  e.g. 'POST', '/api/posts?draft=1'
+//   body         parsed request body (what req.body would hold)
+//   headers      request headers; cookies are read from headers.cookie
+export function createInProcessRequest(router) {
+  return async function request({ method = 'GET', url, body = null, headers = {}, ip, secure } = {}) {
+    const upper = String(method).toUpperCase()
+    let match
+    try {
+      match = router.match(upper, url)
+    } catch {
+      return { status: 400, data: { error: 'Bad request' }, headers: {} }
     }
-    const match = router.match('GET', url)
-    if (!match) return { status: 404, data: { error: 'Not found' } }
+    if (!match) return { status: 404, data: { error: 'Not found' }, headers: {} }
 
     const fakeReq = {
-      method: 'GET',
+      method: upper,
       url,
-      headers: req.headers,
-      cookies: parseCookies(req),
+      headers,
+      cookies: parseCookies({ headers }),
       params: match.params,
       query: parseQuery(url),
-      body: null,
-      rawBody: '',
-      ip: req.ip,
-      secure: req.secure,
+      body,
+      rawBody: body == null ? '' : JSON.stringify(body),
+      ip: ip ?? '127.0.0.1',
+      secure: secure ?? false,
     }
     let status = 200
     let data = null
+    const responseHeaders = {}
     const fakeRes = {
       statusCode: 200,
       headersSent: false,
       writableEnded: false,
-      setHeader() {},
-      getHeader() {},
+      setHeader(name, value) {
+        responseHeaders[String(name).toLowerCase()] = value
+      },
+      getHeader(name) {
+        return responseHeaders[String(name).toLowerCase()]
+      },
       status(code) {
         status = code
         this.statusCode = code
         return this
       },
-      json(body) {
-        data = body
+      json(value) {
+        data = value
         return this
       },
-      send(body) {
-        data = body ?? null
+      send(value) {
+        data = value ?? null
         return this
       },
       end() {},
@@ -73,9 +79,27 @@ export function createInternalFetch(router) {
     try {
       await match.handler(fakeReq, fakeRes)
     } catch (err) {
-      console.error(`[tylix] Server rendering could not load ${url}:`, err)
-      return { status: 500, data: { error: 'Server error' } }
+      console.error(`[tylix] ${upper} ${url.split('?')[0]} failed in-process:`, err)
+      return { status: 500, data: { error: 'Server error' }, headers: responseHeaders }
     }
+    return { status, data, headers: responseHeaders }
+  }
+}
+
+// Answers a GET for one of the app's own API routes in-process, as the
+// visitor of `req` (same cookies, so the same session). Used by
+// server-side rendering, which needs the data a page asks for before it can
+// render it, and by the session lookup below.
+//
+// Resolves { status, data } and never throws. Only /api/ paths are
+// allowed: SSR must not be turned into a way to reach other URLs.
+export function createInternalFetch(router) {
+  const request = createInProcessRequest(router)
+  return async function internalFetch(req, url) {
+    if (typeof url !== 'string' || !url.startsWith('/api/')) {
+      return { status: 400, data: { error: 'Server rendering can only load /api/ URLs.' } }
+    }
+    const { status, data } = await request({ method: 'GET', url, headers: req.headers, ip: req.ip, secure: req.secure })
     return { status, data }
   }
 }
