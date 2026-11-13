@@ -4,5 +4,8 @@
   "AreaChart": "components/AreaChart.tyx",
   "BarChart": "components/BarChart.tyx",
   "PieChart": "components/PieChart.tyx",
-  "Donut": "components/Donut.tyx"
+  "Donut": "components/Donut.tyx",
+  "ScatterChart": "components/ScatterChart.tyx",
+  "Gauge": "components/Gauge.tyx",
+  "Heatmap": "components/Heatmap.tyx"
 }

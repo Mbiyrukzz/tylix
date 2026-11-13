@@ -47,7 +47,7 @@ export function nearestPoints(chart, px) {
  */
 export function attachCrosshair(svg, chart, options = {}) {
   const {
-    formatX = (v) => String(v),
+    formatX = chart.formatX ?? ((v) => String(v)),
     formatY = (v) => String(v),
     tooltip = true,
     onChange,

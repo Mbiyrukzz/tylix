@@ -1,0 +1,162 @@
+component ScatterChart
+
+props
+  series: Array
+  id?: string
+  label?: string
+  width?: number
+  height?: number
+  radius?: Array
+  legend?: boolean
+  xDomain?: Array
+  yDomain?: Array
+  xTicks?: number
+  yTicks?: number
+  formatX?: Function
+  formatY?: Function
+  class?: string
+
+state
+  hover: null
+  ready: false
+
+computed
+  rootClass() {
+    return `tylix-chart relative text-zinc-500 dark:text-zinc-400 [--tylix-chart-bg:#fff] dark:[--tylix-chart-bg:#09090b] ${this.class ?? ""}`
+  }
+
+  ratio() {
+    return `aspect-ratio:${this.width ?? 480} / ${this.height ?? 280}`
+  }
+
+  chart() {
+    if not this.ready {
+      return null
+    }
+    return window.__tylixCharts.scatterChart(this.series ?? [], {
+      width: this.width ?? 480,
+      height: this.height ?? 280,
+      radius: this.radius ?? [4, 22],
+      xDomain: this.xDomain,
+      yDomain: this.yDomain,
+      xTicks: this.xTicks ?? 6,
+      yTicks: this.yTicks ?? 5,
+      formatX: this.formatX,
+      formatY: this.formatY ?? (v => String(v)),
+    })
+  }
+
+  showLegend() {
+    if not this.ready {
+      return false
+    }
+    if this.legend is false {
+      return false
+    }
+    return this.chart.series.length > 1
+  }
+
+  tip() {
+    const h = this.hover
+    if not h {
+      return null
+    }
+    const head = h.label ?? h.name
+    const line = `${this.chart.formatX(h.x)}, ${this.chart.formatY(h.y)}${h.size is null ? "" : ` · ${h.size}`}`
+    const w = Math.ceil(Math.max(String(head).length, line.length) * 6.2 + 24)
+    let x = h.px + h.r + 8
+    if x + w > this.chart.width - 4 {
+      x = h.px - h.r - 8 - w
+    }
+    return { x: Math.max(4, x), y: Math.max(4, h.py - 22), w: w, head: head, line: line }
+  }
+
+  table() {
+    if not this.ready {
+      return ""
+    }
+    const rows = this.chart.series.flatMap(s => s.points.map(p => ({ name: s.name, data: [{ x: p.label ?? this.chart.formatX(p.x), y: p.y }] })))
+    return window.__tylixCharts.dataTable(rows, { caption: this.label ?? "Scatter chart data" })
+  }
+
+  srOnly() {
+    return window.__tylixCharts ? window.__tylixCharts.SR_ONLY_STYLE : ""
+  }
+
+action
+  move(e) {
+    if not this.ready {
+      return null
+    }
+    const r = e.currentTarget.getBoundingClientRect()
+    if r.width is 0 {
+      return null
+    }
+    const k = this.chart.width / r.width
+    this.hover = window.__tylixCharts.nearestScatterPoint(this.chart, (e.clientX - r.left) * k, (e.clientY - r.top) * k)
+  }
+
+  leave() {
+    this.hover = null
+  }
+
+onMount
+  async {
+    const load = window.__tylixChartsLoad ?? (window.__tylixChartsLoad = import("/_tylix/charts/index.js").then(m => { window.__tylixCharts = m }))
+    try {
+      await load
+      this.ready = true
+    } catch (e) {
+      console.error("[tylix/charts] could not load geometry", e)
+      window.__tylixChartsLoad = null
+    }
+  }
+
+template
+<div class="{{ rootClass }}">
+{{#if ready}}
+{{#if showLegend}}
+  <div class="flex flex-wrap gap-x-4 gap-y-1 mb-2 text-xs text-zinc-600 dark:text-zinc-300">
+{{#each s in chart.series}}
+    <span class="inline-flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full" style:background="{{ s.color }}"></span>{{ s.name }}
+    </span>
+{{/each}}
+  </div>
+{{/if}}
+  <svg
+    viewBox="{{ `0 0 ${chart.width} ${chart.height}` }}"
+    class="w-full h-auto"
+    font-size="11"
+    role="img"
+    aria-label="{{ label or 'Scatter chart' }}"
+    onpointermove="{{ move }}"
+    onpointerdown="{{ move }}"
+    onpointerleave="{{ leave }}"
+  >
+{{#each t in chart.yTicks}}
+    <line x1="{{ chart.plot.x }}" x2="{{ chart.plot.x + chart.plot.width }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 4" />
+    <text x="{{ chart.plot.x - 8 }}" y="{{ t.y }}" text-anchor="end" dominant-baseline="middle" fill="currentColor" fill-opacity="0.65">{{ t.label }}</text>
+{{/each}}
+{{#each t in chart.xTicks}}
+    <text x="{{ t.x }}" y="{{ chart.plot.y + chart.plot.height + 16 }}" text-anchor="{{ t.anchor ?? 'middle' }}" fill="currentColor" fill-opacity="0.65">{{ t.label }}</text>
+{{/each}}
+{{#each s in chart.series}}
+{{#each p in s.points}}
+    <circle cx="{{ p.px }}" cy="{{ p.py }}" r="{{ p.r }}" fill="{{ s.color }}" fill-opacity="{{ p.size is null ? 0.85 : 0.5 }}" stroke="{{ s.color }}" stroke-width="{{ hover and hover.px is p.px and hover.py is p.py ? 2.5 : 1 }}" />
+{{/each}}
+{{/each}}
+{{#if tip}}
+    <g pointer-events="none" transform="{{ `translate(${tip.x},${tip.y})` }}">
+      <rect width="{{ tip.w }}" height="40" rx="6" fill="var(--tylix-chart-bg, #fff)" stroke="currentColor" stroke-opacity="0.25" />
+      <circle cx="12" cy="13" r="3.5" fill="{{ hover.color }}" />
+      <text x="22" y="17" font-weight="600" fill="currentColor" class="text-zinc-900 dark:text-zinc-100">{{ tip.head }}</text>
+      <text x="10" y="32" fill="currentColor" fill-opacity="0.7">{{ tip.line }}</text>
+    </g>
+{{/if}}
+  </svg>
+  <div style="{{ srOnly }}">{{@html table}}</div>
+{{#else}}
+  <div class="w-full" style="{{ ratio }}"></div>
+{{/if}}
+</div>

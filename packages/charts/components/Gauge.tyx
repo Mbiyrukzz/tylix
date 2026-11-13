@@ -1,0 +1,102 @@
+component Gauge
+
+props
+  value: number
+  min?: number
+  max?: number
+  label?: string
+  caption?: string
+  size?: number
+  thickness?: number
+  startAngle?: number
+  endAngle?: number
+  thresholds?: Array
+  bands?: boolean
+  needle?: boolean
+  color?: string
+  format?: Function
+  class?: string
+
+state
+  ready: false
+
+computed
+  g() {
+    if not this.ready {
+      return null
+    }
+    return window.__tylixCharts.gauge(this.value, {
+      min: this.min ?? 0,
+      max: this.max ?? 100,
+      size: this.size ?? 200,
+      thickness: this.thickness ?? 0.16,
+      startAngle: this.startAngle ?? -120,
+      endAngle: this.endAngle ?? 120,
+      thresholds: this.thresholds ?? [],
+      bands: this.bands ?? false,
+      color: this.color ?? "var(--tylix-chart-1, #2563eb)",
+      format: this.format ?? (v => String(Math.round(v * 10) / 10)),
+    })
+  }
+
+  valueY() {
+    return this.needle ? this.g.cy + this.g.size * 0.22 : this.g.cy + 8
+  }
+
+  height() {
+    const g = this.g
+    return Math.ceil(Math.max(g.bottom + 18, this.valueY + (this.caption ? g.size * 0.1 : 0) + 8))
+  }
+
+  ends() {
+    const g = this.g
+    const r = g.size / 2 - 2
+    const a0 = (this.startAngle ?? -120) * Math.PI / 180
+    const a1 = (this.endAngle ?? 120) * Math.PI / 180
+    const at = a => ({ x: g.cx + r * 0.82 * Math.sin(a), y: Math.min(this.height - 4, g.cy - r * Math.cos(a) + 14) })
+    return { lo: at(a0), hi: at(a1) }
+  }
+
+  description() {
+    const g = this.g
+    return `${this.label ?? "Gauge"}: ${g.label} of ${g.min} to ${g.max}${this.caption ? `, ${this.caption}` : ""}`
+  }
+
+onMount
+  async {
+    const load = window.__tylixChartsLoad ?? (window.__tylixChartsLoad = import("/_tylix/charts/index.js").then(m => { window.__tylixCharts = m }))
+    try {
+      await load
+      this.ready = true
+    } catch (e) {
+      console.error("[tylix/charts] could not load geometry", e)
+      window.__tylixChartsLoad = null
+    }
+  }
+
+template
+<div class="{{ `tylix-chart text-zinc-500 dark:text-zinc-400 ${this.class ?? ''}` }}">
+{{#if ready}}
+  <svg viewBox="{{ `0 0 ${g.size} ${height}` }}" class="w-full h-auto" font-size="11" role="meter" aria-valuenow="{{ g.value }}" aria-valuemin="{{ g.min }}" aria-valuemax="{{ g.max }}" aria-label="{{ description }}">
+{{#each b in g.bands}}
+    <path d="{{ b.path }}" fill="{{ b.color }}" fill-opacity="0.5" />
+{{/each}}
+    <path d="{{ g.track }}" fill="currentColor" fill-opacity="0.1" />
+{{#if g.valuePath}}
+    <path d="{{ g.valuePath }}" fill="{{ g.color }}" style="transition: d .4s ease" />
+{{/if}}
+{{#if needle}}
+    <line x1="{{ g.cx }}" y1="{{ g.cy }}" x2="{{ g.needle.x }}" y2="{{ g.needle.y }}" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" class="text-zinc-800 dark:text-zinc-200" />
+    <circle cx="{{ g.cx }}" cy="{{ g.cy }}" r="5" fill="currentColor" class="text-zinc-800 dark:text-zinc-200" />
+{{/if}}
+    <text x="{{ g.cx }}" y="{{ valueY }}" text-anchor="middle" font-weight="600" font-size="{{ g.size * 0.16 }}" fill="currentColor" class="text-zinc-900 dark:text-zinc-100">{{ g.label }}</text>
+{{#if caption}}
+    <text x="{{ g.cx }}" y="{{ valueY + g.size * 0.1 }}" text-anchor="middle" fill="currentColor">{{ caption }}</text>
+{{/if}}
+    <text x="{{ ends.lo.x }}" y="{{ ends.lo.y }}" text-anchor="middle" fill="currentColor" fill-opacity="0.65">{{ g.min }}</text>
+    <text x="{{ ends.hi.x }}" y="{{ ends.hi.y }}" text-anchor="middle" fill="currentColor" fill-opacity="0.65">{{ g.max }}</text>
+  </svg>
+{{#else}}
+  <div class="w-full aspect-[4/3]"></div>
+{{/if}}
+</div>

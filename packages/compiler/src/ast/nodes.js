@@ -436,3 +436,15 @@ export function TypeDeclaration(kind, name, source) {
 export function EnumDeclaration(name, members) {
   return { type: 'EnumDeclaration', name, members }
 }
+// {{#await promise}}pending{{#then value}}…{{#catch error}}…{{/await}}
+// and the short form {{#await promise then value}}…{{/await}}.
+// pending/thenChildren/catchChildren are null when the block has no
+// such branch; thenName/catchName are null when nothing is bound.
+export function AwaitNode(promise, pending, thenName, thenChildren, catchName, catchChildren) {
+  return { type: 'Await', promise, pending, thenName, thenChildren, catchName, catchChildren }
+}
+
+// {{@html expr}}: trusted HTML inserted as markup.
+export function RawHtmlNode(expression) {
+  return { type: 'RawHtml', expression }
+}

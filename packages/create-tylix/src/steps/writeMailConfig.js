@@ -3,14 +3,23 @@ import path from 'node:path'
 
 function buildMailBlock() {
   return `
+  // MAIL_DRIVER: log | smtp | resend | sendgrid | postmark | mailgun | ses
   mail: {
     driver: process.env.MAIL_DRIVER || 'log',
     from: process.env.MAIL_FROM || 'noreply@example.com',
+    // smtp
     host: process.env.MAIL_HOST || '',
     port: Number(process.env.MAIL_PORT) || 587,
     user: process.env.MAIL_USER || '',
     password: process.env.MAIL_PASSWORD || '',
     secure: process.env.MAIL_SECURE === 'true',
+    // resend, sendgrid, postmark, mailgun
+    apiKey: process.env.MAIL_API_KEY || '',
+    // mailgun: sending domain and region (us | eu)
+    domain: process.env.MAIL_DOMAIN || '',
+    // mailgun region, or the AWS region for ses (credentials come from
+    // the usual AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY variables)
+    region: process.env.MAIL_REGION || undefined,
   },`
 }
 

@@ -103,7 +103,8 @@ export function sparklineSvg(data?: Array<number | null>, options?: SparklineOpt
 export interface LineSeriesInput {
   name?: string
   color?: string
-  data: Array<number | null | { x?: number; y: number | null }>
+  /** x may be a Date: the chart then gets a time axis. */
+  data: Array<number | null | { x?: number | Date; y: number | null }>
 }
 
 export interface LineChartOptions {
@@ -117,9 +118,14 @@ export interface LineChartOptions {
   curve?: Curve
   area?: boolean
   zeroBaseline?: boolean
-  formatX?: (value: number) => string
+  /** With Date x values this receives a Date. Default: String, or a date format for time axes. */
+  formatX?: (value: any) => string
   formatY?: (value: number) => string
   label?: string
+  /** Time axes: 'UTC' (default), 'local', or an IANA zone like 'Europe/Paris'. */
+  timeZone?: string
+  /** Time axes: Intl locale for labels. Default 'en-US'. */
+  locale?: string
 }
 
 export interface XYTick {
@@ -133,6 +139,10 @@ export interface LineChartGeometry {
   plot: { x: number; y: number; width: number; height: number }
   xScale: LinearScale
   yScale: LinearScale
+  /** true when x values are Dates (plotted as milliseconds). */
+  time: boolean
+  /** Formats an x value for tooltips (dates for time axes). */
+  formatX: (value: number) => string
   xTicks: Array<XYTick & { x: number }>
   yTicks: Array<XYTick & { y: number }>
   series: Array<{
@@ -381,3 +391,143 @@ export function attachCrosshair(
   chart: LineChartGeometry | AreaChartGeometry,
   options?: CrosshairOptions
 ): { show(px: number): void; hide(): void; destroy(): void }
+
+// ---------------------------------------------------------------- time
+
+export type TimeUnit = 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year'
+export interface TimeAxisOptions { timeZone?: string; locale?: string }
+export function isTimeData(series: Array<{ data?: unknown[] }>): boolean
+export function timeInterval(start: number, end: number, count?: number): { unit: TimeUnit; step: number }
+export function timeTicks(start: number, end: number, count?: number, options?: TimeAxisOptions): { ticks: number[]; unit: TimeUnit; step: number }
+export function timeFormatter(unit: TimeUnit, options?: TimeAxisOptions): (ms: number) => string
+export function timeAxis(
+  start: number | Date,
+  end: number | Date,
+  count?: number,
+  options?: TimeAxisOptions,
+): { ticks: { value: number; label: string }[]; unit: TimeUnit; step: number; format: (ms: number) => string; tooltip: (ms: number) => string }
+
+// ------------------------------------------------------- scatter / bubble
+
+export interface ScatterPointInput { x: number | Date; y: number; size?: number; label?: string }
+export interface ScatterSeriesInput { name?: string; color?: string; data: ScatterPointInput[] }
+export interface ScatterChartOptions {
+  width?: number
+  height?: number
+  margin?: Partial<Margin>
+  xDomain?: [number | Date, number | Date]
+  yDomain?: [number, number]
+  xTicks?: number
+  yTicks?: number
+  /** Bubble radius range for points with `size`. Default [4, 22]. */
+  radius?: [number, number]
+  /** Radius of points without `size`. Default 4.5. */
+  pointRadius?: number
+  formatX?: (value: any) => string
+  formatY?: (value: number) => string
+  timeZone?: string
+  locale?: string
+}
+export interface ScatterPoint { x: number; y: number; size: number | null; label: string | null; px: number; py: number; r: number }
+export interface ScatterChartGeometry {
+  width: number
+  height: number
+  plot: { x: number; y: number; width: number; height: number }
+  time: boolean
+  formatX: (value: number) => string
+  formatY: (value: number) => string
+  xTicks: Array<XYTick & { x: number }>
+  yTicks: Array<XYTick & { y: number }>
+  series: Array<{ name: string; color: string; points: ScatterPoint[] }>
+}
+export function scatterChart(series?: ScatterSeriesInput[], options?: ScatterChartOptions): ScatterChartGeometry
+export function nearestScatterPoint(chart: ScatterChartGeometry, px: number, py: number, max?: number): (ScatterPoint & { name: string; color: string }) | null
+export function scatterChartSvg(series?: ScatterSeriesInput[], options?: ScatterChartOptions & SvgOptions): string
+
+// ---------------------------------------------------------------- gauge
+
+export interface GaugeOptions {
+  min?: number
+  max?: number
+  size?: number
+  /** Ring thickness as a share of the radius. Default 0.16. */
+  thickness?: number
+  /** Degrees from 12 o'clock, clockwise. Default -120 / 120. */
+  startAngle?: number
+  endAngle?: number
+  cornerRadius?: number
+  /** The value arc takes the colour of the band the value is in. */
+  thresholds?: Array<{ value: number; color: string }>
+  /** Draw the threshold bands outside the track. */
+  bands?: boolean
+  color?: string
+  format?: (value: number) => string
+}
+export interface GaugeGeometry {
+  size: number
+  cx: number
+  cy: number
+  min: number
+  max: number
+  value: number
+  percent: number
+  angle: number
+  color: string
+  label: string
+  track: string
+  valuePath: string
+  needle: { x: number; y: number }
+  bands: Array<{ path: string; color: string }>
+  bottom: number
+}
+export function gauge(value: number, options?: GaugeOptions): GaugeGeometry
+export function gaugeSvg(value: number, options?: GaugeOptions & SvgOptions & { caption?: string; needle?: boolean; showMinMax?: boolean }): string
+
+// ------------------------------------------------------ calendar heatmap
+
+export type HeatmapInput = Array<{ date: string | Date; value: number }> | Record<string, number>
+export interface CalendarHeatmapOptions {
+  from?: string | Date
+  to?: string | Date
+  /** 0 = Sunday (default), 1 = Monday */
+  weekStart?: 0 | 1
+  cell?: number
+  gap?: number
+  levels?: number
+  max?: number
+  locale?: string
+  labels?: boolean
+}
+export interface HeatmapCell { date: string; value: number; level: number; x: number; y: number }
+export interface CalendarHeatmapGeometry {
+  width: number
+  height: number
+  cell: number
+  cells: HeatmapCell[]
+  months: Array<{ label: string; x: number }>
+  days: Array<{ label: string; y: number }>
+  levels: number
+  max: number
+  total: number
+}
+export function calendarHeatmap(data?: HeatmapInput, options?: CalendarHeatmapOptions): CalendarHeatmapGeometry
+export function calendarHeatmapSvg(
+  data?: HeatmapInput,
+  options?: CalendarHeatmapOptions & SvgOptions & { color?: string; formatValue?: (v: number) => string; legend?: boolean },
+): string
+
+// ------------------------------------------------------------ a11y
+
+export function describeSeries(series: Array<{ name?: string; data?: unknown[]; points?: unknown[] }>, options?: { formatY?: (v: number) => string }): string
+export function dataTable(
+  series: Array<{ name?: string; data?: unknown[] }>,
+  options?: { caption?: string; formatX?: (v: any) => string; formatY?: (v: number) => string; className?: string },
+): string
+export const SR_ONLY_STYLE: string
+
+// --------------------------------------------------------- any chart
+
+export type ChartType = 'sparkline' | 'line' | 'area' | 'bar' | 'pie' | 'donut' | 'scatter' | 'gauge' | 'heatmap'
+export const CHART_TYPES: Record<ChartType, (data: any, options?: any) => string>
+export function renderChart(type: ChartType, data: unknown, options?: Record<string, unknown>): string
+export function chartGeometry(type: ChartType, data: unknown, options?: Record<string, unknown>): LineChartGeometry | AreaChartGeometry | null

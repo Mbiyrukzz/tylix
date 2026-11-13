@@ -194,7 +194,7 @@ export function typedTemplateExpr(node, scope) {
 }
 
 // Any on<event> attribute is an event listener (see generateTemplate).
-const EVENT_ATTR_RE = /^on([a-z]+)$/i
+const EVENT_ATTR_RE = /^on([a-z]+)(?:\.[a-z0-9]+)*$/i
 
 // [event interface, element type of `event.target`] per DOM event
 // name. Anything not listed falls back to a plain Event on a generic
@@ -311,6 +311,23 @@ export function collectTemplateChecks(nodes, scope, out) {
       })
       if (node.elseChildren) {
         collectTemplateChecks(node.elseChildren, scope, out)
+      }
+    } else if (node.type === 'RawHtml') {
+      out.push({ kind: 'check', expr: typedTemplateExpr(node.expression, scope), line: node.line, eventType: null, eventBase: null })
+    } else if (node.type === 'Await') {
+      out.push({ kind: 'check', expr: typedTemplateExpr(node.promise, scope), line: node.line, eventType: null, eventBase: null })
+      if (node.pending) collectTemplateChecks(node.pending, scope, out)
+      // then/catch values are bound like an each item (typed any), so
+      // the checker has a real declaration for the name.
+      for (const [name, children] of [[node.thenName, node.thenChildren], [node.catchName, node.catchChildren]]) {
+        if (!children) continue
+        if (!name) {
+          collectTemplateChecks(children, scope, out)
+          continue
+        }
+        const inner = []
+        collectTemplateChecks(children, new Set([...scope, ...paramNames([name])]), inner)
+        out.push({ kind: 'each', itemName: name, indexName: null, iterableExpr: '[]', line: node.line, children: inner })
       }
     } else if (node.type === 'Element') {
       for (const attr of node.attributes) {
