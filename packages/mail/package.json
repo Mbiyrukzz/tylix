@@ -1,6 +1,6 @@
 {
   "name": "@tylix/mail",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Email for any Node app: SMTP, Resend, SendGrid, Postmark, Mailgun and Amazon SES transports, templates, attachments and a test fake. Plugs into Tylix with Mailables and a mail log.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -57,7 +57,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@tylix/orm": "^1.3.0"
+    "@tylix/orm": "^1.4.0"
   },
   "peerDependenciesMeta": {
     "@tylix/orm": {

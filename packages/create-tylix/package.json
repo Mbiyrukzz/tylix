@@ -1,6 +1,6 @@
 {
   "name": "create-tylix",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Create a new Tylix app: native Tylix, React, Vue, Svelte or Angular frontend, with auth, database and styling wired up.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -50,11 +50,11 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^1.3.0",
-    "@tylix/cli": "^1.3.0",
-    "@tylix/core": "^1.3.0",
-    "@tylix/generator": "^1.3.0",
-    "@tylix/shared": "^1.3.0"
+    "@tylix/auth": "^1.4.0",
+    "@tylix/cli": "^1.4.0",
+    "@tylix/core": "^1.4.0",
+    "@tylix/generator": "^1.4.0",
+    "@tylix/shared": "^1.4.0"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0"

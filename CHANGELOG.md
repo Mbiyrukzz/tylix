@@ -2,7 +2,7 @@
 
 All Tylix packages share one version number and are released together.
 
-## Unreleased
+## 1.4.0
 
 ### @tylix/pdf (new)
 - `createPdf(definition)` builds PDFs from plain objects in Node, Deno,
