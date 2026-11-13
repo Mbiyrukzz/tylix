@@ -1,0 +1,64 @@
+{
+  "name": "@tylix/pdf",
+  "version": "1.3.0",
+  "description": "PDF documents for any JavaScript runtime: rich text, tables that span pages, lists, columns, images, SVG and @tylix/charts, QR codes and barcodes, HTML, headers, footers, page numbers, bookmarks, a table of contents and embedded Unicode fonts. No dependencies.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "type": "module",
+  "keywords": [
+    "pdf",
+    "pdf-generation",
+    "invoice",
+    "report",
+    "tables",
+    "qr-code",
+    "barcode",
+    "svg",
+    "html-to-pdf",
+    "tylix"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/pdf#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/pdf"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@tylix/charts": "^1.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@tylix/charts": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tylix/charts": "^1.3.0"
+  }
+}

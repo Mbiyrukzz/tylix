@@ -106,6 +106,10 @@ async function loadApiHelpersForTypecheck(baseDir) {
 // listed package is reachable.
 const PACKAGE_ASSET_ROUTES = [
   { prefix: '/_tylix/charts/', pkg: ['@tylix', 'charts'], dir: 'src' },
+  // PDFs and spreadsheets made in the browser:
+  //   import { createPdf } from '/_tylix/pdf/index.js'
+  { prefix: '/_tylix/pdf/', pkg: ['@tylix', 'pdf'], dir: 'src' },
+  { prefix: '/_tylix/excel/', pkg: ['@tylix', 'excel'], dir: 'src' },
 ]
 
 // Maps a URL to a file inside one of PACKAGE_ASSET_ROUTES, or null when

@@ -2,6 +2,68 @@
 
 All Tylix packages share one version number and are released together.
 
+## Unreleased
+
+### @tylix/pdf (new)
+- `createPdf(definition)` builds PDFs from plain objects in Node, Deno,
+  Bun, edge runtimes and browsers. It has no dependencies and uses the
+  platform's CompressionStream.
+- **Layout:** text wraps and flows across pages. Headings keep with the
+  next block, and widow and orphan control stops single lines being left
+  alone at the top or bottom of a page. Boxes (padding, background,
+  border, radius), columns, lists (bullets, check marks, numbers,
+  letters, roman numerals), rules, spacers, page breaks, landscape
+  sections and absolutely placed nodes are supported.
+- **Tables:** built from objects with `columns` (`key`, nested paths,
+  `value()`), with formats (currency, number, percent, date…) and column
+  widths that are fixed, percentages, flexible or sized to content.
+  colSpan, zebra rows, grid / horizontal / outer borders, rounded
+  frames, footers and totals. Headers repeat on every page, and rows
+  taller than a page are split.
+- **Graphics:** JPEG (with EXIF rotation) and PNG (alpha, palettes,
+  interlacing); SVG with gradients, opacity, text and `<style>` rules;
+  `@tylix/charts` drawn as vectors; QR codes (all versions and EC
+  levels); barcodes (Code 128, EAN-13, UPC-A, EAN-8, Code 39); a canvas
+  painter for custom drawing.
+- **Fonts:** the built-in Helvetica, Times and Courier (kerned), plus
+  TrueType / OpenType embedding with subsetting, ToUnicode maps and
+  fallback fonts for CJK and other scripts.
+- **Navigation and pages:** headers and footers with `{page}` /
+  `{pages}`, backgrounds and watermarks, bookmarks from headings, a
+  clickable table of contents with page numbers, and internal and
+  external links.
+- **HTML:** `{ html }` converts headings, inline formatting, lists,
+  tables, images, blockquotes, `pre` and inline styles.
+- **Output:** `toBuffer`, `save`, `send(res)`, `toResponse` (fetch),
+  `toBlob`, `download`, `open` and `toDataUrl`.
+
+### @tylix/excel (new)
+- **One-liners:** `toXlsx(rows)` and `fromXlsx(file)`. The output has a
+  styled, frozen header with filters and columns fitted to the content.
+- **Workbooks:** `createWorkbook()` with sheets from `columns` and `rows`.
+  Named formats (`currency`, `percent`, `date`…) or Excel format codes;
+  totals rows; formulas; rich text; hyperlinks; merges; freeze panes;
+  Excel tables; dropdowns and other data validation; conditional
+  formatting (rules, expressions, duplicates, top N, data bars, color
+  scales); images; print setup; named ranges.
+- **Reading:** `readWorkbook()` reads `.xlsx` and `.csv`: typed values,
+  dates from number formats, formulas with cached results, merges,
+  widths and frozen panes.
+- **CSV:** `parseCsv` / `toCsv` follow RFC 4180, detect the delimiter,
+  handle byte-order marks and neutralize formula injection by default.
+- **Speed:** 100,000 rows × 6 columns write in about 2.5 s and read in
+  under 2 s.
+
+### Tylix integration
+- `res.download(data, filename, { inline })` sends bytes, strings, or
+  any document with `toBuffer()` (PDFs, workbooks), with the content
+  type taken from the file name.
+- `@tylix/mail` attachments accept PDF documents and workbooks directly:
+  `{ filename: 'invoice.pdf', content: invoicePdf(invoice) }`.
+- `tylix make:pdf <Name>` and `tylix make:export <Name>` generators.
+- `.tyx` pages can import both packages in the browser from
+  `/_tylix/pdf/` and `/_tylix/excel/`.
+
 ## 1.3.0
 
 ### @tylix/mail: usable in any Node app
