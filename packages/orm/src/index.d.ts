@@ -3,6 +3,8 @@ export * from "./adapters/SqliteAdapter.js";
 export * from "./adapters/PostgresAdapter.js";
 export * from "./model/ConnectionManager.js";
 export * from "./model/Model.js";
+export * from "./model/traits.js";
+export declare const OBSERVER_EVENTS: readonly ["creating", "created", "updating", "updated", "deleting", "deleted"];
 export * from "./adapters/AdapterFactory.js";
 export * from "./adapters/MysqlAdapter.js";
 export * from "./adapters/MongoAdapter.js";

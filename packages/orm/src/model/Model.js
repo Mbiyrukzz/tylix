@@ -1,5 +1,6 @@
 import { ConnectionManager } from './ConnectionManager.js'
 import { QueryBuilder } from '../query/QueryBuilder.js'
+import { addObservers, fire, hasHook, observersOf } from './observers.js'
 
 export class Model {
   static table = null
@@ -15,6 +16,16 @@ export class Model {
 
   static getAdapter() {
     return ConnectionManager.getAdapter()
+  }
+
+  /**
+   * Adds observers at runtime (see observers.js for the hooks):
+   *   User.observe(UserObserver)
+   * Usually they're declared on the model instead: static observers = [...]
+   */
+  static observe(...observers) {
+    addObservers(this, observers)
+    return this
   }
 
   static async all() {
@@ -110,8 +121,10 @@ export class Model {
     return row
   }
 
-  static async create(data) {
+  static async create(input) {
     const adapter = ConnectionManager.getAdapter()
+    const observers = observersOf(this)
+    const data = await fire(this, observers, 'creating', { ...input })
     const fields = this.fillable.filter((f) => f in data)
 
     if (fields.length === 0) {
@@ -135,11 +148,17 @@ export class Model {
       columnValues,
     )
 
-    return this.find(result.lastInsertRowid)
+    const row = await this.find(result.lastInsertRowid)
+    await fire(this, observers, 'created', row)
+    return row
   }
 
-  static async update(id, data) {
+  static async update(id, input) {
     const adapter = ConnectionManager.getAdapter()
+    const observers = observersOf(this)
+    // The row as it was, for updating/updated hooks; only read when needed.
+    const before = hasHook(observers, ['updating', 'updated']) ? await this.find(id) : null
+    const data = await fire(this, observers, 'updating', { ...input }, before)
     const fields = this.fillable.filter((f) => f in data)
 
     if (fields.length === 0) {
@@ -162,12 +181,19 @@ export class Model {
       [...columnValues, id],
     )
 
-    return this.find(id)
+    const row = await this.find(id)
+    await fire(this, observers, 'updated', row, before)
+    return row
   }
 
   static async delete(id) {
     const adapter = ConnectionManager.getAdapter()
+    const observers = observersOf(this)
+    // deleting/deleted hooks get the row; a missing row runs no hooks.
+    const row = hasHook(observers, ['deleting', 'deleted']) ? await this.find(id) : null
+    if (row) await fire(this, observers, 'deleting', row)
     await adapter.run(`DELETE FROM ${this.getTable()} WHERE id = ?`, [id])
+    if (row) await fire(this, observers, 'deleted', row)
     return true
   }
 

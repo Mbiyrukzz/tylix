@@ -186,3 +186,9 @@ export function injectSession(html, session) {
   if (!session) return html
   return insertHeadScript(html, `window.__TYLIX_SESSION__=${serializeForScript(session)}`)
 }
+
+// Tells @tylix/client which port the channel server ("tylix channels:work")
+// listens on, so channel()/useChannel connect without configuration.
+export function injectChannelsPort(html, port = Number(process.env.CHANNELS_PORT) || 6001) {
+  return insertHeadScript(html, `window.__TYLIX_CHANNELS_PORT__=${serializeForScript(port)}`)
+}

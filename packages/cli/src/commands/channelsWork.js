@@ -2,14 +2,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ChannelServer } from '@tylix/core'
-import { loadEnv, detectLanguage } from '@tylix/shared'
+import { loadConfig, detectLanguage } from '@tylix/shared'
 
 export async function channelsWork() {
   const baseDir = process.cwd()
-  await loadEnv(baseDir) // for CHANNELS_PORT, if set
-
-  const port = Number(process.env.CHANNELS_PORT) || 6001
   const language = await detectLanguage(baseDir)
+  // CHANNELS_PORT (.env) or channels.port (tylix.config), default 6001.
+  const { channels: settings } = await loadConfig(baseDir, language)
+  const port = settings.port
   const ext = language === 'typescript' ? 'ts' : 'js'
   const channelsPath = path.join(baseDir, 'app', `channels.${ext}`)
 

@@ -6,5 +6,16 @@
   "types": "./src/index.d.ts",
   "scripts": {
     "test": "node --test src/**/*.test.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./validation": {
+      "types": "./src/validation/index.d.ts",
+      "default": "./src/validation/index.js"
+    },
+    "./package.json": "./package.json"
   }
 }

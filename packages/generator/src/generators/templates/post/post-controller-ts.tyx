@@ -100,8 +100,11 @@ export class PostController {
         return res.json(post);
     }
 
+    // ?q= searches titles and bodies (the Searchable trait on Post).
     async publicIndex(req: TylixRequest, res: TylixResponse) {
-        const posts = ((await Post.all()) as PostRow[]).sort(newestFirst);
+        const q = typeof req.query?.q === "string" ? req.query.q.trim() : "";
+        const rows = q ? await Post.search(q, { limit: 100 }) : await Post.all();
+        const posts = (rows as PostRow[]).sort(newestFirst);
 
         const result = [];
         for (const p of posts) {

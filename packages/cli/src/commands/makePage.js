@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { detectLanguage, loadConfig, loadEnv } from '@tylix/shared'
+import { detectLanguage, loadConfig, loadEnv, exists } from '@tylix/shared'
 import { pageFiles, registerRoute, routeFile, IMPORTS_MARKER, ROUTES_MARKER } from '../frontend/generateFiles.js'
 
 const STARTER_TEMPLATE = (name) => `page ${name}
@@ -38,12 +38,6 @@ const AUTH_HELPER = {
   angular: 'authGuard',
 }
 
-async function exists(file) {
-  return fs
-    .access(file)
-    .then(() => true)
-    .catch(() => false)
-}
 
 // The project's frontend and language, for the make:* commands.
 export async function projectFrontend(baseDir) {

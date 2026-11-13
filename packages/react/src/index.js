@@ -15,7 +15,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import { api, auth } from '@tylix/client'
+import { api, auth, lazyChannel } from '@tylix/client'
 
 export { api, auth }
 
@@ -30,6 +30,28 @@ export const ServerContext = createContext(null)
 // Always null in the browser.
 export function useServerContext() {
   return useContext(ServerContext)
+}
+
+// A live channel on the channel server ("tylix channels:work"):
+//   const { send, status } = useChannel('chat', (message) => ...)
+// Connects once mounted (never during server rendering), reconnects on its
+// own, and closes when the component unmounts. send() before the
+// connection opens is queued.
+export function useChannel(name, onMessage) {
+  const handler = useRef(onMessage)
+  handler.current = onMessage
+  const [status, setStatus] = useState('connecting')
+  const live = useRef(null)
+  if (live.current === null || live.current.name !== name) {
+    live.current = { name, channel: lazyChannel(name, { onMessage: (data) => handler.current?.(data), onStatus: setStatus }) }
+  }
+  useEffect(() => {
+    const current = live.current.channel
+    current.open()
+    return () => current.close()
+  }, [name])
+  const send = useCallback((data) => live.current.channel.send(data), [])
+  return { send, status }
 }
 
 const subscribeNever = () => () => {}

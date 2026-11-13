@@ -8,56 +8,61 @@
  * Do not edit this section.
  */
 
-import { validate, required, isString, isEmail } from "@tylix/shared";
+// The rules for the auth forms. The API checks requests with them, and the
+// frontend's login and register pages import this same file to check the
+// form before sending it, so both always agree. That is why it imports
+// from "@tylix/shared/validation", which runs in the browser too.
+import {
+    validate,
+    required,
+    isString,
+    isEmail,
+    minLength,
+    maxLength,
+    withMessage,
+} from "@tylix/shared/validation";
 
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 128;
+export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 128;
 
-const registerSchema = {
-    name: [required, isString],
-    email: [required, isString, isEmail],
-    password: [required, isString],
-};
-
-const loginSchema = {
-    email: [required, isString, isEmail],
-    password: [required, isString],
-};
-
-const forgotPasswordSchema = {
-    email: [required, isString, isEmail],
-};
-
-const resetPasswordSchema = {
-    email: [required, isString, isEmail],
-    token: [required, isString],
-    password: [required, isString],
-};
+const email = [
+    withMessage(required, "Enter your email address."),
+    isString,
+    withMessage(isEmail, "Enter a valid email address."),
+];
 
 // Only for passwords being set (register, reset). Login must not enforce
-// it, so people with older, shorter passwords can still sign in.
-function enforcePasswordLength(data, result) {
-    const password = data?.password;
-    if (typeof password !== "string") return result;
-    if (result.errors?.password?.length) return result;
+// the length, so people with older, shorter passwords can still sign in.
+const newPassword = [
+    withMessage(required, "Choose a password."),
+    isString,
+    minLength(MIN_PASSWORD_LENGTH, `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`),
+    maxLength(MAX_PASSWORD_LENGTH, `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`),
+];
 
-    let message = null;
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        message = `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
-    } else if (password.length > MAX_PASSWORD_LENGTH) {
-        message = `Password must be at most ${MAX_PASSWORD_LENGTH} characters.`;
-    }
-    if (!message) return result;
+export const registerSchema = {
+    name: [withMessage(required, "Enter your name."), isString, maxLength(100)],
+    email,
+    password: newPassword,
+};
 
-    return {
-        ...result,
-        valid: false,
-        errors: { ...(result.errors ?? {}), password: [message] },
-    };
-}
+export const loginSchema = {
+    email,
+    password: [withMessage(required, "Enter your password."), isString],
+};
+
+export const forgotPasswordSchema = {
+    email,
+};
+
+export const resetPasswordSchema = {
+    email,
+    token: [withMessage(required, "This reset link is incomplete."), isString],
+    password: newPassword,
+};
 
 export function validateRegister(data) {
-    return enforcePasswordLength(data, validate(data, registerSchema));
+    return validate(data, registerSchema);
 }
 
 export function validateLogin(data) {
@@ -69,5 +74,5 @@ export function validateForgotPassword(data) {
 }
 
 export function validateResetPassword(data) {
-    return enforcePasswordLength(data, validate(data, resetPasswordSchema));
+    return validate(data, resetPasswordSchema);
 }

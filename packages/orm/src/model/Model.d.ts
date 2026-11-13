@@ -20,10 +20,29 @@ interface PaginateResult<T> {
 
 type Row = Record<string, unknown>;
 
+/** Hooks an observer may define; see observers.js. All optional. */
+export interface Observer {
+    creating?(data: Row, model: typeof Model): Row | void | Promise<Row | void>;
+    created?(row: Row, model: typeof Model): unknown;
+    updating?(data: Row, before: Row | null, model: typeof Model): Row | void | Promise<Row | void>;
+    updated?(row: Row, before: Row | null, model: typeof Model): unknown;
+    deleting?(row: Row, model: typeof Model): unknown;
+    deleted?(row: Row, model: typeof Model): unknown;
+}
+
+/** An observer object, or a class whose instances are observers. */
+export type ObserverLike = Observer | (new () => Observer);
+
 export declare class Model {
+    /** Lets traits extend models as TypeScript mixins (see traits.d.ts). */
+    constructor(...args: any[]);
     static table: string | null;
     static fillable: string[];
     static timestamps: boolean;
+    /** Observers whose hooks run on create/update/delete. */
+    static observers?: ObserverLike[];
+    /** Adds observers at runtime. */
+    static observe<T extends typeof Model>(this: T, ...observers: ObserverLike[]): T;
 
     static getTable(): string;
     static getAdapter(): unknown;

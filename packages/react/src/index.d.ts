@@ -42,6 +42,15 @@ export interface UseApiResult<T> {
   reload(): Promise<ApiResult<T> | null>
 }
 
+export interface UseChannel {
+  /** Sends JSON to the channel; queued until connected. */
+  send(data: unknown): void
+  status: import('@tylix/client').ChannelStatus
+}
+
+/** A live channel: connects once mounted, reconnects, closes on unmount. */
+export function useChannel<T = unknown>(name: string, onMessage?: (data: T) => void): UseChannel
+
 export function useApi<T = any>(url: string | null, options?: ApiOptions): UseApiResult<T>
 
 export type { Api }

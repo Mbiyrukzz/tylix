@@ -25,8 +25,6 @@ export async function start({ port } = {}) {
   const baseDir = process.cwd()
   await loadEnv(baseDir)
 
-  const listenPort = port ?? (Number(process.env.PORT) || 3000)
-
   let app
   try {
     app = await createApp(baseDir, { production: true })
@@ -34,9 +32,20 @@ export async function start({ port } = {}) {
     console.error(`\n✘ Failed to start: ${err.message}\n`)
     process.exit(1)
   }
+  const listenPort = port ?? app.config.server.port
 
+  const settings = app.config.server
   const server = new Server(app.router, {
     notFoundHandler: app.notFoundHandler,
+    trustProxy: settings.trustProxy,
+    debug: app.config.app.debug,
+    maxBodyBytes: settings.maxBodyBytes,
+    autoPort: settings.autoPort,
+    maxPortAttempts: settings.portAttempts,
+    trustedOrigins: settings.trustedOrigins,
+    appUrl: app.config.app.url,
+    cspMode: settings.csp.mode,
+    csp: settings.csp.policy,
   })
 
   const httpServer = server.listen(listenPort, (actualPort = listenPort) => {
@@ -44,7 +53,7 @@ export async function start({ port } = {}) {
     printBox('Tylix Framework')
     console.log()
     printChecklist([
-      `Environment  ${process.env.APP_ENV || 'production'}`,
+      `Environment  ${app.config.app.env}`,
       `Database     ${DRIVER_LABELS[app.config.database.driver] ?? app.config.database.driver}`,
       `Features     ${app.features.length}`,
       app.frontend.host

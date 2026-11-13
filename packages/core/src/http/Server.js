@@ -101,6 +101,10 @@ export class Server {
       maxBodyBytes,
       autoPort,
       maxPortAttempts,
+      trustedOrigins,
+      appUrl,
+      cspMode,
+      csp,
     } = {},
   ) {
     this.router = router
@@ -140,7 +144,7 @@ export class Server {
     // Origins allowed to make browser write requests from elsewhere
     // (TRUSTED_ORIGINS=https://a.example,https://b.example). APP_URL counts too.
     this.trustedOrigins = new Set(
-      [...parseList(process.env.TRUSTED_ORIGINS), process.env.APP_URL]
+      [...(trustedOrigins ?? parseList(process.env.TRUSTED_ORIGINS)), appUrl ?? process.env.APP_URL]
         .filter(Boolean)
         .map(originOf)
         .filter(Boolean),
@@ -149,9 +153,9 @@ export class Server {
     // CSP_MODE: off | report-only | enforce. Production defaults to
     // report-only: violations show in the browser console, nothing breaks.
     this.cspMode = String(
-      process.env.CSP_MODE || (this.production ? 'report-only' : 'off'),
+      cspMode ?? (process.env.CSP_MODE || (this.production ? 'report-only' : 'off')),
     ).toLowerCase()
-    this.csp = process.env.CSP_POLICY || DEFAULT_CSP
+    this.csp = csp ?? (process.env.CSP_POLICY || DEFAULT_CSP)
 
     if (this.debug && this.production) {
       console.warn(

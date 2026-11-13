@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { FRONTEND_DRIVERS, resolveFrontendConfig } from '@tylix/shared'
 import { MIME_TYPES } from '../utils/mime.js'
 import { createProjectImporter, resolveFromProject } from './importFromProject.js'
-import { injectServerRender, injectSession } from './session.js'
+import { injectChannelsPort, injectServerRender, injectSession } from './session.js'
 
 // Hosts a third-party frontend (React today) inside the Tylix server.
 //
@@ -75,7 +75,7 @@ function ssrEnabled(config, adapter) {
 // rendered: SSR off, or a render that failed. Usually nothing (the outlet
 // sits inside the root element), but Angular renders <app-root> itself, so
 // its outlet replaces that element and the fallback puts it back.
-async function renderDocument(template, { render, url, session, load, onRenderError, fallback = '' }) {
+async function renderDocument(template, { render, url, session, load, onRenderError, fallback = '', channelsPort }) {
   let html = template.replace(SSR_OUTLET, fallback)
   let status = 200
   if (render) {
@@ -93,7 +93,7 @@ async function renderDocument(template, { render, url, session, load, onRenderEr
       console.error(`[tylix] Server rendering failed for ${url}; sending the client-rendered page instead.`, err)
     }
   }
-  return { html: injectSession(html, session), status }
+  return { html: injectChannelsPort(injectSession(html, session), channelsPort), status }
 }
 
 function sendDocument(res, result) {
@@ -281,6 +281,7 @@ async function createDevHost(baseDir, options) {
           session,
           load,
           fallback: options.adapter.ssrFallback,
+          channelsPort: options.channelsPort,
           onRenderError: (err) => server.ssrFixStacktrace(err),
         })
         sendDocument(res, result)
@@ -307,7 +308,7 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 }
 
-async function createProductionHost(baseDir, { ssr = false, fallback = '' } = {}) {
+async function createProductionHost(baseDir, { ssr = false, fallback = '', channelsPort } = {}) {
   const outDir = path.join(baseDir, BUILD_DIR)
   const indexFile = path.join(outDir, 'index.html')
   let html
@@ -366,7 +367,7 @@ async function createProductionHost(baseDir, { ssr = false, fallback = '' } = {}
       return true
     },
     async serveHtml(req, res, { session = null, load } = {}) {
-      sendDocument(res, await renderDocument(html, { render, url: req.url, session, load, fallback }))
+      sendDocument(res, await renderDocument(html, { render, url: req.url, session, load, fallback, channelsPort }))
     },
     ssr: Boolean(render),
     reload() {},
@@ -377,9 +378,11 @@ async function createProductionHost(baseDir, { ssr = false, fallback = '' } = {}
 export async function createFrontendHost(baseDir, { driver, production, config }) {
   const { adapter, importFromProject } = await loadFrontendAdapter(baseDir, driver)
   const ssr = ssrEnabled(config, adapter)
+  const channelsPort = config?.channels?.port
   const host = production
-    ? await createProductionHost(baseDir, { ssr, fallback: adapter.ssrFallback })
+    ? await createProductionHost(baseDir, { ssr, fallback: adapter.ssrFallback, channelsPort })
     : await createDevHost(baseDir, {
+        channelsPort,
         adapter,
         importFromProject,
         userVite: config?.frontend?.vite,

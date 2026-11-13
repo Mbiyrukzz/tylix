@@ -42,6 +42,7 @@ export class ValidatorGenerator {
 
     const code = this.templateEngine.render(template, {
       Model: blueprint.name,
+      modelLower: blueprint.name[0].toLowerCase() + blueprint.name.slice(1),
       ruleImports: [...ruleNames].join(', '),
       schemaEntries: this.formatSchemaEntries(fieldRules),
     })

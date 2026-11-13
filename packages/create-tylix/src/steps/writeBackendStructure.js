@@ -46,7 +46,19 @@ const GUIDES = {
   'app/jobs': [
     'Jobs',
     'Work that shouldn\'t make a request wait: emails, exports, webhooks. Each file exports an object with handle(payload).',
+    'tylix make:job SendInvoice',
     'Queue one: dispatch("SendWelcomeEmail", { userId }) from @tylix/core. Run them: tylix queue:work',
+  ],
+  'app/observers': [
+    'Observers',
+    'Code that runs when a model is created, updated or deleted: creating/created, updating/updated, deleting/deleted. "creating" and "updating" may return changed data. Enable one with static observers = [UserObserver] in the model. UserObserver queues the welcome email when someone registers.',
+    'tylix make:observer Audit --model User',
+  ],
+  'app/traits': [
+    'Traits',
+    'Reusable model behaviour, mixed in with use(): class Post extends use(Model, Searchable({ fields: ["title"] })). A trait is a function that takes a model class and returns a subclass of it.',
+    'tylix make:trait HasSlug',
+    'Searchable comes with @tylix/orm and adds Model.search(term).',
   ],
   'app/mail': [
     'Mail',
@@ -173,6 +185,8 @@ app/services/         business logic shared by controllers and jobs
 app/middleware/       functions that run around requests
 app/validators/       rules for incoming data
 app/jobs/             background work (tylix queue:work)
+app/observers/        code that runs when models change
+app/traits/           reusable model behaviour
 app/mail/             mailables and the mailer
 app/Features/         CRUD features made by tylix make:feature
 app/schedule.${ext}         scheduled tasks (tylix schedule:work)
@@ -192,6 +206,10 @@ tylix make:page Reports --auth                          # a page and its route
 tylix make:component StatCard
 tylix make:service Billing
 tylix make:controller Invoice
+tylix make:job SendInvoice                              # background job
+tylix make:observer Audit --model User                  # model lifecycle hooks
+tylix make:trait HasSlug                                # reusable model behaviour
+tylix make:channel chat                                 # live channel + demo page
 \`\`\`
 `
 }

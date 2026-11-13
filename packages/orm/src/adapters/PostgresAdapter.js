@@ -8,6 +8,7 @@ const COLUMN_TYPES = {
   text: 'TEXT',
   boolean: 'BOOLEAN',
   integer: 'INTEGER',
+  float: 'DOUBLE PRECISION',
   date: 'DATE',
   datetime: 'TIMESTAMP',
   json: 'JSONB',

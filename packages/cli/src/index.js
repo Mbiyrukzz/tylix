@@ -15,6 +15,7 @@ import { removeFeature } from './commands/removeFeature.js'
 import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
 import { makeComponent } from './commands/makeComponent.js'
+import { makeJob, makeObserver, makeTrait } from './commands/makeBackend.js'
 import { scheduleWork } from './commands/scheduleWork.js'
 import { channelsWork } from './commands/channelsWork.js'
 import { queueWork } from './commands/queueWork.js'
@@ -255,6 +256,28 @@ async function main() {
     return
   }
 
+  if (command === 'make:job' || command === 'make:observer' || command === 'make:trait') {
+    // --model <Model> (make:observer) takes the next argument as its value.
+    const modelAt = rest.indexOf('--model')
+    const model = modelAt === -1 ? undefined : rest[modelAt + 1]
+    const positional = modelAt === -1 ? rest : rest.filter((_, i) => i !== modelAt && i !== modelAt + 1)
+    const [name] = positional
+    if (!name) {
+      const usage = { 'make:job': '<Name>', 'make:observer': '<Name> [--model Model]', 'make:trait': '<Name>' }
+      console.error(`Usage: tylix ${command} ${usage[command]}`)
+      process.exit(1)
+    }
+    try {
+      if (command === 'make:job') await makeJob(name)
+      else if (command === 'make:observer') await makeObserver(name, { model })
+      else await makeTrait(name)
+    } catch (err) {
+      console.error(`\n✘ ${err.message}\n`)
+      process.exit(1)
+    }
+    return
+  }
+
   if (command === 'make:component') {
     const [name] = rest
     if (!name) {
@@ -298,7 +321,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, build, start, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:mail, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

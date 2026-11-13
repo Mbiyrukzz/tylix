@@ -2,6 +2,8 @@ import { Component, inject, input, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { Router, RouterLink } from '@angular/router'
 import { injectAuth, injectHydrated, nextPath } from '@tylix/angular'
+import { firstError } from '@tylix/shared/validation'
+import { validateLogin } from '../../validators/AuthValidator'
 
 const inputClass =
   'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
@@ -85,10 +87,9 @@ export class Login {
   protected readonly error = signal(this.auth.expired() ? 'Your session ended. Log in again.' : '')
   protected readonly submitting = signal(false)
 
+  // The same rules the API checks (app/validators/AuthValidator).
   private validate() {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email())) return 'Enter a valid email address.'
-    if (this.password().length === 0) return 'Enter your password.'
-    return ''
+    return firstError(validateLogin({ email: this.email(), password: this.password() }))
   }
 
   protected async submit() {

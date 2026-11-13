@@ -16,7 +16,7 @@ import {
 import { Router } from '@angular/router'
 import { HttpErrorResponse } from '@angular/common/http'
 import { catchError, from, switchMap, throwError } from 'rxjs'
-import { api, auth, refreshSession, resultFromResponse } from '@tylix/client'
+import { api, auth, lazyChannel, refreshSession, resultFromResponse } from '@tylix/client'
 import { canRefreshAfter401, decideAccess, nextPath } from './access.js'
 
 export { api, auth, nextPath, decideAccess }
@@ -97,6 +97,20 @@ export function injectHydrated() {
   const hydrated = signal(false)
   afterNextRender(() => hydrated.set(true))
   return hydrated.asReadonly()
+}
+
+// A live channel on the channel server ("tylix channels:work"). Call in an
+// injection context (a field initializer):
+//   chat = injectChannel<Message>('chat', (message) => ...)
+//   this.chat.send({ text })   and   chat.status() in templates
+// Connects after the first render in the browser (never on the server),
+// reconnects on its own, and closes with the component.
+export function injectChannel(name, onMessage) {
+  const status = signal('connecting')
+  const live = lazyChannel(name, { onMessage: (data) => onMessage?.(data), onStatus: (next) => status.set(next) })
+  afterNextRender(() => live.open())
+  inject(DestroyRef).onDestroy(() => live.close())
+  return { send: (data) => live.send(data), status: status.asReadonly() }
 }
 
 // Data a server render loaded for `url`, embedded in the page.

@@ -10,6 +10,7 @@ const COLUMN_TYPES = {
   longText: 'LONGTEXT',
   boolean: 'TINYINT(1)',
   integer: 'INT',
+  float: 'DOUBLE',
   date: 'DATE',
   datetime: 'DATETIME',
   json: 'JSON',

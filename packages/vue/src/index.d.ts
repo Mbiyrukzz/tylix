@@ -51,5 +51,11 @@ export const serverContextKey: InjectionKey<ServerRenderContext>
 /** The server render's context while rendering on the server; null in the browser. */
 export function useServerContext(): ServerRenderContext | null
 
+/** A live channel: connects once mounted, reconnects, closes with the component. */
+export function useChannel<T = unknown>(
+  name: string,
+  onMessage?: (data: T) => void,
+): { send(data: unknown): void; status: Ref<import('@tylix/client').ChannelStatus> }
+
 /** False on the server and during hydration, true once mounted. */
 export function useHydrated(): Ref<boolean>

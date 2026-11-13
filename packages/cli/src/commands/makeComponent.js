@@ -2,13 +2,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { componentFile } from '../frontend/generateFiles.js'
 import { projectFrontend } from './makePage.js'
+import { exists } from '@tylix/shared'
 
-async function exists(file) {
-  return fs
-    .access(file)
-    .then(() => true)
-    .catch(() => false)
-}
 
 // tylix make:component <Name>
 // Native projects get a .tyx component under app/pages/components (its file

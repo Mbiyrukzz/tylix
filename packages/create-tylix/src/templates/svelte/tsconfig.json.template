@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["svelte", "vite/client"]
   },
-  "include": ["**/*.ts", "**/*.svelte"]
+  "include": ["**/*.ts", "**/*.svelte", "../validators/**/*.ts"]
 }

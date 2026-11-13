@@ -14,7 +14,7 @@ import {
   toValue,
   watch,
 } from 'vue'
-import { api, auth, resultFromResponse } from '@tylix/client'
+import { api, auth, lazyChannel, resultFromResponse } from '@tylix/client'
 
 export { api, auth }
 
@@ -74,6 +74,23 @@ export function useAuth() {
     forgotPassword: auth.forgotPassword,
     resetPassword: auth.resetPassword,
   }
+}
+
+// A live channel on the channel server ("tylix channels:work"):
+//   const { send, status } = useChannel('chat', (message) => ...)
+// Connects once mounted (never during server rendering), reconnects on its
+// own, and closes with the component. send() before then is queued.
+export function useChannel(name, onMessage) {
+  const status = ref('connecting')
+  const live = lazyChannel(toValue(name), {
+    onMessage: (data) => onMessage?.(data),
+    onStatus: (next) => {
+      status.value = next
+    },
+  })
+  if (getCurrentInstance()) onMounted(() => live.open())
+  if (getCurrentScope()) onScopeDispose(() => live.close())
+  return { send: (data) => live.send(data), status }
 }
 
 // False on the server and while a server-rendered page is hydrating; true

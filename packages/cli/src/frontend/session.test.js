@@ -6,6 +6,7 @@ import {
   createInternalFetch,
   createSessionResolver,
   injectServerRender,
+  injectChannelsPort,
   injectSession,
   isProtectedPath,
   loginRedirectLocation,
@@ -149,4 +150,9 @@ test('the server-render marker carries data safely', () => {
 test('an app without auth has no session', async () => {
   const resolve = createSessionResolver(new Router())
   assert.equal(await resolve(pageRequest('tylix_access_token=abc')), null)
+})
+
+test('injectChannelsPort puts the channel server port in the head', () => {
+  const html = injectChannelsPort('<head></head>', 7002)
+  assert.equal(html, '<head><script>window.__TYLIX_CHANNELS_PORT__=7002</script></head>')
 })

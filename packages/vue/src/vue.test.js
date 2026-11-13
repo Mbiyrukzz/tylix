@@ -39,6 +39,7 @@ globalThis.fetch = async (url, init = {}) => {
 }
 
 const { createApp, h, nextTick, ref } = await import('vue')
+const { installFakeWebSocket } = await import('../../client/src/fakeWebSocket.js')
 const { useAuth, useApi, sessionReady, auth } = await import('./index.js')
 
 const settle = async () => {
@@ -131,3 +132,28 @@ async function waitFor(check, timeoutMs = 2000) {
     await nextTick()
   }
 }
+
+test('useChannel connects once mounted, delivers messages, sends, and closes on unmount', async () => {
+  const { useChannel } = await import('./index.js')
+  const fake = installFakeWebSocket()
+  const seen = []
+  let chat
+  try {
+    const view = mount(() => {
+      chat = useChannel('chat', (message) => seen.push(message))
+      return () => h('p', `channel:${chat.status.value}`)
+    })
+    await new Promise((r) => setTimeout(r, 10))
+    await nextTick()
+    assert.equal(view.el.textContent, 'channel:open')
+    assert.match(fake.sockets[0].url, /\/chat$/)
+    chat.send({ text: 'hi' })
+    assert.deepEqual(fake.sockets[0].sent, [{ text: 'hi' }])
+    fake.sockets[0].receive({ text: 'yo' })
+    assert.deepEqual(seen, [{ text: 'yo' }])
+    view.unmount()
+    assert.equal(fake.sockets[0].readyState, 3)
+  } finally {
+    fake.restore()
+  }
+})

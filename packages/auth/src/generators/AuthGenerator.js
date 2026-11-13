@@ -44,6 +44,22 @@ export class AuthGenerator {
       { overwrite: true },
     )
 
+    // The user observer and the job it queues. Kept if they already exist
+    // (make:auth may run again in an app whose own versions they are).
+    const writeIfMissing = async (file, template) => {
+      const existing = await fs.access(file).then(() => true, () => false)
+      if (!existing) await writeFile(file, await read(template))
+      return file
+    }
+    results.userObserver = await writeIfMissing(
+      path.join(baseDir, 'app', 'observers', `UserObserver.${ext}`),
+      'user-observer',
+    )
+    results.welcomeJob = await writeIfMissing(
+      path.join(baseDir, 'app', 'jobs', `SendWelcomeEmail.${ext}`),
+      'welcome-job',
+    )
+
     results.refreshTokenModel = await writeFile(
       path.join(baseDir, 'app', 'models', `RefreshToken.${ext}`),
       await read('refresh-token-model'),

@@ -1,6 +1,8 @@
 <script__LANG__>
   import { auth, navigate, useHydrated, useRoute, useSession } from '@tylix/svelte'
   import { nextPath } from '../lib/next'
+  import { firstError } from '@tylix/shared/validation'
+  import { validateLogin } from '../../validators/AuthValidator'
 
   // The request's state during SSR, the browser's otherwise.
   const route = useRoute()
@@ -20,10 +22,9 @@
   let error = $state($session.expired ? 'Your session ended. Log in again.' : '')
   let submitting = $state(false)
 
+  // The same rules the API checks (app/validators/AuthValidator).
   function validate() {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'Enter a valid email address.'
-    if (password.length === 0) return 'Enter your password.'
-    return ''
+    return firstError(validateLogin({ email, password }))
   }
 
   async function submit() {

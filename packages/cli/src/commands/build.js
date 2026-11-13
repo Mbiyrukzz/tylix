@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { detectLanguage, loadEnv, loadConfig } from '@tylix/shared'
+import { detectLanguage, loadEnv, loadConfig, exists as pathExists } from '@tylix/shared'
 import {
   NATIVE_DRIVER,
   buildFrontend,
@@ -14,12 +14,6 @@ const execFileAsync = promisify(execFile)
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
 
-async function pathExists(p) {
-  return fs
-    .access(p)
-    .then(() => true)
-    .catch(() => false)
-}
 
 async function walkPagesDir(dir) {
   if (!(await pathExists(dir))) return []

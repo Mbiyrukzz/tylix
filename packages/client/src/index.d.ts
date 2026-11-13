@@ -94,6 +94,36 @@ export function createAuth(options: { api: Api; channel?: BroadcastChannel | nul
   expire(): void
 }
 
+export type ChannelStatus = 'connecting' | 'open' | 'reconnecting' | 'closed'
+
+export interface Channel<T = unknown> {
+  /** Sends JSON; queued while connecting. */
+  send(data: unknown): void
+  /** Returns a function that removes the listener. */
+  onMessage(listener: (data: T) => void): () => void
+  onStatus(listener: (status: ChannelStatus) => void): () => void
+  readonly status: ChannelStatus
+  close(): void
+}
+
+export interface ChannelOptions {
+  /** Channel server port; default: what the page says, else 6001. */
+  port?: number
+  /** Full WebSocket URL, instead of host + port + name. */
+  url?: string
+  /** Reconnect after a dropped connection. Default true. */
+  reconnect?: boolean
+}
+
+/** A live channel on the channel server ("tylix channels:work"). */
+export function channel<T = unknown>(name: string, options?: ChannelOptions): Channel<T>
+
+/** For framework bindings: open() once mounted, close() when unmounted; send() queues until open. */
+export function lazyChannel<T = unknown>(
+  name: string,
+  handlers?: { onMessage?: (data: T) => void; onStatus?: (status: ChannelStatus) => void },
+): { open(): void; close(): void; send(data: unknown): void }
+
 declare global {
   // Set by the server when it already knows the session at page load.
   // eslint-disable-next-line no-var
@@ -101,6 +131,9 @@ declare global {
   // Set when the server rendered the page (SSR): hydrate instead of render.
   // eslint-disable-next-line no-var
   var __TYLIX_SSR__: boolean | undefined
+  // The channel server's port (CHANNELS_PORT), put in the page by Tylix.
+  // eslint-disable-next-line no-var
+  var __TYLIX_CHANNELS_PORT__: number | undefined
   // API results the server render loaded, by url, reused while hydrating.
   // eslint-disable-next-line no-var
   var __TYLIX_DATA__: Record<string, ApiResult> | undefined

@@ -30,6 +30,8 @@ test('generates auth models, validator, controller, mail files and migrations', 
       'userMigration',
       'refreshTokenMigration',
       'passwordResetMigration',
+      'userObserver',
+      'welcomeJob',
     ]
     for (const key of expected) {
       assert.ok(results[key], `generate() returned no path for "${key}"`)
@@ -51,6 +53,9 @@ test('generates auth models, validator, controller, mail files and migrations', 
     assert.match(controller, /async me\(req, res\)/)
 
     assert.match(await read('userMigration'), /createTable\("users"/)
+    assert.match(await read('userModel'), /static observers = \[UserObserver\]/)
+    assert.match(await read('userObserver'), /dispatch\("SendWelcomeEmail", \{ userId: user\.id \}\)/)
+    assert.match(await read('welcomeJob'), /export const SendWelcomeEmail/)
     assert.match(await read('refreshTokenMigration'), /createTable\("refresh_tokens"/)
     assert.match(await read('passwordResetMigration'), /createTable\("password_resets"/)
   } finally {

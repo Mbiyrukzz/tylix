@@ -1,5 +1,6 @@
 import { createApi, resultFromResponse } from './createApi.js'
 import { createAuth } from './createAuth.js'
+export { channel, lazyChannel } from './channel.js'
 
 export { createApi, createAuth, resultFromResponse }
 

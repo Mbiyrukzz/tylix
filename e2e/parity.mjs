@@ -157,6 +157,11 @@ try {
 
   await step('client-side validation blocks a bad login', async () => {
     await page.goto(`${base}/login`)
+    // The messages come from app/validators/AuthValidator, the same rules
+    // the API checks.
+    await page.getByRole('button', { name: 'Log in' }).click()
+    await page.getByRole('alert').filter({ hasText: 'Enter your email address.' }).waitFor()
+    await page.getByLabel('Email').fill('not-an-email')
     await page.getByRole('button', { name: 'Log in' }).click()
     await page.getByRole('alert').filter({ hasText: 'Enter a valid email address.' }).waitFor()
   })

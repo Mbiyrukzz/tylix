@@ -7,3 +7,5 @@ export declare function writeFile(
     content: string,
     options?: WriteFileOptions
 ): Promise<string>;
+/** True when the path exists (file or folder). */
+export declare function exists(filePath: string): Promise<boolean>;

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth, useHydrated } from '@tylix/react'
+import { firstError } from '@tylix/shared/validation'
+import { MIN_PASSWORD_LENGTH, validateRegister } from '../../validators/AuthValidator'
 
 const inputClass =
   'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
@@ -27,7 +29,7 @@ export default function Register() {
   const [registered, setRegistered] = useState(false)
 
   let score = 0
-  if (password.length >= 8) {
+  if (password.length >= MIN_PASSWORD_LENGTH) {
     score = 1
     if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++
     if (/[0-9]/.test(password)) score++
@@ -35,9 +37,9 @@ export default function Register() {
   }
 
   function validate() {
-    if (name.trim().length === 0) return 'Enter your name.'
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return 'Enter a valid email address.'
-    if (password.length < 8) return 'Password must be at least 8 characters.'
+    // The same rules the API checks (app/validators/AuthValidator).
+    const problem = firstError(validateRegister({ name: name.trim(), email, password }))
+    if (problem) return problem
     if (password !== confirmPassword) return "Passwords don't match."
     if (!agreed) return 'Please agree to the Terms of Service to continue.'
     return ''

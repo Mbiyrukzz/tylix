@@ -659,12 +659,16 @@ export async function createProjectStructure(config) {
     )
 
     await fs.mkdir(path.join(targetDir, 'app', 'jobs'), { recursive: true })
-    await fs.writeFile(
-      path.join(targetDir, 'app', 'jobs', `SendWelcomeEmail.${ext}`),
-      isTs
-        ? `export const SendWelcomeEmail = {\n  async handle(payload: { userId: string | number; [key: string]: unknown }) {\n    // payload.userId, etc.\n  },\n}\n`
-        : `export const SendWelcomeEmail = {\n  async handle(payload) {\n    // payload.userId, etc.\n  },\n}\n`,
-    )
+    // An example job for apps without auth. With auth, the auth generator
+    // writes a real SendWelcomeEmail, queued by its UserObserver.
+    if (!config.authEnabled) {
+      await fs.writeFile(
+        path.join(targetDir, 'app', 'jobs', `SendWelcomeEmail.${ext}`),
+        isTs
+          ? `export const SendWelcomeEmail = {\n  async handle(payload: { userId: string | number; [key: string]: unknown }) {\n    // payload.userId, etc.\n  },\n}\n`
+          : `export const SendWelcomeEmail = {\n  async handle(payload) {\n    // payload.userId, etc.\n  },\n}\n`,
+      )
+    }
 
     await fs.mkdir(path.join(targetDir, 'app', 'mail'), { recursive: true })
 

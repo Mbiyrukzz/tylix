@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { detectLanguage } from '@tylix/shared'
+import { detectLanguage, exists as pathExists, kebabCase } from '@tylix/shared'
 
 const METHODS = ['get', 'post', 'put', 'delete']
 const BODY_METHODS = ['post', 'put']
@@ -11,16 +11,8 @@ const PATH_RE = /^\/api(\/([a-z0-9-]+|:[A-Za-z_]\w*))+$/
 // own, so a generated file must never take that name.
 const RESERVED_NAMES = new Set(['web'])
 
-function kebab(str) {
-  return str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
-}
+const kebab = kebabCase
 
-async function pathExists(p) {
-  return fs
-    .access(p)
-    .then(() => true)
-    .catch(() => false)
-}
 
 // "/api/authors/:id" and "/api/authors/:authorId" match the same URLs,
 // so they count as the same route.

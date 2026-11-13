@@ -73,3 +73,17 @@ test('components in each format', () => {
   assert.equal(componentFile('angular', 'StatCard').file, 'components/stat-card.ts')
   assert.match(componentFile('angular', 'StatCard').content, /<ng-content \/>/)
 })
+
+test('channelPageFiles: a chat page per frontend, on the same file and route as make:page', async () => {
+  const { channelPageFiles, pageFiles } = await import('./generateFiles.js')
+  const hooks = { react: 'useChannel', vue: 'useChannel', svelte: 'useChannel', angular: 'injectChannel' }
+  for (const driver of Object.keys(hooks)) {
+    for (const ts of [false, true]) {
+      const page = channelPageFiles(driver, 'Chat', 'chat', { ts })
+      const plain = pageFiles(driver, 'Chat', { ts })
+      assert.equal(page.file, plain.file)
+      assert.equal(page.importLine, plain.importLine)
+      assert.match(page.content, new RegExp(`${hooks[driver]}(<Message>)?\\('chat'`))
+    }
+  }
+})

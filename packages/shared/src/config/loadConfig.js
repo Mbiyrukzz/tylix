@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url'
 import fs from 'node:fs/promises'
 import { loadEnv } from './loadEnv.js'
 import { resolveFrontendConfig } from './frontendConfig.js'
+import { resolveAppSettings } from './appSettings.js'
 
 const DEFAULT_CONFIG = {
   database: {
@@ -172,9 +173,14 @@ export async function loadConfig(cwd = process.cwd(), language = 'javascript') {
     }
   }
 
-  return {
+  // Where each app/server/channels value came from, for "tylix doctor".
+  const sources = {}
+  const settings = resolveAppSettings(userConfig, sources)
+
+  const config = {
     ...DEFAULT_CONFIG,
     ...userConfig,
+    ...settings,
     database: resolveDatabase(userConfig.database, cwd),
     auth: {
       ...DEFAULT_CONFIG.auth,
@@ -188,4 +194,6 @@ export async function loadConfig(cwd = process.cwd(), language = 'javascript') {
     },
     frontend: resolveFrontendConfig(userConfig.frontend),
   }
+  Object.defineProperty(config, 'sources', { value: sources, enumerable: false })
+  return config
 }

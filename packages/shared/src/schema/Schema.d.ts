@@ -10,6 +10,8 @@ export interface CreateTableBuilder {
   longText(name: string): ColumnDef
   boolean(name: string): ColumnDef
   integer(name: string): ColumnDef
+  /** A number that may have decimals (REAL / DOUBLE). */
+  float(name: string): ColumnDef
   date(name: string): ColumnDef
   datetime(name: string): ColumnDef
   json(name: string): ColumnDef
@@ -23,6 +25,8 @@ export interface AlterTableBuilder {
   longText(name: string): ColumnDef
   boolean(name: string): ColumnDef
   integer(name: string): ColumnDef
+  /** A number that may have decimals (REAL / DOUBLE). */
+  float(name: string): ColumnDef
   date(name: string): ColumnDef
   datetime(name: string): ColumnDef
   json(name: string): ColumnDef

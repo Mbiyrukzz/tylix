@@ -41,7 +41,8 @@ globalThis.fetch = async (url, init = {}) => {
 
 const { createElement: h, act } = await import('react')
 const { createRoot } = await import('react-dom/client')
-const { useAuth, RequireAuth, GuestOnly, useApi, auth } = await import('./index.js')
+const { useAuth, RequireAuth, GuestOnly, useApi, useChannel, auth } = await import('./index.js')
+const { installFakeWebSocket } = await import('../../client/src/fakeWebSocket.js')
 
 let root
 before(() => {
@@ -131,4 +132,29 @@ test('useApi reports HTTP errors', async () => {
   await render(h(Posts, { url: '/api/missing' }))
   await settle()
   assert.equal(text(), 'error:Not found')
+})
+
+test('useChannel connects once mounted, delivers messages, sends, and closes on unmount', async () => {
+  const fake = installFakeWebSocket()
+  const seen = []
+  let api
+  function Chat() {
+    api = useChannel('chat', (message) => seen.push(message))
+    return h('p', null, `channel:${api.status}`)
+  }
+  try {
+    await render(h(Chat))
+    await settle()
+    assert.equal(text(), 'channel:open')
+    assert.equal(fake.sockets.length, 1)
+    assert.match(fake.sockets[0].url, /\/chat$/)
+    await act(async () => api.send({ text: 'hi' }))
+    assert.deepEqual(fake.sockets[0].sent, [{ text: 'hi' }])
+    await act(async () => fake.sockets[0].receive({ text: 'yo' }))
+    assert.deepEqual(seen, [{ text: 'yo' }])
+    await render(h('p', null, 'gone'))
+    assert.equal(fake.sockets[0].readyState, 3)
+  } finally {
+    fake.restore()
+  }
 })

@@ -15,6 +15,7 @@ const TS_FIELD_TYPES = {
   boolean: 'boolean',
   integer: 'number',
   number: 'number',
+  float: 'number',
   email: 'string',
   date: 'string',
   datetime: 'string',

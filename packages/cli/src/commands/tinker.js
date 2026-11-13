@@ -4,7 +4,7 @@ import path from 'node:path'
 import { inspect } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { bootstrapDatabase } from '../bootstrap.js'
-import { loadConfig, detectLanguage } from '@tylix/shared'
+import { loadConfig, detectLanguage, exists as pathExists } from '@tylix/shared'
 import { cache, discoverFeatures, dispatch } from '@tylix/core'
 import { ConnectionManager } from '@tylix/orm'
 import { migrate } from './migrate.js'
@@ -43,12 +43,6 @@ function maskConfig(node, key = '') {
   return maskValue(key, node)
 }
 
-async function pathExists(p) {
-  return fs
-    .access(p)
-    .then(() => true)
-    .catch(() => false)
-}
 
 async function listFiles(dir, ext) {
   if (!(await pathExists(dir))) return []

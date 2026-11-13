@@ -2,6 +2,8 @@ import { Component, computed, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { RouterLink } from '@angular/router'
 import { injectAuth, injectHydrated } from '@tylix/angular'
+import { firstError } from '@tylix/shared/validation'
+import { MIN_PASSWORD_LENGTH, validateRegister } from '../../validators/AuthValidator'
 
 const inputClass =
   'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
@@ -120,7 +122,7 @@ export class Register {
 
   protected readonly score = computed(() => {
     const value = this.password()
-    if (value.length < 8) return 0
+    if (value.length < MIN_PASSWORD_LENGTH) return 0
     let points = 1
     if (/[a-z]/.test(value) && /[A-Z]/.test(value)) points++
     if (/[0-9]/.test(value)) points++
@@ -129,9 +131,11 @@ export class Register {
   })
 
   private validate() {
-    if (this.name().trim().length === 0) return 'Enter your name.'
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email())) return 'Enter a valid email address.'
-    if (this.password().length < 8) return 'Password must be at least 8 characters.'
+    // The same rules the API checks (app/validators/AuthValidator).
+    const problem = firstError(
+      validateRegister({ name: this.name().trim(), email: this.email(), password: this.password() }),
+    )
+    if (problem) return problem
     if (this.password() !== this.confirmPassword()) return "Passwords don't match."
     if (!this.agreed()) return 'Please agree to the Terms of Service to continue.'
     return ''

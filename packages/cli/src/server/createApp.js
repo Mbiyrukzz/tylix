@@ -10,7 +10,7 @@ import {
   loadCustomRoutes,
 } from '@tylix/core'
 import { MailLog } from '@tylix/mail'
-import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
+import { loadConfig, loadEnv, detectLanguage, exists as pathExists, pascalCase } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
 import { renderErrorPage } from '../utils/error-page.js'
@@ -43,12 +43,6 @@ const STYLESHEET_CANDIDATES = ['tailwind.css', 'styles.css']
 // 404 status. It is never a route itself.
 const NOT_FOUND_FILE = '_not-found.tyx'
 
-async function pathExists(p) {
-  return fs
-    .access(p)
-    .then(() => true)
-    .catch(() => false)
-}
 
 async function resolveStylesheets(baseDir) {
   const found = []
@@ -357,13 +351,7 @@ function warnOnce(message) {
 }
 
 // "admin-panel" / "admin_panel" -> "AdminPanel"
-function pascalSegment(segment) {
-  return segment
-    .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join('')
-}
+const pascalSegment = pascalCase
 
 // Everything under app/pages/components/, at any depth.
 //
@@ -546,7 +534,7 @@ function pickNotFound(found, urlPath) {
 async function registerPageRoutes(
   router,
   baseDir,
-  { hotReloadCompiler, production, compilerOptions, loadingBar = true },
+  { hotReloadCompiler, production, compilerOptions, loadingBar = true, channelsPort = 6001 },
 ) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   if (!(await pathExists(pagesDir))) {
@@ -674,7 +662,6 @@ async function registerPageRoutes(
     }
 
     const apiHelpers = await loadApiHelpers(baseDir, transpileTsToJs)
-    const channelsPort = Number(process.env.CHANNELS_PORT) || 6001
 
     // Dev re-checks public/ on every request, so a Tailwind build that
     // finishes after startup is picked up on the next reload.
@@ -926,6 +913,7 @@ export async function createApp(
         production,
         compilerOptions,
         loadingBar: config.loadingBar !== false,
+        channelsPort: config.channels.port,
       },
     ))
   } else {

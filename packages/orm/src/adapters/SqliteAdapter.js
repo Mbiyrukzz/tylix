@@ -7,6 +7,7 @@ const COLUMN_TYPES = {
   text: 'TEXT',
   boolean: 'INTEGER',
   integer: 'INTEGER',
+  float: 'REAL',
   date: 'TEXT',
   datetime: 'TEXT',
   json: 'TEXT',

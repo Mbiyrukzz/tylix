@@ -18,5 +18,5 @@
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts", "../validators/**/*.ts"]
 }

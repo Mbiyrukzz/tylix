@@ -76,8 +76,10 @@ export class PostController {
         return res.json(post);
     }
 
+    // ?q= searches titles and bodies (the Searchable trait on Post).
     async publicIndex(req, res) {
-        const posts = await Post.all();
+        const q = typeof req.query?.q === "string" ? req.query.q.trim() : "";
+        const posts = q ? await Post.search(q, { limit: 100 }) : await Post.all();
         const sorted = posts.sort(
             (a, b) => new Date(b.created_at) - new Date(a.created_at),
         );

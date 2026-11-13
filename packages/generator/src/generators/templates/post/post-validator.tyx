@@ -7,11 +7,11 @@
  * rather than produced by ValidatorGenerator.
  */
 
-import { validate, required, isString } from "@tylix/shared";
+import { validate, required, isString, maxLength, withMessage } from "@tylix/shared/validation";
 
-const postSchema = {
-    title: [required, isString],
-    body: [required, isString],
+export const postSchema = {
+    title: [withMessage(required, "Give the post a title."), isString, maxLength(200)],
+    body: [withMessage(required, "Write something in the post."), isString],
 };
 
 export function validatePost(data) {

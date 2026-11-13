@@ -8,12 +8,14 @@
  * Do not edit this section.
  */
 
-import { validate, {{ruleImports}} } from "@tylix/shared";
+import { validate, {{ruleImports}} } from "@tylix/shared/validation";
 
-const schema = {
+// Also importable from frontend code: @tylix/shared/validation runs in
+// the browser too.
+export const {{modelLower}}Schema = {
 {{schemaEntries}}
 };
 
-export function validate{{Model}}(data: any) {
-    return validate(data, schema);
+export function validate{{Model}}(data: unknown) {
+    return validate(data, {{modelLower}}Schema);
 }

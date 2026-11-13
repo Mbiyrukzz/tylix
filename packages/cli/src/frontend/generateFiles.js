@@ -2,6 +2,8 @@
 // frontend (React, Svelte, Vue, Angular). Pure functions, so every
 // framework's output can be tested without a project on disk.
 
+import { kebabCase, titleCase } from '@tylix/shared'
+
 // Lines that mark where make:page inserts into the starter's route file.
 // Starters since SSR have them; older projects get the lines printed.
 export const IMPORTS_MARKER = 'tylix:imports'
@@ -9,12 +11,9 @@ export const ROUTES_MARKER = 'tylix:routes'
 
 const SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/
 
+// A segment is already letters and digits, so capitalising is enough.
 const pascal = (segment) => segment[0].toUpperCase() + segment.slice(1)
-const kebab = (segment) =>
-  segment
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
-    .toLowerCase()
+const kebab = kebabCase
 
 // "admin/UserSettings" ->
 //   folders ['admin'], base 'UserSettings',
@@ -42,7 +41,7 @@ const join = (...parts) => parts.filter(Boolean).join('/')
 
 function pageBody(title, file) {
   return {
-    heading: title.replace(/([a-z0-9])([A-Z])/g, '$1 $2'),
+    heading: titleCase(title),
     hint: `Edit app/frontend/${file} to change this page.`,
   }
 }
@@ -271,4 +270,169 @@ export function registerRoute(source, page, { auth = false } = {}) {
   const withRoute = insertAtMarker(withImport, ROUTES_MARKER, page.routeLine(auth))
   if (withRoute === null) return { missing: ROUTES_MARKER }
   return { source: withRoute }
+}
+
+// ---- channel demo pages (make:channel) ----------------------------------
+
+const CHAT_CLASSES = {
+  section: 'max-w-xl mx-auto px-6 py-12',
+  list: 'mt-6 space-y-2',
+  item: 'rounded-lg border border-zinc-200 px-3 py-2',
+  form: 'mt-6 flex gap-2',
+  input: 'flex-1 rounded-lg border border-zinc-300 px-3 py-2',
+  button: 'rounded-lg bg-zinc-900 px-4 py-2 text-white disabled:opacity-50',
+}
+
+function channelContent(driver, n, channel, ts) {
+  const c = CHAT_CLASSES
+  const heading = titleCase(n.base)
+  const intro = `Live on the "${channel}" channel. Open this page in two tabs; run "tylix channels:work" next to "tylix dev".`
+  switch (driver) {
+    case 'react':
+      return `import { useState${ts ? ', type FormEvent' : ''} } from 'react'
+import { useChannel } from '@tylix/react'
+${ts ? '\ntype Message = { text: string; at: string }\n' : ''}
+export default function ${n.base}() {
+  const [messages, setMessages] = useState${ts ? '<Message[]>' : ''}([])
+  const [text, setText] = useState('')
+  const { send, status } = useChannel${ts ? '<Message>' : ''}('${channel}', (message) => setMessages((list) => [...list, message]))
+
+  function submit(event${ts ? ': FormEvent' : ''}) {
+    event.preventDefault()
+    if (!text.trim()) return
+    send({ text: text.trim(), at: new Date().toISOString() })
+    setText('')
+  }
+
+  return (
+    <section className="${c.section}">
+      <h1 className="text-3xl font-semibold tracking-tight">${heading}</h1>
+      <p className="mt-2 text-zinc-500">${intro}</p>
+      <p className="mt-2 text-sm">Status: {status}</p>
+      <ul className="${c.list}">
+        {messages.map((message, i) => (
+          <li key={i} className="${c.item}">{message.text}</li>
+        ))}
+      </ul>
+      <form className="${c.form}" onSubmit={submit}>
+        <input className="${c.input}" value={text} onChange={(e) => setText(e.target.value)} placeholder="Say something" />
+        <button className="${c.button}" disabled={status !== 'open'}>Send</button>
+      </form>
+    </section>
+  )
+}
+`
+    case 'vue':
+      return `<script setup${ts ? ' lang="ts"' : ''}>
+import { ref } from 'vue'
+import { useChannel } from '@tylix/vue'
+${ts ? '\ntype Message = { text: string; at: string }\n' : ''}
+const messages = ref${ts ? '<Message[]>' : ''}([])
+const text = ref('')
+const { send, status } = useChannel${ts ? '<Message>' : ''}('${channel}', (message) => messages.value.push(message))
+
+function submit() {
+  if (!text.value.trim()) return
+  send({ text: text.value.trim(), at: new Date().toISOString() })
+  text.value = ''
+}
+</script>
+
+<template>
+  <section class="${c.section}">
+    <h1 class="text-3xl font-semibold tracking-tight">${heading}</h1>
+    <p class="mt-2 text-zinc-500">${intro}</p>
+    <p class="mt-2 text-sm">Status: {{ status }}</p>
+    <ul class="${c.list}">
+      <li v-for="(message, i) in messages" :key="i" class="${c.item}">{{ message.text }}</li>
+    </ul>
+    <form class="${c.form}" @submit.prevent="submit">
+      <input v-model="text" class="${c.input}" placeholder="Say something" />
+      <button class="${c.button}" :disabled="status !== 'open'">Send</button>
+    </form>
+  </section>
+</template>
+`
+    case 'svelte':
+      return `<script${ts ? ' lang="ts"' : ''}>
+  import { useChannel } from '@tylix/svelte'
+${ts ? '\n  type Message = { text: string; at: string }\n' : ''}
+  let messages${ts ? ': Message[]' : ''} = []
+  let text = ''
+  const chat = useChannel${ts ? '<Message>' : ''}('${channel}', (message) => (messages = [...messages, message]))
+  const status = chat.status
+
+  function submit() {
+    if (!text.trim()) return
+    chat.send({ text: text.trim(), at: new Date().toISOString() })
+    text = ''
+  }
+</script>
+
+<section class="${c.section}">
+  <h1 class="text-3xl font-semibold tracking-tight">${heading}</h1>
+  <p class="mt-2 text-zinc-500">${intro}</p>
+  <p class="mt-2 text-sm">Status: {$status}</p>
+  <ul class="${c.list}">
+    {#each messages as message, i (i)}
+      <li class="${c.item}">{message.text}</li>
+    {/each}
+  </ul>
+  <form class="${c.form}" on:submit|preventDefault={submit}>
+    <input bind:value={text} class="${c.input}" placeholder="Say something" />
+    <button class="${c.button}" disabled={$status !== 'open'}>Send</button>
+  </form>
+</section>
+`
+    case 'angular':
+      return `import { Component, signal } from '@angular/core'
+import { FormsModule } from '@angular/forms'
+import { injectChannel } from '@tylix/angular'
+
+type Message = { text: string; at: string }
+
+@Component({
+  selector: 'app-${n.selector}',
+  imports: [FormsModule],
+  template: \`
+    <section class="${c.section}">
+      <h1 class="text-3xl font-semibold tracking-tight">${heading}</h1>
+      <p class="mt-2 text-zinc-500">${intro}</p>
+      <p class="mt-2 text-sm">Status: {{ chat.status() }}</p>
+      <ul class="${c.list}">
+        @for (message of messages(); track $index) {
+          <li class="${c.item}">{{ message.text }}</li>
+        }
+      </ul>
+      <form class="${c.form}" (ngSubmit)="submit()">
+        <input [(ngModel)]="text" name="text" class="${c.input}" placeholder="Say something" />
+        <button class="${c.button}" [disabled]="chat.status() !== 'open'">Send</button>
+      </form>
+    </section>
+  \`,
+})
+export class ${n.identifier} {
+  protected readonly messages = signal<Message[]>([])
+  protected text = ''
+  protected readonly chat = injectChannel<Message>('${channel}', (message) =>
+    this.messages.update((list) => [...list, message]),
+  )
+
+  protected submit() {
+    if (!this.text.trim()) return
+    this.chat.send({ text: this.text.trim(), at: new Date().toISOString() })
+    this.text = ''
+  }
+}
+`
+    default:
+      throw new Error(`No hosted frontend "${driver}".`)
+  }
+}
+
+// A page that joins a channel: a message list, an input and the status.
+// Same file, import and route as make:page would give the name.
+export function channelPageFiles(driver, name, channel, { ts = false } = {}) {
+  const page = pageFiles(driver, name, { ts })
+  return { ...page, content: channelContent(driver, page.name, channel, ts || driver === 'angular') }
 }

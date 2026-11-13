@@ -61,5 +61,11 @@ export function useSession(): Readable<Session>
 /** The location for this component: the request's on the server, the router's in the browser. */
 export function useRoute(): Readable<Route>
 
+/** A live channel: connects once mounted, reconnects, closes with the component. Call at init. */
+export function useChannel<T = unknown>(
+  name: string,
+  onMessage?: (data: T) => void,
+): { send(data: unknown): void; status: Readable<import('@tylix/client').ChannelStatus> }
+
 /** False on the server and during hydration, true once mounted. */
 export function useHydrated(): Readable<boolean>

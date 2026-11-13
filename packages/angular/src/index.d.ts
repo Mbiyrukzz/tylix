@@ -65,5 +65,11 @@ export const TYLIX_SERVER: InjectionToken<ServerRenderContext>
 /** The server render's context during SSR; null in the browser. */
 export function useServerContext(): ServerRenderContext | null
 
+/** A live channel: connects after the first browser render, reconnects, closes on destroy. Injection context. */
+export function injectChannel<T = unknown>(
+  name: string,
+  onMessage?: (data: T) => void,
+): { send(data: unknown): void; status: Signal<import('@tylix/client').ChannelStatus> }
+
 /** False on the server and during hydration, true after the first browser render. Injection context. */
 export function injectHydrated(): Signal<boolean>

@@ -10,6 +10,7 @@
 
 import { Model } from "@tylix/orm";
 import { hashPassword } from "@tylix/auth";
+import { UserObserver } from "../observers/UserObserver.js";
 
 export interface UserAttributes {
     id: number;
@@ -26,6 +27,9 @@ export type SafeUser = Omit<UserAttributes, "password">;
 
 export class User extends Model {
     static table = "users";
+
+    // Hooks that run on create/update/delete: see app/observers/UserObserver.
+    static observers = [UserObserver];
 
     static fillable: string[] = [
         "name",

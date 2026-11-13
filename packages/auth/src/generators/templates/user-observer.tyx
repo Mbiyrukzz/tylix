@@ -1,0 +1,12 @@
+import { dispatch } from "@tylix/core";
+
+// Runs when users are created, updated or deleted. Enabled by
+// `static observers = [UserObserver]` in app/models/User.
+// See "tylix make:observer" for every hook an observer can define.
+export class UserObserver {
+    // After a sign-up: queue the welcome email instead of sending it during
+    // the request. "tylix queue:work" runs it (app/jobs/SendWelcomeEmail).
+    async created(user) {
+        await dispatch("SendWelcomeEmail", { userId: user.id });
+    }
+}

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { loadConfig, loadEnv, detectLanguage } from '@tylix/shared'
+import { loadConfig, loadEnv, detectLanguage, parseEnv, exists as pathExists } from '@tylix/shared'
 import { discoverFeatures } from '@tylix/core'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { FRONTEND_PACKAGES, NATIVE_DRIVER, SSR_OUTLET, loadFrontendAdapter } from '../frontend/frontendHost.js'
@@ -19,7 +19,28 @@ const MIN_NODE_MAJOR = 22
 
 // Folders the make:* commands write into. Missing ones aren't errors: the
 // commands create them. They're reported so an unusual layout is visible.
-const APP_FOLDERS = ['controllers', 'models', 'routes', 'services', 'middleware', 'validators', 'jobs', 'mail', 'seeders']
+const APP_FOLDERS = ['controllers', 'models', 'routes', 'services', 'middleware', 'validators', 'jobs', 'observers', 'traits', 'mail', 'seeders']
+
+// The app/server/channels settings as [key, "value  (from …)"] rows.
+function settingRows(config) {
+  const rows = []
+  const walk = (prefix, object) => {
+    for (const [name, value] of Object.entries(object)) {
+      const key = `${prefix}.${name}`
+      if (value && typeof value === 'object' && !Array.isArray(value)) walk(key, value)
+      else if (config.sources[key]) rows.push([key, describeSetting(value, config.sources[key])])
+    }
+  }
+  for (const section of ['app', 'server', 'channels']) walk(section, config[section])
+  return rows
+}
+
+function describeSetting(value, { from, env }) {
+  let shown = Array.isArray(value) ? value.join(', ') || '(none)' : value === undefined ? '(unset)' : String(value)
+  if (shown.length > 40) shown = `${shown.slice(0, 37)}...`
+  const origin = from === 'default' ? 'default' : from === 'tylix.config' ? 'tylix.config' : `${env} in ${from}`
+  return `${shown}  (${origin})`
+}
 
 // A check returns a detail string (pass), warn('...') (shown, not a
 // failure), or throws (failure).
@@ -30,12 +51,6 @@ class Warning {
 }
 const warn = (message) => new Warning(message)
 
-async function pathExists(p) {
-  return fs
-    .access(p)
-    .then(() => true)
-    .catch(() => false)
-}
 
 async function walk(dir, keep) {
   if (!(await pathExists(dir))) return []
@@ -103,17 +118,30 @@ export async function doctor() {
   // ---- Project ----
   console.log('Project')
   await loadEnv(baseDir)
-  const production = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production'
 
   let config = null
+  // A bad value (PORT=abc, CSP_MODE=strict) fails here, by name.
   await check(`tylix.config.${ext}`, async () => {
     config = await loadConfig(baseDir, language)
     const { driver, ssr } = config.frontend
     return `${language}, frontend: ${driver}${ssr ? ' with SSR' : ''}`
   })
+  const production = config ? config.app.production : process.env.NODE_ENV === 'production'
   await check('.env', async () => {
     if (!(await pathExists(path.join(baseDir, '.env')))) throw new Error('missing: copy .env.example to .env')
-    return production ? 'production' : process.env.APP_ENV || 'development'
+    const layered = ['.env.local', `.env.${config?.app.env}`, `.env.${config?.app.env}.local`]
+    const extra = []
+    for (const file of layered) if (await pathExists(path.join(baseDir, file))) extra.push(file)
+    const env = config?.app.env ?? 'development'
+    return extra.length ? `${env} (+ ${extra.join(', ')})` : env
+  })
+  await check('.env.example', async () => {
+    const file = path.join(baseDir, '.env.example')
+    if (!(await pathExists(file))) return warn('missing: commit one so others know which variables to set')
+    const keys = parseEnv(await fs.readFile(file, 'utf-8')).map(([key]) => key)
+    const missing = keys.filter((key) => process.env[key] === undefined)
+    if (missing.length) return warn(`not set anywhere: ${missing.join(', ')}`)
+    return `${keys.length} variables, all set`
   })
   if (config) {
     await check('auth secret', async () => {
@@ -127,7 +155,7 @@ export async function doctor() {
       return 'set'
     })
     await check('debug output', async () => {
-      const debug = process.env.APP_DEBUG === 'true'
+      const debug = config.app.debug
       if (debug && production) throw new Error('APP_DEBUG=true in production exposes SQL and stack traces. Set it to false.')
       return debug ? 'on (development)' : 'off'
     })
@@ -157,6 +185,15 @@ export async function doctor() {
     return `${APP_FOLDERS.length} present`
   })
   console.log()
+
+  // ---- Settings: each value and where it came from ----
+  if (config) {
+    console.log('Settings')
+    for (const [key, value] of settingRows(config)) {
+      await check(key, async () => value)
+    }
+    console.log()
+  }
 
   // ---- Database ----
   console.log('Database')

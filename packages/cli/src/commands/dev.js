@@ -13,6 +13,7 @@ import {
   printUrls,
   printDivider,
   loadEnv,
+  exists as pathExists,
 } from '@tylix/shared'
 import { Server } from '@tylix/core'
 import {
@@ -43,12 +44,6 @@ const RESTART_ROOT_FILES = new Set([
   'tylix.config.ts',
 ])
 
-async function pathExists(p) {
-  return fs
-    .access(p)
-    .then(() => true)
-    .catch(() => false)
-}
 
 async function resolveCompilerSrcDir(baseDir) {
   const pkgDir = path.join(baseDir, 'node_modules', '@tylix', 'compiler')
@@ -327,19 +322,16 @@ async function runServer({ port } = {}) {
   const underSupervisor = process.env.TYLIX_DEV_CHILD === '1'
   const wasRestarted = process.env.TYLIX_DEV_RESTARTED === '1'
 
-  // Priority: --port flag, then PORT from .env, then 3000. This has to
-  // run after loadEnv(), otherwise PORT in .env is never seen.
-  port =
-    port ??
-    (Number(process.env.TYLIX_DEV_PORT) || undefined) ??
-    (Number(process.env.PORT) || 3000)
-
-  // Shown in the startup banner. "local" etc. come from APP_ENV in .env.
-  const environment = process.env.APP_ENV || 'development'
-
   const hotReloadCompiler = process.env.TYLIX_HOT_RELOAD_COMPILER === 'true'
 
   const app = await createApp(baseDir, { production: false, hotReloadCompiler })
+
+  // Priority: --port flag, the port a restarted child keeps, then PORT
+  // (config.server.port: .env, tylix.config, default 3000).
+  port = port ?? (Number(process.env.TYLIX_DEV_PORT) || undefined) ?? app.config.server.port
+
+  // Shown in the startup banner. "local" etc. come from APP_ENV in .env.
+  const environment = app.config.app.env
   const hostedFrontend = app.frontend.host
 
   // A hosted frontend runs Tailwind through Vite's PostCSS, so the
@@ -406,8 +398,18 @@ async function runServer({ port } = {}) {
     })
   }
 
+  const settings = app.config.server
   const server = new Server(app.router, {
     notFoundHandler: app.notFoundHandler,
+    trustProxy: settings.trustProxy,
+    debug: app.config.app.debug,
+    maxBodyBytes: settings.maxBodyBytes,
+    autoPort: settings.autoPort,
+    maxPortAttempts: settings.portAttempts,
+    trustedOrigins: settings.trustedOrigins,
+    appUrl: app.config.app.url,
+    cspMode: settings.csp.mode,
+    csp: settings.csp.policy,
   })
 
   // `actualPort` is the port that was really bound. It differs from

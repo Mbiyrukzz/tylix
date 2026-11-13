@@ -1,6 +1,8 @@
 <script setup__LANG__>
 import { computed, ref } from 'vue'
 import { useAuth, useHydrated } from '@tylix/vue'
+import { firstError } from '@tylix/shared/validation'
+import { MIN_PASSWORD_LENGTH, validateRegister } from '../../validators/AuthValidator'
 
 const inputClass =
   'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
@@ -26,7 +28,7 @@ const registered = ref(false)
 
 const score = computed(() => {
   const value = password.value
-  if (value.length < 8) return 0
+  if (value.length < MIN_PASSWORD_LENGTH) return 0
   let points = 1
   if (/[a-z]/.test(value) && /[A-Z]/.test(value)) points++
   if (/[0-9]/.test(value)) points++
@@ -35,9 +37,9 @@ const score = computed(() => {
 })
 
 function validate() {
-  if (name.value.trim().length === 0) return 'Enter your name.'
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value)) return 'Enter a valid email address.'
-  if (password.value.length < 8) return 'Password must be at least 8 characters.'
+  // The same rules the API checks (app/validators/AuthValidator).
+  const problem = firstError(validateRegister({ name: name.value.trim(), email: email.value, password: password.value }))
+  if (problem) return problem
   if (password.value !== confirmPassword.value) return "Passwords don't match."
   if (!agreed.value) return 'Please agree to the Terms of Service to continue.'
   return ''

@@ -21,6 +21,15 @@ export interface ServerOptions {
    */
   trustProxy?: boolean
 
+  /** Other origins allowed to send browser writes. Defaults to TRUSTED_ORIGINS. */
+  trustedOrigins?: string[]
+  /** The app's public URL, always a trusted origin. Defaults to APP_URL. */
+  appUrl?: string
+  /** off | report-only | enforce. Defaults to CSP_MODE. */
+  cspMode?: 'off' | 'report-only' | 'enforce'
+  /** The Content-Security-Policy. Defaults to CSP_POLICY, then a built-in policy. */
+  csp?: string
+
   /**
    * Show real error details (debug page, SQL, stack) instead of a generic
    * 500. Defaults to the APP_DEBUG=true env var.

@@ -8,7 +8,7 @@
 // use*() functions below, which return the request's own state on the
 // server and the shared stores in the browser.
 import { getContext, onMount } from 'svelte'
-import { api, auth } from '@tylix/client'
+import { api, auth, lazyChannel } from '@tylix/client'
 import { readable, writable } from './store.js'
 import { route } from './router.js'
 
@@ -75,6 +75,24 @@ export function useHydrated() {
     onMount(() => hydrated.set(true))
   }
   return { subscribe: hydrated.subscribe }
+}
+
+// A live channel on the channel server ("tylix channels:work"). Call at
+// component init:
+//   const chat = useChannel('chat', (message) => ...)
+//   chat.send({ text })   and   $status is chat.status
+// Connects once mounted (never during server rendering), reconnects on its
+// own, and closes with the component. send() before then is queued.
+export function useChannel(name, onMessage) {
+  const status = writable('connecting')
+  const live = lazyChannel(name, { onMessage: (data) => onMessage?.(data), onStatus: (next) => status.set(next) })
+  if (typeof window !== 'undefined') {
+    onMount(() => {
+      live.open()
+      return () => live.close()
+    })
+  }
+  return { send: (data) => live.send(data), status: { subscribe: status.subscribe } }
 }
 
 const IDLE = { ok: false, status: null, data: null, error: null, errors: null }

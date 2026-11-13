@@ -41,6 +41,21 @@ export class PostBoilerplateGenerator {
 
         const results = await new FeatureGenerator().generate(blueprint, baseDir);
 
+        // The starter's example of a trait: Post gets Searchable, which adds
+        // Post.search(term). PostController.publicIndex uses it for ?q=.
+        const modelSource = await fs.readFile(results.model, "utf-8");
+        const withTrait = modelSource
+            .replace('import { Model } from "@tylix/orm";', 'import { Model, Searchable, use } from "@tylix/orm";')
+            .replace(
+                "export class Post extends Model {",
+                '// Searchable adds Post.search(term) over these columns (see @tylix/orm traits).\n' +
+                    'export class Post extends use(Model, Searchable({ fields: ["title", "body"] })) {',
+            );
+        if (!withTrait.includes("Searchable({")) {
+            throw new Error("PostBoilerplateGenerator: the generated Post model has an unexpected shape; could not add Searchable.");
+        }
+        await fs.writeFile(results.model, withTrait);
+
         const read = (name) => fs.readFile(path.join(TEMPLATES_DIR, name), "utf-8");
 
         // Strict: a missing -ts template is a bug and should fail loudly.
