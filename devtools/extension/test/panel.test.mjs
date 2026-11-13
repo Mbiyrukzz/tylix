@@ -100,7 +100,7 @@ test('devtools panel', { skip: !APP && 'set TYLIX_DEVTOOLS_APP to a running tyli
     await waitFor(async () => /2024/.test(await action.locator('.result, .error').textContent()), { what: 'action result' })
 
     if (process.env.TYLIX_DEVTOOLS_SHOT) {
-      await panel.setViewportSize({ width: 1000, height: 560 })
+      await panel.setViewportSize({ width: 1280, height: 800 })
       await panel.screenshot({ path: process.env.TYLIX_DEVTOOLS_SHOT })
     }
 

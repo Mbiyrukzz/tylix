@@ -1,0 +1,273 @@
+{
+  "name": "Tylix Light",
+  "type": "light",
+  "colors": {
+    "editor.background": "#f8fafc",
+    "editor.foreground": "#1e293b",
+    "editorLineNumber.foreground": "#cbd5e1",
+    "editorLineNumber.activeForeground": "#059669",
+    "editorCursor.foreground": "#059669",
+    "editor.selectionBackground": "#10b98133",
+    "editor.lineHighlightBackground": "#f1f5f9",
+    "editorIndentGuide.background1": "#e2e8f0",
+    "editorIndentGuide.activeBackground1": "#cbd5e1",
+    "editorBracketMatch.background": "#10b98122",
+    "editorBracketMatch.border": "#10b98166",
+    "sideBar.background": "#f1f5f9",
+    "sideBar.foreground": "#475569",
+    "sideBarTitle.foreground": "#1e293b",
+    "sideBar.border": "#e2e8f0",
+    "activityBar.background": "#e2e8f0",
+    "activityBar.foreground": "#047857",
+    "activityBar.inactiveForeground": "#94a3b8",
+    "activityBarBadge.background": "#059669",
+    "activityBarBadge.foreground": "#ecfdf5",
+    "tab.activeBackground": "#f8fafc",
+    "tab.inactiveBackground": "#f1f5f9",
+    "tab.activeForeground": "#1e293b",
+    "tab.inactiveForeground": "#94a3b8",
+    "tab.activeBorderTop": "#059669",
+    "tab.border": "#e2e8f0",
+    "editorGroupHeader.tabsBackground": "#f1f5f9",
+    "titleBar.activeBackground": "#e2e8f0",
+    "titleBar.activeForeground": "#475569",
+    "statusBar.background": "#059669",
+    "statusBar.foreground": "#ecfdf5",
+    "list.activeSelectionBackground": "#10b98122",
+    "list.activeSelectionForeground": "#1e293b",
+    "list.hoverBackground": "#e2e8f0",
+    "focusBorder": "#05966988",
+    "button.background": "#059669",
+    "button.foreground": "#ecfdf5",
+    "button.hoverBackground": "#047857",
+    "input.background": "#ffffff",
+    "input.border": "#cbd5e1",
+    "panel.background": "#f1f5f9",
+    "panel.border": "#e2e8f0",
+    "badge.background": "#059669",
+    "badge.foreground": "#ecfdf5",
+    "textLink.foreground": "#047857",
+    "editorWidget.background": "#f1f5f9"
+  },
+  "tokenColors": [
+    {
+      "scope": [
+        "comment",
+        "punctuation.definition.comment"
+      ],
+      "settings": {
+        "foreground": "#94a3b8",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": [
+        "keyword.control.section.tylix"
+      ],
+      "settings": {
+        "foreground": "#047857",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "storage.type.class.tylix",
+        "keyword.control.import.tylix",
+        "keyword.control.from.tylix"
+      ],
+      "settings": {
+        "foreground": "#7e22ce",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.type.class.tylix"
+      ],
+      "settings": {
+        "foreground": "#b45309",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "keyword.control.block.tylix"
+      ],
+      "settings": {
+        "foreground": "#be185d",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "meta.template.tylix punctuation.definition.tag.begin.html",
+        "meta.template.tylix punctuation.definition.tag.end.html"
+      ],
+      "settings": {
+        "foreground": "#0f766e"
+      }
+    },
+    {
+      "scope": [
+        "keyword.operator.word.tylix"
+      ],
+      "settings": {
+        "foreground": "#be123c",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.type.tylix",
+        "support.class.capability.tylix",
+        "entity.name.type",
+        "support.class"
+      ],
+      "settings": {
+        "foreground": "#0369a1"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.function",
+        "support.function",
+        "meta.function-call"
+      ],
+      "settings": {
+        "foreground": "#1d4ed8"
+      }
+    },
+    {
+      "scope": [
+        "variable.other.property.tylix",
+        "variable.other.property",
+        "meta.object-literal.key",
+        "support.variable.property"
+      ],
+      "settings": {
+        "foreground": "#0f766e"
+      }
+    },
+    {
+      "scope": [
+        "variable",
+        "variable.other.readwrite.tylix"
+      ],
+      "settings": {
+        "foreground": "#1e293b"
+      }
+    },
+    {
+      "scope": [
+        "string",
+        "string.quoted.double.tylix",
+        "string.quoted.single.tylix",
+        "string.template.tylix"
+      ],
+      "settings": {
+        "foreground": "#4d7c0f"
+      }
+    },
+    {
+      "scope": [
+        "meta.template.tylix string.quoted.double.html"
+      ],
+      "settings": {
+        "foreground": "#15803d"
+      }
+    },
+    {
+      "scope": [
+        "constant.numeric",
+        "constant.numeric.tylix"
+      ],
+      "settings": {
+        "foreground": "#c2410c"
+      }
+    },
+    {
+      "scope": [
+        "constant.language",
+        "constant.language.tylix"
+      ],
+      "settings": {
+        "foreground": "#be185d",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.tag",
+        "entity.name.tag.html",
+        "meta.template.tylix entity.name.tag.html"
+      ],
+      "settings": {
+        "foreground": "#b91c1c"
+      }
+    },
+    {
+      "scope": [
+        "support.class.component.tylix",
+        "entity.name.type.component.tylix"
+      ],
+      "settings": {
+        "foreground": "#0369a1",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "entity.other.attribute-name",
+        "entity.other.attribute-name.html",
+        "meta.template.tylix entity.other.attribute-name.html"
+      ],
+      "settings": {
+        "foreground": "#a16207"
+      }
+    },
+    {
+      "scope": [
+        "punctuation",
+        "punctuation.definition.tag.html",
+        "punctuation.separator.key-value.tylix",
+        "punctuation.separator.key-value.html",
+        "meta.brace"
+      ],
+      "settings": {
+        "foreground": "#64748b"
+      }
+    },
+    {
+      "scope": [
+        "keyword.control",
+        "storage.type",
+        "storage.modifier",
+        "keyword.operator.new",
+        "keyword.operator.expression"
+      ],
+      "settings": {
+        "foreground": "#7e22ce"
+      }
+    },
+    {
+      "scope": [
+        "variable.language.this",
+        "variable.language"
+      ],
+      "settings": {
+        "foreground": "#be123c",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": [
+        "keyword.operator",
+        "keyword.operator.tylix"
+      ],
+      "settings": {
+        "foreground": "#475569"
+      }
+    }
+  ],
+  "$comment": "Ported from tylix.tyx-language 0.2.0; scopes match syntaxes/tylix.tmLanguage.json"
+}

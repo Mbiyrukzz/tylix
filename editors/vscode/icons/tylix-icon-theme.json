@@ -1,0 +1,208 @@
+{
+  "hidesExplorerArrows": false,
+  "iconDefinitions": {
+    "folder": {
+      "iconPath": "./theme/folder.svg"
+    },
+    "folder-open": {
+      "iconPath": "./theme/folder-open.svg"
+    },
+    "folder-tylix": {
+      "iconPath": "./theme/folder-tylix.svg"
+    },
+    "folder-tylix-open": {
+      "iconPath": "./theme/folder-tylix-open.svg"
+    },
+    "tyx": {
+      "iconPath": "./theme/tyx.svg"
+    },
+    "file": {
+      "iconPath": "./theme/file.svg"
+    },
+    "tylix-config": {
+      "iconPath": "./theme/tylix-config.svg"
+    },
+    "js": {
+      "iconPath": "./theme/js.svg"
+    },
+    "ts": {
+      "iconPath": "./theme/ts.svg"
+    },
+    "json": {
+      "iconPath": "./theme/json.svg"
+    },
+    "css": {
+      "iconPath": "./theme/css.svg"
+    },
+    "html": {
+      "iconPath": "./theme/html.svg"
+    },
+    "md": {
+      "iconPath": "./theme/md.svg"
+    },
+    "env": {
+      "iconPath": "./theme/env.svg"
+    },
+    "image": {
+      "iconPath": "./theme/image.svg"
+    },
+    "db": {
+      "iconPath": "./theme/db.svg"
+    },
+    "lock": {
+      "iconPath": "./theme/lock.svg"
+    },
+    "git": {
+      "iconPath": "./theme/git.svg"
+    },
+    "folder-node": {
+      "iconPath": "./theme/folder-node.svg"
+    },
+    "folder-node-open": {
+      "iconPath": "./theme/folder-node-open.svg"
+    },
+    "folder-git": {
+      "iconPath": "./theme/folder-git.svg"
+    },
+    "folder-git-open": {
+      "iconPath": "./theme/folder-git-open.svg"
+    },
+    "folder-src": {
+      "iconPath": "./theme/folder-src.svg"
+    },
+    "folder-src-open": {
+      "iconPath": "./theme/folder-src-open.svg"
+    },
+    "folder-tests": {
+      "iconPath": "./theme/folder-tests.svg"
+    },
+    "folder-tests-open": {
+      "iconPath": "./theme/folder-tests-open.svg"
+    },
+    "folder-github": {
+      "iconPath": "./theme/folder-github.svg"
+    },
+    "folder-github-open": {
+      "iconPath": "./theme/folder-github-open.svg"
+    }
+  },
+  "file": "file",
+  "folder": "folder",
+  "folderExpanded": "folder-open",
+  "rootFolder": "folder",
+  "rootFolderExpanded": "folder-open",
+  "folderNames": {
+    "app": "folder-tylix",
+    "pages": "folder-tylix",
+    "components": "folder-tylix",
+    "capabilities": "folder-tylix",
+    "controllers": "folder-tylix",
+    "models": "folder-tylix",
+    "migrations": "folder-tylix",
+    "validators": "folder-tylix",
+    "routes": "folder-tylix",
+    "jobs": "folder-tylix",
+    "observers": "folder-tylix",
+    "traits": "folder-tylix",
+    "channels": "folder-tylix",
+    "mail": "folder-tylix",
+    "services": "folder-tylix",
+    "useApi": "folder-tylix",
+    "middleware": "folder-tylix",
+    "features": "folder-tylix",
+    "frontend": "folder-tylix",
+    "database": "folder-tylix",
+    "resources": "folder-tylix",
+    "public": "folder-tylix",
+    "config": "folder-tylix",
+    "dashboard": "folder-tylix",
+    "node_modules": "folder-node",
+    ".git": "folder-git",
+    "src": "folder-src",
+    "lib": "folder-src",
+    "test": "folder-tests",
+    "tests": "folder-tests",
+    "__tests__": "folder-tests",
+    "e2e": "folder-tests",
+    ".github": "folder-github"
+  },
+  "folderNamesExpanded": {
+    "app": "folder-tylix-open",
+    "pages": "folder-tylix-open",
+    "components": "folder-tylix-open",
+    "capabilities": "folder-tylix-open",
+    "controllers": "folder-tylix-open",
+    "models": "folder-tylix-open",
+    "migrations": "folder-tylix-open",
+    "validators": "folder-tylix-open",
+    "routes": "folder-tylix-open",
+    "jobs": "folder-tylix-open",
+    "observers": "folder-tylix-open",
+    "traits": "folder-tylix-open",
+    "channels": "folder-tylix-open",
+    "mail": "folder-tylix-open",
+    "services": "folder-tylix-open",
+    "useApi": "folder-tylix-open",
+    "middleware": "folder-tylix-open",
+    "features": "folder-tylix-open",
+    "frontend": "folder-tylix-open",
+    "database": "folder-tylix-open",
+    "resources": "folder-tylix-open",
+    "public": "folder-tylix-open",
+    "config": "folder-tylix-open",
+    "dashboard": "folder-tylix-open",
+    "node_modules": "folder-node-open",
+    ".git": "folder-git-open",
+    "src": "folder-src-open",
+    "lib": "folder-src-open",
+    "test": "folder-tests-open",
+    "tests": "folder-tests-open",
+    "__tests__": "folder-tests-open",
+    "e2e": "folder-tests-open",
+    ".github": "folder-github-open"
+  },
+  "fileExtensions": {
+    "tyx": "tyx",
+    "js": "js",
+    "mjs": "js",
+    "cjs": "js",
+    "jsx": "js",
+    "ts": "ts",
+    "mts": "ts",
+    "cts": "ts",
+    "tsx": "ts",
+    "json": "json",
+    "jsonc": "json",
+    "css": "css",
+    "scss": "css",
+    "html": "html",
+    "htm": "html",
+    "md": "md",
+    "markdown": "md",
+    "env": "env",
+    "png": "image",
+    "jpg": "image",
+    "jpeg": "image",
+    "gif": "image",
+    "webp": "image",
+    "svg": "image",
+    "ico": "image",
+    "sqlite": "db",
+    "db": "db",
+    "sql": "db"
+  },
+  "fileNames": {
+    "tylix.config.js": "tylix-config",
+    "tylix.config.ts": "tylix-config",
+    "tylix.config.mjs": "tylix-config",
+    ".env": "env",
+    ".env.example": "env",
+    ".env.local": "env",
+    "package-lock.json": "lock",
+    ".gitignore": "git",
+    ".gitattributes": "git"
+  },
+  "languageIds": {
+    "tyx": "tyx"
+  }
+}
