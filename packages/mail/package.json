@@ -1,6 +1,6 @@
 {
   "name": "@tylix/mail",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Mail system for Tylix: Mailables, SMTP and log drivers, and mail logging",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -49,10 +49,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@tylix/shared": "^0.7.0",
-    "@tylix/generator": "^0.7.0"
+    "@tylix/shared": "^1.0.0",
+    "@tylix/generator": "^1.0.0"
   },
   "peerDependencies": {
-    "@tylix/orm": "^0.7.0"
+    "@tylix/orm": "^1.0.0"
   }
 }

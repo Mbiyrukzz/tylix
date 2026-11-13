@@ -1,6 +1,6 @@
 {
   "name": "@tylix/client",
-  "version": "0.7.0",
+  "version": "1.0.0",
   "description": "Browser client for Tylix apps: API requests and the auth session, with no framework dependency.",
   "license": "MIT",
   "author": "Mbiyrukzz",

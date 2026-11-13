@@ -28,6 +28,12 @@ first feature. With Tylix they already work together.
 
 ---
 
+**Status: stable (1.0).** Tylix follows [semantic versioning](https://semver.org):
+1.x releases add features and fix bugs without breaking your app; anything
+that would break it waits for 2.0. See the [changelog](CHANGELOG.md).
+
+---
+
 # Installation
 
 ```bash
