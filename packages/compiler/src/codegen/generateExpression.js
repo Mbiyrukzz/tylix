@@ -226,6 +226,15 @@ export function generateClass(node, typed = false) {
  * `(await f()).x` and `ok && (count = count + 1)` are only valid JS
  * with the parens, and the extra pair is harmless at statement level.
  */
+// An arrow / function expression used as an operand keeps its own
+// parentheses: `a ?? (v => v)` must not come out as `a ?? (v) => v`,
+// which is a syntax error.
+const FUNCTION_NODES = new Set(['ArrowFunctionExpression', 'FunctionExpression'])
+function operand(node, typed) {
+  const src = generateExpression(node, typed)
+  return FUNCTION_NODES.has(node?.type) ? `(${src})` : src
+}
+
 export function generateExpression(node, typed = false) {
   switch (node.type) {
     case 'Literal':
@@ -243,7 +252,7 @@ export function generateExpression(node, typed = false) {
       return `${memberObjectSource(node.object, typed)}${node.optional ? '?.' : '.'}${node.property}`
 
     case 'NullishCoalescingExpression':
-      return `(${generateExpression(node.left, typed)} ?? ${generateExpression(node.right, typed)})`
+      return `(${operand(node.left, typed)} ?? ${operand(node.right, typed)})`
 
     case 'NewExpression': {
       const args = node.args.map((a) => generateExpression(a, typed)).join(', ')
@@ -252,10 +261,10 @@ export function generateExpression(node, typed = false) {
     }
 
     case 'BinaryExpression':
-      return `(${generateExpression(node.left, typed)} ${node.operator} ${generateExpression(node.right, typed)})`
+      return `(${operand(node.left, typed)} ${node.operator} ${operand(node.right, typed)})`
 
     case 'UnaryExpression':
-      return `(${unaryPrefix(node.operator)}${generateExpression(node.argument, typed)})`
+      return `(${unaryPrefix(node.operator)}${operand(node.argument, typed)})`
 
     case 'UpdateExpression': {
       const arg = generateExpression(node.argument, typed)
@@ -263,7 +272,7 @@ export function generateExpression(node, typed = false) {
     }
 
     case 'TernaryExpression':
-      return `(${generateExpression(node.condition, typed)} ? ${generateExpression(node.consequent, typed)} : ${generateExpression(node.alternate, typed)})`
+      return `(${operand(node.condition, typed)} ? ${generateExpression(node.consequent, typed)} : ${generateExpression(node.alternate, typed)})`
 
     // `(a, b, c)` -- the comma operator.
     case 'SequenceExpression':

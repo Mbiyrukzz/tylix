@@ -6,6 +6,8 @@ import {
   IfNode,
   EachNode,
   TemplateLiteralExpr,
+  AwaitNode,
+  RawHtmlNode,
 } from '../ast/nodes.js'
 import { parseExpressionString } from './parseExpressionString.js'
 
@@ -306,6 +308,16 @@ class TemplateParser {
         continue
       }
 
+      if (this.at('{{#await')) {
+        nodes.push(this.parseAwaitBlock())
+        continue
+      }
+
+      if (this.at('{{@html')) {
+        nodes.push(this.parseRawHtml())
+        continue
+      }
+
       if (this.at('{{')) {
         nodes.push(this.parseInterpolation())
         continue
@@ -449,6 +461,91 @@ class TemplateParser {
         children,
         elseChildren,
       ),
+      line,
+    }
+  }
+
+  // {{@html expr}}
+  parseRawHtml() {
+    const line = this.lineAt(this.pos)
+    const start = this.pos
+    const exprStart = this.pos + '{{@html'.length
+    const end = this.findInterpEnd(exprStart)
+    if (end === -1) {
+      throw markAt(new Error("Unterminated {{@html}}: missing '}}'"), start, 7)
+    }
+    const raw = this.source.slice(exprStart, end)
+    if (!raw.trim()) {
+      throw markAt(new Error('{{@html}} needs an expression: {{@html content}}'), start, end + 2 - start)
+    }
+    this.pos = end + 2
+    return { ...RawHtmlNode(this.parseExpr(raw, exprStart)), line }
+  }
+
+  // {{#await p}}…{{#then v}}…{{#catch e}}…{{/await}}
+  // {{#await p then v}}…{{#catch e}}…{{/await}}
+  parseAwaitBlock() {
+    const line = this.lineAt(this.pos)
+    const blockStart = this.pos
+    this.pos += '{{#await'.length
+    const headerStart = this.pos
+    const end = this.findInterpEnd(this.pos)
+    if (end === -1) {
+      throw markAt(new Error("Unterminated {{#await}} header: missing '}}'"), blockStart, 8)
+    }
+    const header = this.source.slice(headerStart, end)
+    this.pos = end + 2
+
+    // "p then v": the last top-level " then " splits promise and name.
+    const short = /^([\s\S]*?\S)\s+then(?:\s+(\[[^\]]*\]|\{[^}]*\}|[A-Za-z_$][\w$]*))?\s*$/.exec(header)
+    const promiseSource = short ? short[1] : header
+    if (!promiseSource.trim()) {
+      throw markAt(new Error('{{#await}} needs a promise: {{#await loadPosts()}}'), blockStart, this.pos - blockStart)
+    }
+    const promise = this.parseExpr(promiseSource, headerStart)
+
+    let pending = null
+    let thenName = short ? short[2] ?? null : null
+    let thenChildren = null
+    let catchName = null
+    let catchChildren = null
+
+    this.open.push({ pos: blockStart, length: this.pos - blockStart })
+    const markers = ['{{#then', '{{#catch']
+    let section = short ? 'then' : 'pending'
+    for (;;) {
+      const children = this.parseNodes(null, '{{/await}}', markers)
+      if (section === 'pending') pending = children
+      else if (section === 'then') thenChildren = children
+      else catchChildren = children
+      if (this.stopHit === '{{/await}}') break
+      if (this.stopHit === null) {
+        // A closing tag (or the end) came first.
+        throw markAt(new Error('Unclosed {{#await}}: expected {{/await}} before this point'), blockStart, headerStart - blockStart)
+      }
+
+      const marker = this.stopHit
+      const markerStart = this.pos
+      const next = marker === '{{#then' ? 'then' : 'catch'
+      if ((next === 'then' && (section !== 'pending')) || (next === 'catch' && section === 'catch')) {
+        throw markAt(new Error(`Unexpected {{#${next}}}: an {{#await}} has at most one {{#then}} and one {{#catch}}, in that order`), markerStart, marker.length)
+      }
+      this.pos += marker.length
+      const nameEnd = this.findInterpEnd(this.pos)
+      if (nameEnd === -1) throw markAt(new Error(`Unterminated {{#${next}}}: missing '}}'`), markerStart, marker.length)
+      const name = this.source.slice(this.pos, nameEnd).trim()
+      if (name && !/^(\[[^\]]*\]|\{[^}]*\}|[A-Za-z_$][\w$]*)$/.test(name)) {
+        throw markAt(new Error(`Invalid {{#${next}}} name "${name}": expected a name like {{#${next} ${next === 'then' ? 'posts' : 'error'}}}`), markerStart, nameEnd + 2 - markerStart)
+      }
+      this.pos = nameEnd + 2
+      if (next === 'then') thenName = name || null
+      else catchName = name || null
+      section = next
+    }
+    this.open.pop()
+
+    return {
+      ...AwaitNode(promise, pending, thenName, thenChildren, catchName, catchChildren),
       line,
     }
   }

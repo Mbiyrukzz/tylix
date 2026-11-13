@@ -3,6 +3,10 @@ import { lineChart, DEFAULT_PALETTE } from './line.js'
 import { areaChart } from './area.js'
 import { barChart } from './bar.js'
 import { pieChart } from './pie.js'
+import { scatterChart } from './scatter.js'
+import { gauge } from './gauge.js'
+import { calendarHeatmap } from './heatmap.js'
+import { describeSeries } from './a11y.js'
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -27,10 +31,13 @@ const CHAR_W = 6.2
 let uid = 0
 const nextId = () => `tc${++uid}`
 
-const open = (id, w, h, label, kind) =>
+// role="img" with a <title> and <desc>: screen readers announce the
+// label and the plain-language summary.
+const open = (id, w, h, label, kind, desc = '') =>
   `<svg xmlns="http://www.w3.org/2000/svg" class="tylix-chart tylix-chart--${kind} ${id}" ` +
-  `width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="${escapeXml(label)}" ` +
-  `font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11">`
+  `width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-labelledby="${id}-t${desc ? ` ${id}-d` : ''}" ` +
+  `font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11">` +
+  `<title id="${id}-t">${escapeXml(label)}</title>${desc ? `<desc id="${id}-d">${escapeXml(desc)}</desc>` : ''}`
 
 const MUTED = 'fill="currentColor" fill-opacity="0.6"'
 
@@ -97,7 +104,7 @@ function gridlines(ticks, plot, horizontalLines) {
       const x = t.pos
       out +=
         `<line x1="${fmt(x)}" x2="${fmt(x)}" y1="${plot.y}" y2="${plot.y + plot.height}" ${stroke}/>` +
-        `<text x="${fmt(x)}" y="${plot.y + plot.height + 16}" text-anchor="middle" ${MUTED}>${escapeXml(t.label)}</text>`
+        `<text x="${fmt(x)}" y="${plot.y + plot.height + 16}" text-anchor="${t.anchor ?? 'middle'}" ${MUTED}>${escapeXml(t.label)}</text>`
     }
   }
   return out
@@ -137,7 +144,7 @@ function xyChartSvg(c, o) {
   const { id, label, kind, fill, dots, formatX, formatY, layout, interactive } = o
   const { plot } = c
   const stacked = !!c.stacked
-  const out = [open(id, c.width, c.height, label, kind)]
+  const out = [open(id, c.width, c.height, label, kind, describeSeries(c.series, { formatY }))]
 
   if (interactive && dots === 'hover') {
     out.push(
@@ -162,7 +169,7 @@ function xyChartSvg(c, o) {
   out.push(gridlines(c.yTicks, plot, true))
   for (const t of c.xTicks) {
     out.push(
-      `<text x="${fmt(t.x)}" y="${plot.y + plot.height + 16}" text-anchor="middle" ${MUTED}>${escapeXml(t.label)}</text>`
+      `<text x="${fmt(t.x)}" y="${plot.y + plot.height + 16}" text-anchor="${t.anchor ?? 'middle'}" ${MUTED}>${escapeXml(t.label)}</text>`
     )
   }
 
@@ -222,7 +229,7 @@ export function lineChartSvg(series, options = {}) {
     label: options.label ?? 'Line chart',
     fill: !!options.area,
     dots: options.dots ?? 'hover',
-    formatX: options.formatX ?? ((v) => String(v)),
+    formatX: options.formatX ? (v) => options.formatX(c.time ? new Date(v) : v) : c.formatX,
     formatY: options.formatY ?? ((v) => String(v)),
     layout: plan.layout,
     interactive: options.interactive ?? true,
@@ -240,7 +247,7 @@ export function areaChartSvg(series, options = {}) {
     label: options.label ?? 'Area chart',
     fill: true,
     dots: options.dots ?? 'hover',
-    formatX: options.formatX ?? ((v) => String(v)),
+    formatX: options.formatX ? (v) => options.formatX(c.time ? new Date(v) : v) : c.formatX,
     formatY: options.formatY ?? ((v) => String(v)),
     layout: plan.layout,
     interactive: options.interactive ?? true,
@@ -262,7 +269,7 @@ export function barChartSvg(series, options = {}) {
   const c = barChart(series, plan.options)
   const { plot } = c
   const horizontal = c.orientation === 'horizontal'
-  const out = [open(id, c.width, c.height, label, 'bar')]
+  const out = [open(id, c.width, c.height, label, 'bar', describeSeries(c.series ?? [], { formatY: options.formatValue }))]
 
   if (interactive) {
     out.push(
@@ -289,7 +296,7 @@ export function barChartSvg(series, options = {}) {
     out.push(
       horizontal
         ? `<text x="${plot.x - 8}" y="${fmt(t.pos)}" text-anchor="end" dominant-baseline="middle" ${MUTED}>${escapeXml(t.label)}</text>`
-        : `<text x="${fmt(t.pos)}" y="${plot.y + plot.height + 16}" text-anchor="middle" ${MUTED}>${escapeXml(t.label)}</text>`
+        : `<text x="${fmt(t.pos)}" y="${plot.y + plot.height + 16}" text-anchor="${t.anchor ?? 'middle'}" ${MUTED}>${escapeXml(t.label)}</text>`
     )
   })
 
@@ -367,7 +374,7 @@ function pieSvg(data, options, defaultInner, kind) {
     })
   }
 
-  const out = [open(id, fmt(W), fmt(H), label, kind)]
+  const out = [open(id, fmt(W), fmt(H), label, kind, g.slices.map((sl) => `${sl.label}: ${sl.valueLabel} (${sl.percentLabel})`).join(', '))]
   if (interactive) {
     out.push(
       `<style>.${id} .tc-slice{transition:opacity .15s}.${id}:hover .tc-slice{opacity:.45}.${id} .tc-slice:hover{opacity:1}</style>`
@@ -423,4 +430,164 @@ export function pieChartSvg(data, options = {}) {
  */
 export function donutChartSvg(data, options = {}) {
   return pieSvg(data, options, 0.62, 'donut')
+}
+
+// ---------------------------------------------------------------------------
+// Scatter / bubble
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders a scatter (or bubble, with point `size`) chart as an SVG string.
+ * Extra options: id, label, legend (default: 2+ series), interactive.
+ */
+export function scatterChartSvg(series, options = {}) {
+  const id = options.id ?? nextId()
+  const { label = 'Scatter chart', interactive = true } = options
+  const plan = planLegend(options, seriesMeta(series))
+  const c = scatterChart(series, plan.options)
+  const { plot } = c
+  const fx = options.formatX ? (v) => options.formatX(c.time ? new Date(v) : v) : c.formatX
+  const out = [open(id, c.width, c.height, label, 'scatter', describeSeries(c.series.map((s) => ({ name: s.name, data: s.points.map((p) => p.y) })), { formatY: c.formatY }))]
+  if (interactive) out.push(`<style>.${id} .tc-pt{transition:fill-opacity .12s}.${id} .tc-pt:hover{fill-opacity:.95}</style>`)
+  if (plan.layout) out.push(legendMarkup(plan.layout, plot.x, 4))
+  out.push(gridlines(c.yTicks, plot, true))
+  for (const t of c.xTicks) {
+    out.push(`<line x1="${fmt(t.x)}" x2="${fmt(t.x)}" y1="${plot.y}" y2="${plot.y + plot.height}" stroke="currentColor" stroke-opacity="0.08"/>`)
+    out.push(`<text x="${fmt(t.x)}" y="${plot.y + plot.height + 16}" text-anchor="${t.anchor ?? 'middle'}" ${MUTED}>${escapeXml(t.label)}</text>`)
+  }
+  for (const s of c.series) {
+    for (const p of s.points) {
+      const tip = `${p.label ? `${p.label} · ` : ''}${s.name}: ${fx(p.x)}, ${c.formatY(p.y)}${p.size != null ? ` (${p.size})` : ''}`
+      out.push(
+        `<circle class="tc-pt" cx="${fmt(p.px)}" cy="${fmt(p.py)}" r="${fmt(p.r)}" fill="${escapeXml(s.color)}" fill-opacity="${p.size != null ? 0.55 : 0.85}" stroke="${escapeXml(s.color)}" stroke-width="1"><title>${escapeXml(tip)}</title></circle>`,
+      )
+    }
+  }
+  out.push('</svg>')
+  return out.join('')
+}
+
+// ---------------------------------------------------------------------------
+// Gauge
+// ---------------------------------------------------------------------------
+
+/**
+ * Renders a gauge as an SVG string.
+ * options: everything gauge() takes, plus id, label, caption (text under
+ * the value), needle (default false), showMinMax (default true).
+ */
+export function gaugeSvg(value, options = {}) {
+  const id = options.id ?? nextId()
+  const g = gauge(value, options)
+  const { label = 'Gauge', caption = '', needle = false, showMinMax = true } = options
+  const vy = needle ? g.cy + g.size * 0.22 : g.cy + 8
+  const captionY = vy + g.size * 0.1
+  const H = Math.ceil(Math.max(g.bottom + (showMinMax ? 18 : 6), (caption ? captionY : vy) + 8))
+  const desc = `${g.label} of ${g.min} to ${g.max} (${Math.round(g.percent * 100)}%)${caption ? `, ${caption}` : ''}`
+  const out = [open(id, g.size, H, label, 'gauge', desc)]
+  for (const b of g.bands) out.push(`<path d="${b.path}" fill="${escapeXml(b.color)}" fill-opacity="0.5"/>`)
+  out.push(`<path d="${g.track}" fill="currentColor" fill-opacity="0.1"/>`)
+  if (g.valuePath) out.push(`<path d="${g.valuePath}" fill="${escapeXml(g.color)}"/>`)
+  if (needle) {
+    out.push(
+      `<line x1="${g.cx}" y1="${g.cy}" x2="${fmt(g.needle.x)}" y2="${fmt(g.needle.y)}" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>` +
+        `<circle cx="${g.cx}" cy="${g.cy}" r="5" fill="currentColor"/>`,
+    )
+  }
+  out.push(`<text x="${g.cx}" y="${fmt(vy)}" text-anchor="middle" font-size="${fmt(g.size * 0.16)}" font-weight="600" fill="currentColor">${escapeXml(g.label)}</text>`)
+  if (caption) out.push(`<text x="${g.cx}" y="${fmt(captionY)}" text-anchor="middle" ${MUTED}>${escapeXml(caption)}</text>`)
+  if (showMinMax) {
+    const a0 = ((options.startAngle ?? -120) * Math.PI) / 180
+    const a1 = ((options.endAngle ?? 120) * Math.PI) / 180
+    const r = g.size / 2 - 2
+    const at = (a) => ({ x: g.cx + r * 0.82 * Math.sin(a), y: Math.min(H - 4, g.cy - r * Math.cos(a) + 14) })
+    const lo = at(a0)
+    const hi = at(a1)
+    out.push(`<text x="${fmt(lo.x)}" y="${fmt(lo.y)}" text-anchor="middle" ${MUTED}>${escapeXml(String(g.min))}</text>`)
+    out.push(`<text x="${fmt(hi.x)}" y="${fmt(hi.y)}" text-anchor="middle" ${MUTED}>${escapeXml(String(g.max))}</text>`)
+  }
+  out.push('</svg>')
+  return out.join('')
+}
+
+// ---------------------------------------------------------------------------
+// Calendar heatmap
+// ---------------------------------------------------------------------------
+
+// Empty days use the text color faintly; levels 1+ step up the series color.
+const levelFill = (level, levels, color) =>
+  level === 0
+    ? 'fill="currentColor" fill-opacity="0.08"'
+    : `fill="${escapeXml(color)}" fill-opacity="${fmt(0.2 + (0.8 * level) / (levels - 1))}"`
+
+/**
+ * Renders a calendar heatmap as an SVG string.
+ * options: everything calendarHeatmap() takes, plus id, label, color,
+ * formatValue, legend (default true: a "Less … More" scale).
+ */
+export function calendarHeatmapSvg(data, options = {}) {
+  const id = options.id ?? nextId()
+  const h = calendarHeatmap(data, options)
+  const { label = 'Calendar heatmap', color = 'var(--tylix-chart-1, #2563eb)', formatValue = (v) => String(v), legend = true } = options
+  const H = h.height + (legend ? 24 : 0)
+  const busiest = h.cells.reduce((a, c) => (c.value > (a?.value ?? 0) ? c : a), null)
+  const desc = `${h.cells.length} days from ${h.cells[0]?.date} to ${h.cells.at(-1)?.date}. Total ${formatValue(h.total)}${busiest ? `, highest ${formatValue(busiest.value)} on ${busiest.date}` : ''}.`
+  const out = [open(id, h.width, H, label, 'heatmap', desc)]
+  for (const m of h.months) out.push(`<text x="${m.x}" y="10" ${MUTED}>${escapeXml(m.label)}</text>`)
+  for (const d of h.days) out.push(`<text x="0" y="${fmt(d.y)}" dominant-baseline="middle" ${MUTED}>${escapeXml(d.label)}</text>`)
+  for (const c of h.cells) {
+    out.push(
+      `<rect x="${c.x}" y="${c.y}" width="${h.cell}" height="${h.cell}" rx="2" ${levelFill(c.level, h.levels, color)}><title>${escapeXml(`${c.date}: ${formatValue(c.value)}`)}</title></rect>`,
+    )
+  }
+  if (legend) {
+    const y = h.height + 10
+    let x = h.width - h.levels * (h.cell + 3) - 34
+    out.push(`<text x="${x - 6}" y="${y + h.cell - 2}" text-anchor="end" ${MUTED}>Less</text>`)
+    for (let l = 0; l < h.levels; l++) {
+      out.push(`<rect x="${x}" y="${y}" width="${h.cell}" height="${h.cell}" rx="2" ${levelFill(l, h.levels, color)}/>`)
+      x += h.cell + 3
+    }
+    out.push(`<text x="${x + 3}" y="${y + h.cell - 2}" ${MUTED}>More</text>`)
+  }
+  out.push('</svg>')
+  return out.join('')
+}
+
+// ---------------------------------------------------------------------------
+// One entry point for every chart type (used by the React / Vue / Svelte
+// wrappers, and handy anywhere a string of SVG is wanted).
+// ---------------------------------------------------------------------------
+
+export const CHART_TYPES = {
+  sparkline: sparklineSvg,
+  line: lineChartSvg,
+  area: areaChartSvg,
+  bar: barChartSvg,
+  pie: pieChartSvg,
+  donut: donutChartSvg,
+  scatter: scatterChartSvg,
+  gauge: gaugeSvg,
+  heatmap: calendarHeatmapSvg,
+}
+
+/**
+ * renderChart('line', series, options) -> SVG string.
+ * data is: series for line / area / bar / scatter, slices for pie /
+ * donut, numbers for sparkline, a number for gauge, days for heatmap.
+ */
+export function renderChart(type, data, options = {}) {
+  const render = CHART_TYPES[type]
+  if (!render) throw new Error(`Unknown chart type "${type}". Use ${Object.keys(CHART_TYPES).join(', ')}.`)
+  return render(data, options)
+}
+
+/**
+ * The geometry a line / area SVG was drawn from (same legend spacing),
+ * for attachCrosshair() on the rendered <svg>. null for other types.
+ */
+export function chartGeometry(type, data, options = {}) {
+  if (type !== 'line' && type !== 'area') return null
+  const plan = planLegend(options, seriesMeta(data))
+  return type === 'line' ? lineChart(data, plan.options) : areaChart(data, plan.options)
 }

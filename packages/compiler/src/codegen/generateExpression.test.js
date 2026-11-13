@@ -72,3 +72,14 @@ test("an assignment used as an operand still compiles to valid JavaScript", () =
 test("throws on an unknown node type", () => {
   assert.throws(() => generateExpression({ type: "Bogus" }), /unknown node type "Bogus"/);
 });
+
+test('a function used as an operand keeps its parentheses', async () => {
+  const { Lexer } = await import('../lexer/Lexer.js')
+  const { Parser } = await import('../parser/Parser.js')
+  const { generatePage } = await import('./generatePage.js')
+  for (const expr of ['this.a ?? (v => String(v))', 'this.a or (v => v)', 'not (() => 1)', '(v => v) ? 1 : 2']) {
+    const page = new Parser(new Lexer(`computed\n  f() {\n    return ${expr}\n  }\n`).tokenize()).parse()
+    const line = generatePage(page, 'D').split('\n').find((l) => l.includes('return'))
+    assert.doesNotThrow(() => new Function(line), `${expr} -> ${line}`)
+  }
+})

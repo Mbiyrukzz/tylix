@@ -14,5 +14,16 @@ export {
   barChartSvg,
   pieChartSvg,
   donutChartSvg,
+  scatterChartSvg,
+  gaugeSvg,
+  calendarHeatmapSvg,
+  renderChart,
+  chartGeometry,
+  CHART_TYPES,
 } from './svg.js'
+export { scatterChart, nearestScatterPoint } from './scatter.js'
+export { gauge } from './gauge.js'
+export { calendarHeatmap } from './heatmap.js'
+export { timeAxis, timeTicks, timeInterval, timeFormatter, isTimeData } from './time.js'
+export { describeSeries, dataTable, SR_ONLY_STYLE } from './a11y.js'
 export { attachCrosshair, nearestPoints, snapPositions } from './crosshair.js'

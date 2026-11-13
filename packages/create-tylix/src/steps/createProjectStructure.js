@@ -129,20 +129,20 @@ declare function notFound(): void
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^1.2.0',
-  '@tylix/core': '^1.2.0',
-  '@tylix/compiler': '^1.2.0',
-  '@tylix/generator': '^1.2.0',
-  '@tylix/orm': '^1.2.0',
-  '@tylix/shared': '^1.2.0',
-  '@tylix/auth': '^1.2.0',
-  '@tylix/mail': '^1.2.0',
-  'tylix-icons': '^1.2.0',
-  '@tylix/client': '^1.2.0',
-  '@tylix/react': '^1.2.0',
-  '@tylix/svelte': '^1.2.0',
-  '@tylix/vue': '^1.2.0',
-  '@tylix/angular': '^1.2.0',
+  '@tylix/cli': '^1.3.0',
+  '@tylix/core': '^1.3.0',
+  '@tylix/compiler': '^1.3.0',
+  '@tylix/generator': '^1.3.0',
+  '@tylix/orm': '^1.3.0',
+  '@tylix/shared': '^1.3.0',
+  '@tylix/auth': '^1.3.0',
+  '@tylix/mail': '^1.3.0',
+  'tylix-icons': '^1.3.0',
+  '@tylix/client': '^1.3.0',
+  '@tylix/react': '^1.3.0',
+  '@tylix/svelte': '^1.3.0',
+  '@tylix/vue': '^1.3.0',
+  '@tylix/angular': '^1.3.0',
 }
 
 // Package name -> folder under packages/. Used for file: links and for
@@ -349,13 +349,20 @@ function buildServerEnvLines(env) {
 
 function buildMailEnvLines(config) {
   return [
+    `# log | smtp | resend | sendgrid | postmark | mailgun | ses`,
     `MAIL_DRIVER=log`,
     `MAIL_FROM=noreply@${config.projectName}.test`,
+    `# smtp`,
     `MAIL_HOST=`,
     `MAIL_PORT=`,
     `MAIL_SECURE=false`,
     `MAIL_USER=`,
     `MAIL_PASSWORD=`,
+    `# resend, sendgrid, postmark, mailgun (and MAIL_DOMAIN for mailgun)`,
+    `MAIL_API_KEY=`,
+    `MAIL_DOMAIN=`,
+    `# mailgun region (us | eu) or the AWS region for ses`,
+    `MAIL_REGION=`,
   ]
 }
 

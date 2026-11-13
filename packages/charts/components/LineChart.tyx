@@ -98,6 +98,21 @@ computed
     return this.chart.series.length > 1
   }
 
+  table() {
+    if not this.ready {
+      return ""
+    }
+    return window.__tylixCharts.dataTable(this.series ?? [], {
+      caption: this.label ?? "Chart data",
+      formatX: v => this.fx(v instanceof Date ? v.getTime() : v),
+      formatY: v => this.fy(v),
+    })
+  }
+
+  srOnly() {
+    return window.__tylixCharts ? window.__tylixCharts.SR_ONLY_STYLE : "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)"
+  }
+
   tip() {
     if not this.ready {
       return null
@@ -136,7 +151,10 @@ computed
 action
   fx(v) {
     if this.formatX {
-      return this.formatX(v)
+      return this.formatX(this.chart and this.chart.time ? new Date(v) : v)
+    }
+    if this.chart {
+      return this.chart.formatX(v)
     }
     return String(v)
   }
@@ -260,7 +278,7 @@ template
 {{/each}}
 
 {{#each t in chart.xTicks}}
-    <text x="{{ t.x }}" y="{{ chart.plot.y + chart.plot.height + 16 }}" text-anchor="middle" fill="currentColor" fill-opacity="0.65">{{ t.label }}</text>
+    <text x="{{ t.x }}" y="{{ chart.plot.y + chart.plot.height + 16 }}" text-anchor="{{ t.anchor ?? 'middle' }}" fill="currentColor" fill-opacity="0.65">{{ t.label }}</text>
 {{/each}}
 
 {{#each s in layers}}
@@ -291,6 +309,7 @@ template
     </g>
 {{/if}}
   </svg>
+  <div style="{{ srOnly }}">{{@html table}}</div>
 {{#else}}
   <div class="w-full" style="{{ ratio }}"></div>
 {{/if}}

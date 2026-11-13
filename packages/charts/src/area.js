@@ -1,7 +1,7 @@
 import { linearScale } from './scales.js'
 import { linePath, bandPath } from './path.js'
 import { extent } from './ticks.js'
-import { DEFAULT_PALETTE, normalizeData } from './line.js'
+import { DEFAULT_PALETTE, normalizeData, xAxis, anchorTicks } from './line.js'
 
 /**
  * Computes area chart geometry. Same shape as lineChart() plus `py0` (the
@@ -23,7 +23,9 @@ export function areaChart(
     curve = 'linear',
     stacked = false,
     zeroBaseline = true,
-    formatX = (v) => String(v),
+    formatX,
+    timeZone,
+    locale,
     formatY = (v) => String(v),
   } = {}
 ) {
@@ -78,6 +80,7 @@ export function areaChart(
   }
 
   const x = linearScale({ domain: xd, range: [plot.x, plot.x + plot.width] })
+  const xa = xAxis(series, x, xd, xTicks, { formatX, timeZone, locale })
   const y = linearScale({ domain: yd, range: [plot.y + plot.height, plot.y] })
   const baselineY = yd[0] <= 0 && yd[1] >= 0 ? y(0) : y(yd[0])
 
@@ -88,11 +91,9 @@ export function areaChart(
     stacked,
     xScale: x,
     yScale: y,
-    xTicks: x.ticks(xTicks).filter((v) => v >= xd[0] && v <= xd[1]).map((v) => ({
-      value: v,
-      x: x(v),
-      label: formatX(v),
-    })),
+    xTicks: anchorTicks(xa.ticks, width),
+    time: xa.time,
+    formatX: xa.format,
     yTicks: y.ticks(yTicks).filter((v) => v >= yd[0] && v <= yd[1]).map((v) => ({
       value: v,
       y: y(v),

@@ -2,6 +2,63 @@
 
 All Tylix packages share one version number and are released together.
 
+## 1.3.0
+
+### @tylix/mail: usable in any Node app
+- `createMailer({ transport, from, views })` works without Tylix.
+  `@tylix/orm` is now an optional peer and `@tylix/generator` is no longer
+  a dependency. Existing `Mail.send()`, Mailables and the mail log are
+  unchanged.
+- Transports: SMTP (now with AUTH PLAIN and an opt-in `requireTLS`),
+  Resend, SendGrid, Postmark, Mailgun (US/EU), Amazon SES (SigV4 signing,
+  no SDK), log and memory. In Tylix apps, `MAIL_DRIVER` picks one, with
+  `MAIL_API_KEY`, `MAIL_DOMAIN` and `MAIL_REGION` in the starter `.env`.
+- Messages take cc, bcc (envelope only), replyTo, a per-message from,
+  display names, attachments (from disk or memory), inline images (cid),
+  custom headers and provider tags. Header injection is refused before
+  anything is sent.
+- Templates escape values by default. They support `{{{ raw }}}`,
+  dotted paths, `{{#if}}` / `{{#each}}` and an optional `.txt` text part,
+  or you can bring your own renderer.
+- `Mail.fake()` / `createFakeTransport()` with `assertSent`,
+  `assertNotSent`, `assertNothingSent` and `assertSentCount`, plus
+  `preview()` for the full `.eml` text. The package now has a test suite
+  (29 tests, including a real SMTP conversation).
+
+### Native .tyx syntax
+- `bind:value` (text, number, textarea, select, select multiple),
+  `bind:checked`, and `bind:group` for radios and checkbox lists.
+- `class:name="{{ cond }}"` (and the `class:name` shorthand) and
+  `style:prop="{{ value }}"`. These work alongside a dynamic `class` or
+  `style` attribute.
+- Event modifiers: `.prevent .stop .self .once .capture .passive`, key
+  filters (`.enter .esc .space .tab .up .down .left .right .delete
+  .backspace`) and `.ctrl .shift .alt .meta`.
+- Component children: `<Card>…</Card>` renders where the component puts
+  `<slot />`, with named slots (`slot="footer"`) and fallback content.
+  Previously the children were dropped silently.
+- `{{#await p}}…{{#then v}}…{{#catch e}}…{{/await}}`, the short form
+  `{{#await p then v}}`, and `{{@html trusted}}`.
+- **Fixed**: a template variable with the same name as an internal
+  temporary (`v`, `frag`, `p`…) rendered nothing, for example
+  `{{#each v in list}}{{ v }}{{/each}}`.
+- **Fixed**: a function used as an operand lost its parentheses, so
+  `a ?? (v => v)` compiled to invalid JavaScript.
+- The VS Code grammar, snippets and language server know the new syntax.
+
+### @tylix/charts
+- New charts: scatter / bubble, gauge, and calendar heatmap, each with a
+  `.tyx` component (`<ScatterChart>`, `<Gauge>`, `<Heatmap>`).
+- Time axes: `Date` x values tick on calendar boundaries with matching
+  labels and tooltip dates (`timeZone`, `locale`).
+- Accessibility: `<title>` and a plain-language `<desc>` in every SVG,
+  `dataTable()` and `describeSeries()`, a hidden data table in the
+  components, and `role="meter"` on the gauge.
+- React (`@tylix/charts/react`), Vue (`/vue`) and Svelte 5 (`/svelte`)
+  wrappers with SSR-safe ids and the interactive crosshair, plus
+  `renderChart(type, data, options)` for anything else.
+- README rewritten to cover every chart.
+
 ## 1.2.0
 
 - **VS Code extension** ships as `tylix.tyx-language` 1.2.0, the next

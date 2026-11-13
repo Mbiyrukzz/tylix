@@ -70,22 +70,39 @@
   },
   "Action": {
     "prefix": "act",
-    "body": ["${1:name}(${2}) {", "  $0", "}"],
+    "body": [
+      "${1:name}(${2}) {",
+      "  $0",
+      "}"
+    ],
     "description": "An action method"
   },
   "Async action": {
     "prefix": "aact",
-    "body": ["async ${1:name}(${2}) {", "  $0", "}"],
+    "body": [
+      "async ${1:name}(${2}) {",
+      "  $0",
+      "}"
+    ],
     "description": "An async action method"
   },
   "Computed": {
     "prefix": "comp",
-    "body": ["${1:name}() {", "  return $0", "}"],
+    "body": [
+      "${1:name}() {",
+      "  return $0",
+      "}"
+    ],
     "description": "A computed value"
   },
   "onMount": {
     "prefix": "onMount",
-    "body": ["onMount", "  async {", "    $0", "  }"],
+    "body": [
+      "onMount",
+      "  async {",
+      "    $0",
+      "  }"
+    ],
     "description": "Runs in the browser after the page mounts"
   },
   "useApi call": {
@@ -102,27 +119,81 @@
   },
   "if block": {
     "prefix": "#if",
-    "body": ["{{#if ${1:condition}}}", "  $0", "{{/if}}"],
+    "body": [
+      "{{#if ${1:condition}}}",
+      "  $0",
+      "{{/if}}"
+    ],
     "description": "{{#if}} ... {{/if}}"
   },
   "if / else block": {
     "prefix": "#ife",
-    "body": ["{{#if ${1:condition}}}", "  $2", "{{#else}}", "  $0", "{{/if}}"],
+    "body": [
+      "{{#if ${1:condition}}}",
+      "  $2",
+      "{{#else}}",
+      "  $0",
+      "{{/if}}"
+    ],
     "description": "{{#if}} ... {{#else}} ... {{/if}}"
   },
   "each block": {
     "prefix": "#each",
-    "body": ["{{#each ${1:item} in ${2:items}}}", "  $0", "{{/each}}"],
+    "body": [
+      "{{#each ${1:item} in ${2:items}}}",
+      "  $0",
+      "{{/each}}"
+    ],
     "description": "{{#each item in items}} ... {{/each}}"
   },
   "each with index": {
     "prefix": "#eachi",
-    "body": ["{{#each ${1:item}, ${2:i} in ${3:items}}}", "  $0", "{{/each}}"],
+    "body": [
+      "{{#each ${1:item}, ${2:i} in ${3:items}}}",
+      "  $0",
+      "{{/each}}"
+    ],
     "description": "{{#each item, i in items}} ... {{/each}}"
   },
   "Import component": {
     "prefix": "imp",
-    "body": ["import ${1:Card} from \"./${2:components/}${1:Card}\""],
+    "body": [
+      "import ${1:Card} from \"./${2:components/}${1:Card}\""
+    ],
     "description": "Import a local component"
+  },
+  "await block": {
+    "prefix": "#await",
+    "body": [
+      "{{#await ${1:promise}}}",
+      "  ${2:<p>Loading\u2026</p>}",
+      "{{#then ${3:value}}}",
+      "  $0",
+      "{{#catch ${4:error}}}",
+      "  <p>{{ ${4:error}.message }}</p>",
+      "{{/await}}"
+    ],
+    "description": "{{#await}} \u2026 {{#then}} \u2026 {{#catch}} \u2026 {{/await}}"
+  },
+  "raw html": {
+    "prefix": "@html",
+    "body": [
+      "{{@html ${1:content}}}"
+    ],
+    "description": "Insert trusted HTML"
+  },
+  "slot": {
+    "prefix": "slot",
+    "body": [
+      "<slot${1: name=\"${2:footer}\"}>$0</slot>"
+    ],
+    "description": "Where a component renders the children it was given"
+  },
+  "bind:value": {
+    "prefix": "bind",
+    "body": [
+      "bind:${1|value,checked,group|}=\"{{ ${2:field} }}\""
+    ],
+    "description": "Two-way binding"
   }
 }

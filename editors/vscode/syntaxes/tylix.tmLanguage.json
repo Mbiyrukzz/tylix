@@ -176,7 +176,7 @@
     "block-tag": {
       "patterns": [
         {
-          "begin": "(\\{\\{)\\s*(#(?:if|each)|#else\\s+if)\\b",
+          "begin": "(\\{\\{)\\s*(#(?:if|each|await)|#else\\s+if|@html)\\b",
           "beginCaptures": {
             "1": {
               "name": "punctuation.section.embedded.begin.tylix"
@@ -199,7 +199,7 @@
           ]
         },
         {
-          "match": "(\\{\\{)\\s*(#else|/if|/each)\\s*(\\}\\})",
+          "match": "(\\{\\{)\\s*(#else|#then|#catch|/if|/each|/await)\\b([^}]*)(\\}\\})",
           "captures": {
             "1": {
               "name": "punctuation.section.embedded.begin.tylix"
@@ -208,6 +208,9 @@
               "name": "keyword.control.block.tylix"
             },
             "3": {
+              "name": "variable.parameter.tylix"
+            },
+            "4": {
               "name": "punctuation.section.embedded.end.tylix"
             }
           }
@@ -257,6 +260,28 @@
       "patterns": [
         {
           "include": "#interpolation"
+        },
+        {
+          "match": "\\b(bind|class|style):([\\w-]+)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.directive.tylix"
+            },
+            "2": {
+              "name": "entity.other.attribute-name.html"
+            }
+          }
+        },
+        {
+          "match": "\\b(on[a-zA-Z]+)((?:\\.[a-z0-9]+)+)",
+          "captures": {
+            "1": {
+              "name": "entity.other.attribute-name.html"
+            },
+            "2": {
+              "name": "keyword.other.modifier.tylix"
+            }
+          }
         },
         {
           "match": "[a-zA-Z_:@$][\\w:.-]*",

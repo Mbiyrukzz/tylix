@@ -1,6 +1,7 @@
 import { linearScale } from './scales.js'
 import { linePath, areaPath } from './path.js'
 import { extent } from './ticks.js'
+import { isTimeData, timeAxis, isDate } from './time.js'
 
 export const DEFAULT_PALETTE = [
   'var(--tylix-chart-1, #2563eb)',
@@ -10,13 +11,43 @@ export const DEFAULT_PALETTE = [
   'var(--tylix-chart-5, #7c3aed)',
 ]
 
-// Accepts [1, 2, 3] (x = index) or [{ x, y }, ...]
+// Accepts [1, 2, 3] (x = index) or [{ x, y }, ...]. Date x values
+// become milliseconds (see time.js).
 export function normalizeData(data = []) {
   return data.map((d, i) => {
     if (typeof d === 'number') return { x: i, y: d }
     if (d == null) return { x: i, y: null }
-    return { x: d.x ?? i, y: d.y ?? null }
+    const x = isDate(d.x) ? d.x.getTime() : d.x ?? i
+    return { x, y: d.y ?? null }
   })
+}
+
+// A label that would run past the chart edge is anchored inward.
+export function anchorTicks(ticks, width, charWidth = 6.2) {
+  return ticks.map((t) => {
+    const half = (String(t.label).length * charWidth) / 2
+    const anchor = t.x - half < 0 ? 'start' : t.x + half > width ? 'end' : 'middle'
+    return anchor === 'middle' ? t : { ...t, anchor }
+  })
+}
+
+// X ticks and the x formatter, for numbers or time.
+export function xAxis(series, xScale, xd, count, { formatX, timeZone, locale } = {}) {
+  if (isTimeData(series)) {
+    const axis = timeAxis(xd[0], xd[1], count, { timeZone, locale })
+    return {
+      time: true,
+      ticks: axis.ticks.map((t) => ({ value: t.value, x: xScale(t.value), label: formatX ? formatX(new Date(t.value)) : t.label })),
+      // Tooltips get a fuller date than the tick labels.
+      format: formatX ? (v) => formatX(new Date(v)) : axis.tooltip,
+    }
+  }
+  const format = formatX ?? ((v) => String(v))
+  return {
+    time: false,
+    ticks: xScale.ticks(count).filter((v) => v >= xd[0] && v <= xd[1]).map((v) => ({ value: v, x: xScale(v), label: format(v) })),
+    format,
+  }
 }
 
 /**
@@ -38,7 +69,9 @@ export function lineChart(
     curve = 'linear',
     area = false,
     zeroBaseline = false,
-    formatX = (v) => String(v),
+    formatX,
+    timeZone,
+    locale,
     formatY = (v) => String(v),
   } = {}
 ) {
@@ -71,6 +104,7 @@ export function lineChart(
   }
 
   const x = linearScale({ domain: xd, range: [plot.x, plot.x + plot.width] })
+  const xa = xAxis(series, x, xd, xTicks, { formatX, timeZone, locale })
   const y = linearScale({ domain: yd, range: [plot.y + plot.height, plot.y] })
   // Fill down to zero when it is inside the domain, otherwise to the bottom edge.
   const baselineY = yd[0] <= 0 && yd[1] >= 0 ? y(0) : y(yd[0])
@@ -81,11 +115,9 @@ export function lineChart(
     plot,
     xScale: x,
     yScale: y,
-    xTicks: x.ticks(xTicks).filter((v) => v >= xd[0] && v <= xd[1]).map((v) => ({
-      value: v,
-      x: x(v),
-      label: formatX(v),
-    })),
+    xTicks: anchorTicks(xa.ticks, width),
+    time: xa.time,
+    formatX: xa.format,
     yTicks: y.ticks(yTicks).filter((v) => v >= yd[0] && v <= yd[1]).map((v) => ({
       value: v,
       y: y(v),

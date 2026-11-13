@@ -51,6 +51,9 @@ export const KEYWORD_DOCS = {
   init: 'Runs once when the capability is first used: `init async { … }`.',
   uses: 'Capabilities this page uses.',
   needs: 'Capabilities that must be ready (their `init` finished) before the page renders.',
+  bind: '`bind:value="{{ field }}"` keeps an input and a state field in sync (also `bind:checked`, and `bind:group` for radios and checkbox lists).',
+  slot: '`<slot />` in a component renders the children the parent passed (`<Card>…</Card>`); `<slot name="footer">` takes children marked `slot="footer"`. Content inside `<slot>` is the fallback.',
+  await: '`{{#await promise}}pending{{#then value}}…{{#catch error}}…{{/await}}`, or `{{#await promise then value}}…{{/await}}`.',
   template: 'The markup. `{{ expr }}` inserts a value; `{{#if}}…{{#else}}…{{/if}}` and `{{#each item in items}}…{{/each}}` control it.',
   style: 'CSS for this file.',
 }
@@ -171,6 +174,8 @@ const BLOCK_SNIPPETS = [
   { label: '{{#if}}', insertText: '{{#if ${1:condition}}}\n\t$0\n{{/if}}', detail: 'if block' },
   { label: '{{#if}} … {{#else}}', insertText: '{{#if ${1:condition}}}\n\t$2\n{{#else}}\n\t$0\n{{/if}}', detail: 'if / else block' },
   { label: '{{#each}}', insertText: '{{#each ${1:item} in ${2:items}}}\n\t$0\n{{/each}}', detail: 'each block' },
+  { label: '{{#await}}', insertText: '{{#await ${1:promise}}}\n\t${2:Loading…}\n{{#then ${3:value}}}\n\t$0\n{{#catch ${4:error}}}\n\t{{ ${4:error}.message }}\n{{/await}}', detail: 'await block' },
+  { label: '{{@html}}', insertText: '{{@html ${1:content}}}', detail: 'trusted HTML' },
 ]
 
 export function completions(doc, position, project) {

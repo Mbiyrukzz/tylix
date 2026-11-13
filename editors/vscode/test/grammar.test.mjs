@@ -158,3 +158,20 @@ test('capability files', () => {
   assert.match(scopesOf(cap, 'init'), /keyword\.control\.section/)
   assert.match(scopesOf(cap, 'load'), /entity\.name\.function/)
 })
+
+test('await blocks, @html, directives and event modifiers', () => {
+  const t = tokenize(`page P
+
+template
+  {{#await load() then posts}}<p>{{ posts }}</p>{{#catch err}}x{{/await}}
+  {{@html body}}
+  <input bind:value="{{ q }}" class:active="{{ on }}" onkeydown.enter.prevent="{{ go() }}" />
+`)
+  assert.match(scopesOf(t, '#await'), /keyword\.control\.block/)
+  assert.match(scopesOf(t, '#catch'), /keyword\.control\.block/)
+  assert.match(scopesOf(t, '/await'), /keyword\.control\.block/)
+  assert.match(scopesOf(t, '@html'), /keyword\.control\.block/)
+  assert.match(scopesOf(t, 'bind'), /keyword\.other\.directive/)
+  assert.match(scopesOf(t, 'class'), /keyword\.other\.directive/)
+  assert.match(scopesOf(t, '.enter.prevent'), /keyword\.other\.modifier/)
+})

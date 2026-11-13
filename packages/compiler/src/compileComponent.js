@@ -9,7 +9,7 @@ import {
   generateStatement,
   declaredNames,
 } from './codegen/generateStatement.js'
-import { reactive, effect } from './runtime/reactive.js'
+import { reactive, effect, untracked } from './runtime/reactive.js'
 import { useApi } from './runtime/useApi.js'
 
 /**
@@ -76,9 +76,11 @@ export function compileComponent(
         'effect',
         'instance',
         'components',
+        'reactive',
+        'untracked',
         `${code}\nreturn ${rootVar};`,
       )
-      const node = renderFn(document, effect, instance, components)
+      const node = renderFn(document, effect, instance, components, reactive, untracked)
       return { node, instance }
     },
   }

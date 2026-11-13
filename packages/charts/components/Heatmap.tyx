@@ -1,0 +1,148 @@
+component Heatmap
+
+props
+  data: Array
+  label?: string
+  from?: string
+  to?: string
+  weekStart?: number
+  cell?: number
+  levels?: number
+  max?: number
+  color?: string
+  legend?: boolean
+  formatValue?: Function
+  class?: string
+
+state
+  hover: null
+  ready: false
+
+computed
+  h() {
+    if not this.ready {
+      return null
+    }
+    return window.__tylixCharts.calendarHeatmap(this.data ?? [], {
+      from: this.from,
+      to: this.to,
+      weekStart: this.weekStart ?? 0,
+      cell: this.cell ?? 11,
+      levels: this.levels ?? 5,
+      max: this.max,
+    })
+  }
+
+  height() {
+    return this.h.height + (this.legend is false ? 0 : 24)
+  }
+
+  fill() {
+    return this.color ?? "var(--tylix-chart-1, #2563eb)"
+  }
+
+  legendCells() {
+    const h = this.h
+    const step = h.cell + 3
+    const x0 = h.width - h.levels * step - 34
+    return [...Array(h.levels).keys()].map(level => ({ level: level, x: x0 + level * step }))
+  }
+
+  tip() {
+    const c = this.hover
+    if not c {
+      return null
+    }
+    const text = `${this.fv(c.value)} on ${c.date}`
+    const w = Math.ceil(text.length * 6.2 + 20)
+    let x = c.x + this.h.cell / 2 - w / 2
+    x = Math.min(this.h.width - w - 2, Math.max(2, x))
+    return { x: x, y: Math.max(2, c.y - 30), w: w, text: text }
+  }
+
+  description() {
+    const h = this.h
+    return `${this.label ?? "Activity"}: ${h.cells.length} days, total ${this.fv(h.total)}`
+  }
+
+action
+  fv(v) {
+    return this.formatValue ? this.formatValue(v) : String(v)
+  }
+
+  opacity(level) {
+    return level is 0 ? 0.08 : 0.2 + 0.8 * level / (this.h.levels - 1)
+  }
+
+  paint(level) {
+    return level is 0 ? "currentColor" : this.fill
+  }
+
+  focusCell(c) {
+    this.hover = c
+  }
+
+  leave() {
+    this.hover = null
+  }
+
+  key(e) {
+    if not this.hover {
+      return null
+    }
+    const cells = this.h.cells
+    const i = cells.findIndex(c => c.date is this.hover.date)
+    const moves = { ArrowRight: 7, ArrowLeft: -7, ArrowDown: 1, ArrowUp: -1 }
+    if not (e.key in moves) {
+      return null
+    }
+    e.preventDefault()
+    const next = cells[i + moves[e.key]]
+    if next {
+      this.hover = next
+    }
+  }
+
+onMount
+  async {
+    const load = window.__tylixChartsLoad ?? (window.__tylixChartsLoad = import("/_tylix/charts/index.js").then(m => { window.__tylixCharts = m }))
+    try {
+      await load
+      this.ready = true
+    } catch (e) {
+      console.error("[tylix/charts] could not load geometry", e)
+      window.__tylixChartsLoad = null
+    }
+  }
+
+template
+<div class="{{ `tylix-chart text-zinc-500 dark:text-zinc-400 ${this.class ?? ''}` }}">
+{{#if ready}}
+  <svg viewBox="{{ `0 0 ${h.width} ${height}` }}" class="w-full h-auto outline-none" font-size="10" role="img" aria-label="{{ description }}" tabindex="0" onpointerleave="{{ leave }}" onblur="{{ leave }}" onkeydown="{{ key }}" onfocus="{{ hover = hover ?? h.cells.at(-1) }}">
+{{#each m in h.months}}
+    <text x="{{ m.x }}" y="10" fill="currentColor" fill-opacity="0.65">{{ m.label }}</text>
+{{/each}}
+{{#each d in h.days}}
+    <text x="0" y="{{ d.y }}" dominant-baseline="middle" fill="currentColor" fill-opacity="0.65">{{ d.label }}</text>
+{{/each}}
+{{#each c in h.cells}}
+    <rect x="{{ c.x }}" y="{{ c.y }}" width="{{ h.cell }}" height="{{ h.cell }}" rx="2" fill="{{ paint(c.level) }}" fill-opacity="{{ opacity(c.level) }}" stroke="currentColor" stroke-opacity="{{ hover and hover.date is c.date ? 0.9 : 0 }}" onpointerenter="{{ focusCell(c) }}" />
+{{/each}}
+{{#if legend is not false}}
+    <text x="{{ legendCells[0].x - 6 }}" y="{{ h.height + 10 + h.cell - 2 }}" text-anchor="end" fill="currentColor" fill-opacity="0.65">Less</text>
+{{#each l in legendCells}}
+    <rect x="{{ l.x }}" y="{{ h.height + 10 }}" width="{{ h.cell }}" height="{{ h.cell }}" rx="2" fill="{{ paint(l.level) }}" fill-opacity="{{ opacity(l.level) }}" />
+{{/each}}
+    <text x="{{ legendCells.at(-1).x + h.cell + 6 }}" y="{{ h.height + 10 + h.cell - 2 }}" fill="currentColor" fill-opacity="0.65">More</text>
+{{/if}}
+{{#if tip}}
+    <g pointer-events="none" transform="{{ `translate(${tip.x},${tip.y})` }}">
+      <rect width="{{ tip.w }}" height="22" rx="5" fill="#18181b" />
+      <text x="{{ tip.w / 2 }}" y="15" text-anchor="middle" fill="#fff">{{ tip.text }}</text>
+    </g>
+{{/if}}
+  </svg>
+{{#else}}
+  <div class="w-full aspect-[5/1]"></div>
+{{/if}}
+</div>
