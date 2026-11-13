@@ -33,6 +33,7 @@ import { makeApi } from './commands/makeApi.js'
 import { dev } from './commands/dev.js'
 import { build } from './commands/build.js'
 import { start } from './commands/start.js'
+import { check } from './commands/check.js'
 
 const projectRoot = process.cwd()
 if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
@@ -98,6 +99,11 @@ async function main() {
 
   if (command === 'build') {
     await build()
+    return
+  }
+
+  if (command === 'check') {
+    await check(rest)
     return
   }
 
@@ -321,7 +327,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, build, start, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, check, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

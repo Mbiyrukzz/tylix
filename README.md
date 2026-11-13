@@ -213,6 +213,7 @@ shows each value and where it came from.
 tylix dev
 tylix build
 tylix start --workers auto
+tylix check                    # parse and typecheck every .tyx file
 tylix migrate
 
 tylix make:feature Invoice title:string total:number
@@ -230,6 +231,38 @@ tylix channels:work
 tylix doctor
 tylix tinker
 ```
+
+`tylix check` reports every problem in your `.tyx` pages, components,
+layouts and capabilities with its file, line and column, and exits 1 when
+there are any. In TypeScript projects it typechecks too (`--typecheck` /
+`--no-typecheck` to choose). `--format=json` is for scripts, and
+`--format=github` prints annotations that show up on pull requests.
+`tylix build` runs the same check.
+
+---
+
+# Editor and DevTools
+
+* **VS Code**: the extension in [`editors/vscode`](editors/vscode) adds
+  highlighting, snippets, and a language server with errors as you type,
+  type checking, completion (members, capabilities, imported components),
+  hover, go to definition and an outline. Build it with
+  `npm run build:editor` and install `editors/vscode/tylix.vsix`
+  (Extensions → … → Install from VSIX).
+* **Other editors**: [`@tylix/language-server`](packages/language-server)
+  runs over stdio (`tylix-language-server --stdio`). Its README has Neovim
+  and Helix setup.
+* **Error overlay**: under `tylix dev`, a compile error opens a page with
+  the failing file (the component or capability itself, not the page that
+  used it), line and column underlined, every other problem in that file,
+  and an *Open in editor* link. It reloads by itself when you save a fix.
+  Uncaught errors in the browser show in a dismissible overlay.
+* **Tylix DevTools**: a Chrome and Firefox extension in
+  [`devtools/extension`](devtools/extension). It adds a *Tylix* panel that
+  shows the live page, layout, components and capabilities. You can edit
+  state, run actions, and highlight a component on the page. Run
+  `npm run build` there and load `devtools/extension/dist` unpacked. It
+  works on pages served by `tylix dev` and asks for no site permissions.
 
 ---
 
@@ -276,6 +309,7 @@ Each folder has a README saying what goes there and which command makes it.
 | [`@tylix/auth`](packages/auth) | authentication |
 | [`@tylix/mail`](packages/mail) | email |
 | [`@tylix/compiler`](packages/compiler) | the `.tyx` compiler |
+| [`@tylix/language-server`](packages/language-server) | `.tyx` language server for any LSP editor |
 | [`@tylix/generator`](packages/generator) | code generators |
 | [`@tylix/client`](packages/client) | browser client: API, session, channels |
 | [`@tylix/react`](packages/react), [`@tylix/vue`](packages/vue), [`@tylix/svelte`](packages/svelte), [`@tylix/angular`](packages/angular) | frontend bindings and SSR |
@@ -295,6 +329,7 @@ Each folder has a README saying what goes there and which command makes it.
 * Queues, scheduler, channels, mail
 * Logs, metrics, health checks; workers and a shared store
 * Feature generator, doctor, tinker, benchmarks (`bench/`)
+* VS Code extension and language server, DevTools panel, `tylix check`
 
 ## Planned
 
@@ -302,7 +337,6 @@ Each folder has a README saying what goes there and which command makes it.
 * Job retries with backoff
 * Static site generation
 * Plugin system
-* DevTools and a VS Code extension
 * Deployment adapters
 
 ---
@@ -325,6 +359,9 @@ npm test
   oldest and newest framework major it supports.
 * `npm run verify` is the release check: unit tests, then the frontend
   matrix.
+* `npm run test:editor` builds the VS Code extension (language server
+  bundled), runs its grammar tests and runs the LSP protocol test against
+  the bundle.
 * `npm run bench` compares the server with Node, Fastify, Hono and Express.
 * `npm run release -- <version> bump|dry|publish` versions and publishes
   every package together.

@@ -2,6 +2,45 @@
 
 All Tylix packages share one version number and are released together.
 
+## 1.2.0
+
+- **Compiler diagnostics**: `diagnoseTyx(source, options)` returns every
+  problem in a page, component or capability with its line and column in
+  the file, plus an outline of its props, state, computed values and
+  actions. Lexer, parser and template errors now carry a source offset.
+  Errors inside `{{ }}`, attribute values and `{{#if}}` / `{{#each}}`
+  headers point inside the expression. Unclosed tags and blocks point at
+  where they were opened, and an unclosed bracket that hides the
+  `template` section is reported where it opens.
+- **Fixed**: typecheck errors in a page's template were reported on the
+  wrong line (counted as if they were in the script).
+- **Fixed**: the dev error page took the line from "at line N" in the
+  message, which counts from the start of a section, so the code frame
+  often showed the wrong line. Errors in a component or capability were
+  framed against the page's source.
+- **`tylix check`**: parses (and in TypeScript projects typechecks) every
+  `.tyx` file under `app/` with `pretty`, `json` and `github` output.
+- **`tylix build`** checks every `.tyx` file, not just pages, and now does
+  it in JavaScript projects too: a syntax error used to pass the build and
+  fail at runtime.
+- **Faster typechecking**: TypeScript's lib files are parsed once per
+  process. `tylix check` on the starter app went from 18.6s to 6.0s.
+- **Dev error overlay**: the compile error page names the file that
+  failed (component, layout or capability), underlines the line and
+  column, lists every other problem in the file, links to the file in
+  VS Code, and reloads by itself when the fix is saved. Uncaught errors
+  and unhandled rejections in the browser show in an overlay.
+- **`@tylix/language-server`** (new package) and a **VS Code extension**
+  (`editors/vscode`): highlighting, snippets, live errors, type checking,
+  completion, hover, go to definition and outline for `.tyx` files. Files
+  that don't start with `page`, `component` or `capability` (generator
+  templates) are left alone.
+- **Tylix DevTools** (`devtools/extension`): a Chrome/Firefox panel to
+  inspect and edit the live state of pages, components and capabilities.
+  The native runtime reports instances to `window.__TYLIX_DEVTOOLS_HOOK__`
+  when it exists. `tylix dev` installs the hook; production pages don't
+  have it.
+
 ## 1.1.0
 
 - **Hot reload**: saving `app/loading.tyx`, `app/index.html`,

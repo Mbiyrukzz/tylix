@@ -1,0 +1,547 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Tylix",
+  "scopeName": "source.tyx",
+  "patterns": [
+    {
+      "comment": "Tylix files start with page / component / capability. Anything else with a .tyx extension (generator templates) is highlighted as JavaScript.",
+      "begin": "\\A(?=\\s*(?:page|component|capability)\\b)",
+      "end": "(?!)",
+      "patterns": [
+        {
+          "include": "#tylix"
+        }
+      ]
+    },
+    {
+      "begin": "\\A",
+      "end": "(?!)",
+      "name": "meta.generator-template.tylix",
+      "patterns": [
+        {
+          "include": "#generator-placeholder"
+        },
+        {
+          "include": "source.js"
+        }
+      ]
+    }
+  ],
+  "repository": {
+    "tylix": {
+      "patterns": [
+        {
+          "include": "#header"
+        },
+        {
+          "include": "#import"
+        },
+        {
+          "include": "#template-section"
+        },
+        {
+          "include": "#style-section"
+        },
+        {
+          "include": "#section-keyword"
+        },
+        {
+          "include": "#script"
+        }
+      ]
+    },
+    "header": {
+      "match": "^\\s*(page|component|capability)\\s+([A-Za-z_$][\\w$]*)",
+      "captures": {
+        "1": {
+          "name": "storage.type.class.tylix"
+        },
+        "2": {
+          "name": "entity.name.type.class.tylix"
+        }
+      }
+    },
+    "import": {
+      "begin": "^\\s*(import)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.import.tylix"
+        }
+      },
+      "end": "(?<=[\\\"'])|$",
+      "patterns": [
+        {
+          "match": "\\b(as)\\b",
+          "name": "keyword.control.as.tylix"
+        },
+        {
+          "match": "\\b(from)\\b",
+          "name": "keyword.control.from.tylix"
+        },
+        {
+          "match": "\\b[A-Z][\\w$]*\\b",
+          "name": "entity.name.type.component.tylix"
+        },
+        {
+          "match": "[{},]",
+          "name": "punctuation.separator.tylix"
+        },
+        {
+          "include": "#strings"
+        }
+      ]
+    },
+    "section-keyword": {
+      "match": "^(props|state|computed|actions?|onMount|init|uses|needs|prefetch|background|permissions|meta|title|layout)\\b(?!\\s*[:(=,])",
+      "name": "keyword.control.section.tylix"
+    },
+    "template-section": {
+      "begin": "^(template)\\s*$",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.section.tylix"
+        }
+      },
+      "end": "(?=^style\\s*$)",
+      "contentName": "meta.template.tylix",
+      "patterns": [
+        {
+          "include": "#html-comment"
+        },
+        {
+          "include": "#pre-block"
+        },
+        {
+          "include": "#block-tag"
+        },
+        {
+          "include": "#interpolation"
+        },
+        {
+          "include": "#tag"
+        },
+        {
+          "include": "#entity"
+        }
+      ]
+    },
+    "style-section": {
+      "begin": "^(style)\\s*$",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.section.tylix"
+        }
+      },
+      "end": "(?!)",
+      "contentName": "meta.style.tylix",
+      "patterns": [
+        {
+          "include": "source.css"
+        }
+      ]
+    },
+    "html-comment": {
+      "begin": "<!--",
+      "end": "-->",
+      "name": "comment.block.html"
+    },
+    "pre-block": {
+      "comment": "<pre> content is raw text: {{ }} inside it is not evaluated.",
+      "begin": "(<)(pre)\\b([^>]*)(>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html"
+        },
+        "2": {
+          "name": "entity.name.tag.html"
+        },
+        "4": {
+          "name": "punctuation.definition.tag.end.html"
+        }
+      },
+      "end": "(</)(pre)(>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html"
+        },
+        "2": {
+          "name": "entity.name.tag.html"
+        },
+        "3": {
+          "name": "punctuation.definition.tag.end.html"
+        }
+      },
+      "contentName": "markup.raw.tylix"
+    },
+    "block-tag": {
+      "patterns": [
+        {
+          "begin": "(\\{\\{)\\s*(#(?:if|each)|#else\\s+if)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.tylix"
+            },
+            "2": {
+              "name": "keyword.control.block.tylix"
+            }
+          },
+          "end": "\\}\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.tylix"
+            }
+          },
+          "name": "meta.block.tylix",
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        },
+        {
+          "match": "(\\{\\{)\\s*(#else|/if|/each)\\s*(\\}\\})",
+          "captures": {
+            "1": {
+              "name": "punctuation.section.embedded.begin.tylix"
+            },
+            "2": {
+              "name": "keyword.control.block.tylix"
+            },
+            "3": {
+              "name": "punctuation.section.embedded.end.tylix"
+            }
+          }
+        }
+      ]
+    },
+    "interpolation": {
+      "begin": "\\{\\{(?![#/])",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.begin.tylix"
+        }
+      },
+      "end": "\\}\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.end.tylix"
+        }
+      },
+      "contentName": "meta.embedded.expression.tylix",
+      "patterns": [
+        {
+          "include": "#expression"
+        }
+      ]
+    },
+    "tag": {
+      "begin": "(</?)(?:([A-Z][\\w.-]*)|([a-zA-Z][\\w:-]*))",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.html"
+        },
+        "2": {
+          "name": "support.class.component.tylix"
+        },
+        "3": {
+          "name": "entity.name.tag.html"
+        }
+      },
+      "end": "/?>",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.tag.end.html"
+        }
+      },
+      "name": "meta.tag.tylix",
+      "patterns": [
+        {
+          "include": "#interpolation"
+        },
+        {
+          "match": "[a-zA-Z_:@$][\\w:.-]*",
+          "name": "entity.other.attribute-name.html"
+        },
+        {
+          "match": "=",
+          "name": "punctuation.separator.key-value.html"
+        },
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.html",
+          "patterns": [
+            {
+              "include": "#attr-value"
+            }
+          ]
+        },
+        {
+          "begin": "'",
+          "end": "'",
+          "name": "string.quoted.single.html",
+          "patterns": [
+            {
+              "include": "#attr-value"
+            }
+          ]
+        }
+      ]
+    },
+    "attr-value": {
+      "patterns": [
+        {
+          "begin": "\\{\\{",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.begin.tylix"
+            }
+          },
+          "end": "\\}\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.section.embedded.end.tylix"
+            }
+          },
+          "contentName": "meta.embedded.expression.tylix source.tyx.embedded",
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        },
+        {
+          "include": "#entity"
+        }
+      ]
+    },
+    "entity": {
+      "match": "&(?:#\\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);",
+      "name": "constant.character.entity.html"
+    },
+    "script": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#state-entry"
+        },
+        {
+          "include": "#expression"
+        }
+      ]
+    },
+    "state-entry": {
+      "comment": "name: value / name?: Type / name(Type): value at the start of a line",
+      "match": "^\\s+([A-Za-z_$][\\w$]*)(\\?)?\\s*(?:(\\()([^)]*)(\\)))?\\s*(:)(?!:)",
+      "captures": {
+        "1": {
+          "name": "variable.other.property.tylix"
+        },
+        "2": {
+          "name": "keyword.operator.optional.tylix"
+        },
+        "3": {
+          "name": "punctuation.definition.type.begin.tylix"
+        },
+        "4": {
+          "name": "entity.name.type.tylix"
+        },
+        "5": {
+          "name": "punctuation.definition.type.end.tylix"
+        },
+        "6": {
+          "name": "punctuation.separator.key-value.tylix"
+        }
+      }
+    },
+    "expression": {
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "include": "#template-literal"
+        },
+        {
+          "include": "#numbers"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#this"
+        },
+        {
+          "include": "#capability-member"
+        },
+        {
+          "include": "#function-call"
+        },
+        {
+          "include": "#braces"
+        },
+        {
+          "match": "\\$event\\b",
+          "name": "variable.language.event.tylix"
+        },
+        {
+          "match": "=>",
+          "name": "storage.type.function.arrow.tylix"
+        },
+        {
+          "match": "\\?\\.|\\?\\?=?|\\.\\.\\.|[-+*/%]=?|\\*\\*=?|===?|!==?|<=|>=|&&=?|\\|\\|=?|[<>!~^&|?:]",
+          "name": "keyword.operator.tylix"
+        },
+        {
+          "match": "(?<=\\.)\\s*([A-Za-z_$][\\w$]*)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.tylix"
+            }
+          }
+        },
+        {
+          "match": "[A-Za-z_$][\\w$]*",
+          "name": "variable.other.readwrite.tylix"
+        }
+      ]
+    },
+    "braces": {
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "include": "#expression"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "begin": "/\\*",
+          "end": "\\*/",
+          "name": "comment.block.tylix"
+        },
+        {
+          "match": "(//).*$",
+          "name": "comment.line.double-slash.tylix"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "begin": "\"",
+          "end": "\"|$",
+          "name": "string.quoted.double.tylix",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.tylix"
+            }
+          ]
+        },
+        {
+          "begin": "'",
+          "end": "'|$",
+          "name": "string.quoted.single.tylix",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.tylix"
+            }
+          ]
+        }
+      ]
+    },
+    "template-literal": {
+      "begin": "`",
+      "end": "`",
+      "name": "string.template.tylix",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.tylix"
+        },
+        {
+          "begin": "\\$\\{",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.template-expression.begin.tylix"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.template-expression.end.tylix"
+            }
+          },
+          "contentName": "meta.embedded.line.tylix",
+          "patterns": [
+            {
+              "include": "#expression"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "match": "\\b(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\\d[\\d_]*(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)n?\\b|(?<![\\w$])\\.\\d+\\b",
+      "name": "constant.numeric.tylix"
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "match": "\\b(and|or|not|is|has|exists|missing)\\b(?!\\s*[:(])",
+          "name": "keyword.operator.word.tylix"
+        },
+        {
+          "match": "\\b(if|else|for|in|of|from|to|repeat|while|do|switch|case|default|break|continue|return|try|catch|finally|throw|await)\\b(?!\\s*:)",
+          "name": "keyword.control.tylix"
+        },
+        {
+          "match": "\\b(const|let|function|async)\\b",
+          "name": "storage.type.tylix"
+        },
+        {
+          "match": "\\b(new|typeof|instanceof|delete|void|as|satisfies)\\b",
+          "name": "keyword.operator.expression.tylix"
+        },
+        {
+          "match": "\\b(true|false|null|undefined|NaN|Infinity)\\b",
+          "name": "constant.language.tylix"
+        }
+      ]
+    },
+    "this": {
+      "match": "\\bthis\\b",
+      "name": "variable.language.this.tylix"
+    },
+    "capability-member": {
+      "comment": "Auth.user, Theme.toggle() -- a capitalized name followed by a dot",
+      "match": "\\b([A-Z][\\w$]*)(?=\\s*\\??\\.)",
+      "captures": {
+        "1": {
+          "name": "support.class.capability.tylix"
+        }
+      }
+    },
+    "function-call": {
+      "match": "([A-Za-z_$][\\w$]*)\\s*(?=\\()",
+      "captures": {
+        "1": {
+          "name": "entity.name.function.tylix"
+        }
+      }
+    },
+    "generator-placeholder": {
+      "match": "\\{\\{\\s*[A-Za-z_][\\w.]*\\s*\\}\\}",
+      "name": "variable.parameter.placeholder.tylix"
+    }
+  }
+}

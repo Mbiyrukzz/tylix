@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 export class CompileError extends Error {
   constructor(
     message,
@@ -57,7 +59,21 @@ function findHint(message) {
   return match ? match.hint : null
 }
 
-function renderCodeFrame(source, line, contextLines = 2) {
+// The target line with the [column, endColumn) span wrapped in <mark>.
+function markSpan(text, span) {
+  if (!span?.column) return escapeHtml(text)
+  const from = Math.min(text.length, span.column - 1)
+  const to =
+    span.endLine === span.line && span.endColumn > span.column
+      ? Math.min(text.length, span.endColumn - 1)
+      : Math.min(text.length, from + 1)
+  if (to <= from) {
+    return `${escapeHtml(text)}<mark class="frame-hit frame-hit--end"> </mark>`
+  }
+  return `${escapeHtml(text.slice(0, from))}<mark class="frame-hit">${escapeHtml(text.slice(from, to))}</mark>${escapeHtml(text.slice(to))}`
+}
+
+function renderCodeFrame(source, line, contextLines = 2, span = null, anchor = true) {
   if (!source || !line) return ''
 
   const lines = source.split('\n')
@@ -67,9 +83,10 @@ function renderCodeFrame(source, line, contextLines = 2) {
   let rows = ''
   for (let i = start; i <= end; i++) {
     const isTarget = i === line
-    const content = escapeHtml(lines[i - 1] ?? '')
+    const raw = lines[i - 1] ?? ''
+    const content = isTarget && span ? markSpan(raw, span) : escapeHtml(raw)
     rows += `
-      <div class="frame-line${isTarget ? ' frame-line--error' : ''}" id="${isTarget ? 'error-line' : ''}">
+      <div class="frame-line${isTarget ? ' frame-line--error' : ''}"${isTarget && anchor ? ' id="error-line"' : ''}>
         <span class="frame-marker">${isTarget ? '›' : ''}</span>
         <span class="frame-gutter">${i}</span>
         <span class="frame-code">${content}</span>
@@ -78,25 +95,66 @@ function renderCodeFrame(source, line, contextLines = 2) {
   return rows
 }
 
+function editorLink(file, line, column) {
+  if (!file || !path.isAbsolute(file)) return null
+  return `vscode://file${encodeURI(file)}:${line ?? 1}:${column ?? 1}`
+}
+
+// opts.diagnostics (from locateCompileError) gives exact positions:
+//   [{ file, source, line, column, endLine, endColumn, message, origin }]
+// Without it the page falls back to the "at line N" in the message.
 export function renderErrorPage(error, opts = {}) {
-  const file = error.file || opts.file || 'unknown file'
-  const line = error.line ?? extractLine(error.message)
-  const source = error.source || opts.source || null
+  const diagnostics =
+    Array.isArray(opts.diagnostics) && opts.diagnostics.length > 0
+      ? opts.diagnostics
+      : null
+  const primary = diagnostics?.[0] ?? null
+  const file = primary?.file || error.file || opts.file || 'unknown file'
+  const line = primary?.line ?? error.line ?? extractLine(error.message)
+  const column = primary?.column ?? error.column ?? null
+  const source = primary?.source || error.source || opts.source || null
+  const message = primary?.message ?? error.message
   const stack = error.stack || ''
-  const hint = findHint(error.message)
-  const fileName = file.split('/').pop()
+  const hint = findHint(error.message) ?? findHint(message)
+  const fileName =
+    opts.baseDir && path.isAbsolute(file)
+      ? path.relative(opts.baseDir, file)
+      : file.split('/').pop()
   const offendingLine =
-    source && line ? (source.split('\n')[line - 1] || '').trim() : null
+    !primary && source && line ? (source.split('\n')[line - 1] || '').trim() : null
+  const eyebrow = !primary
+    ? 'Template Compile Error'
+    : primary.origin === 'typecheck'
+      ? 'Type Error'
+      : 'Compile Error'
+  const openLink = primary ? editorLink(file, line, column) : null
+  const others = diagnostics ? diagnostics.slice(1) : []
 
   const copyPayload = escapeHtml(
-    JSON.stringify({ file, line, message: error.message, stack }, null, 2),
+    JSON.stringify(
+      {
+        file,
+        line,
+        column,
+        message,
+        problems: diagnostics?.map((d) => ({
+          file: d.file,
+          line: d.line,
+          column: d.column,
+          message: d.message,
+        })),
+        stack,
+      },
+      null,
+      2,
+    ),
   )
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Compile Error — ${escapeHtml(fileName)}</title>
+<title>${eyebrow} — ${escapeHtml(fileName)}</title>
 <script>
   (function () {
     var stored = localStorage.getItem("theme");
@@ -298,6 +356,24 @@ export function renderErrorPage(error, opts = {}) {
   }
   .frame-line--error .frame-gutter { color: var(--danger); font-weight: 600; }
   .frame-code { white-space: pre; color: var(--text-secondary); }
+  .frame-hit {
+    background: transparent;
+    color: inherit;
+    text-decoration: underline wavy var(--danger);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1.5px;
+  }
+  .frame-hit--end { text-decoration: none; border-bottom: 2px solid var(--danger); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .actions .copy-btn { margin-top: 0; text-decoration: none; }
+  .others { margin: 0 0 28px; }
+  .others h2 {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin: 0 0 12px; font-weight: 600;
+  }
+  .other-msg { font-size: 13px; margin: 0 0 8px; color: var(--text-primary); }
+  .other-msg .pos { color: var(--accent); }
+  .others .frame { margin-bottom: 18px; }
   .frame-line--error .frame-code { color: var(--text-primary); }
 
   details.stack-details {
@@ -331,17 +407,32 @@ export function renderErrorPage(error, opts = {}) {
   <div class="shell">
     <div class="card">
       <header>
-        <span class="eyebrow">⚠ Template Compile Error</span>
-        <p class="file-line">${escapeHtml(fileName)}</p>
-        ${line ? `<p class="line-num">Line ${line}</p>` : ''}
+        <span class="eyebrow">⚠ ${eyebrow}</span>
+        <p class="file-line">${escapeHtml(fileName)}${primary ? `:${line}:${column}` : ''}</p>
+        ${line ? `<p class="line-num">Line ${line}${column ? `, column ${column}` : ''}${others.length ? ` · ${others.length + 1} problems in this file` : ''}</p>` : ''}
         ${offendingLine ? `<p class="offending-code">${escapeHtml(offendingLine)}</p>` : ''}
-        <p class="message">${escapeHtml(error.message)}</p>
-        <button class="copy-btn" onclick="copyErrorDetails(this)">📋 Copy details</button>
+        <p class="message">${escapeHtml(message)}</p>
+        <div class="actions">
+          <button class="copy-btn" onclick="copyErrorDetails(this)">📋 Copy details</button>
+          ${openLink ? `<a class="copy-btn" href="${escapeHtml(openLink)}">↗ Open in editor</a>` : ''}
+        </div>
       </header>
       <main>
         ${hint ? `<div class="hint"><span class="hint-icon">💡</span><span>${hint}</span></div>` : ''}
 
-        ${source && line ? `<div class="frame">${renderCodeFrame(source, line)}</div>` : ''}
+        ${source && line ? `<div class="frame">${renderCodeFrame(source, line, 2, primary)}</div>` : ''}
+
+        ${
+          others.length
+            ? `<section class="others"><h2>More problems</h2>${others
+                .map(
+                  (d) => `
+          <p class="other-msg"><span class="pos">${d.line}:${d.column}</span> ${escapeHtml(d.message)}</p>
+          <div class="frame">${renderCodeFrame(d.source, d.line, 1, d, false)}</div>`,
+                )
+                .join('')}</section>`
+            : ''
+        }
 
         ${
           stack

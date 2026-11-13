@@ -313,6 +313,78 @@ export function createHmrChannel(
   }
 }
 
+// Dev only: uncaught errors and unhandled promise rejections in the
+// browser show up in a dismissible panel (Esc or x) instead of only in
+// the console. Lives in a shadow root so app CSS can't touch it, and
+// keeps the last 5 errors. window.__TYLIX_OVERLAY__.hide() closes it.
+export const RUNTIME_ERROR_OVERLAY_SCRIPT = `
+<script>
+(function () {
+  if (window.__TYLIX_OVERLAY__) return;
+  var errors = [];
+  var host = null, root = null;
+  var CSS = ":host{all:initial}" +
+    ".wrap{position:fixed;inset:auto 16px 16px 16px;max-height:60vh;z-index:2147483647;" +
+    "display:flex;flex-direction:column;font:13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;" +
+    "background:#0f172a;color:#e2e8f0;border:1px solid #9f1239;border-radius:12px;" +
+    "box-shadow:0 12px 40px rgba(0,0,0,.35);overflow:hidden}" +
+    ".bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#4c0519;color:#fecdd3}" +
+    ".bar b{flex:1;font-weight:600}" +
+    "button{all:unset;cursor:pointer;padding:2px 8px;border-radius:6px;color:#fecdd3}" +
+    "button:hover{background:rgba(255,255,255,.1)}" +
+    ".list{overflow:auto;padding:4px 14px 12px}" +
+    ".err{border-top:1px solid #1e293b;padding:10px 0}.err:first-child{border-top:0}" +
+    ".msg{color:#fda4af;font-weight:600;white-space:pre-wrap;word-break:break-word}" +
+    ".where{color:#94a3b8;font-size:12px}" +
+    "pre{margin:6px 0 0;white-space:pre-wrap;color:#94a3b8;font-size:12px;max-height:160px;overflow:auto}";
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function hide() { if (host) host.style.display = "none"; }
+  function render() {
+    if (!document.body) return;
+    if (!host) {
+      host = document.createElement("tylix-error-overlay");
+      root = host.attachShadow({ mode: "open" });
+      document.body.appendChild(host);
+    }
+    host.style.display = "";
+    var items = errors.map(function (e) {
+      return '<div class="err"><div class="msg">' + esc(e.message) + "</div>" +
+        (e.where ? '<div class="where">' + esc(e.where) + "</div>" : "") +
+        (e.stack ? "<pre>" + esc(e.stack) + "</pre>" : "") + "</div>";
+    }).join("");
+    root.innerHTML = "<style>" + CSS + '</style><div class="wrap" role="alert">' +
+      '<div class="bar"><b>Runtime error' + (errors.length > 1 ? "s (" + errors.length + ")" : "") +
+      '</b><button data-act="clear" title="Clear">clear</button>' +
+      '<button data-act="close" title="Close (Esc)">x</button></div>' +
+      '<div class="list">' + items + "</div></div>";
+    root.querySelector('[data-act="close"]').onclick = hide;
+    root.querySelector('[data-act="clear"]').onclick = function () { errors = []; hide(); };
+  }
+  function push(message, where, stack) {
+    errors.unshift({ message: message, where: where, stack: stack });
+    if (errors.length > 5) errors.length = 5;
+    if (document.body) render();
+    else document.addEventListener("DOMContentLoaded", render, { once: true });
+  }
+  window.addEventListener("error", function (e) {
+    if (!e.error && !e.message) return; // resource load errors
+    var where = e.filename ? e.filename + ":" + e.lineno + ":" + e.colno : "";
+    push(e.message || String(e.error), where, e.error && e.error.stack);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e.reason;
+    push("Unhandled promise rejection: " + (r && r.message ? r.message : String(r)), "", r && r.stack);
+  });
+  window.addEventListener("keydown", function (e) { if (e.key === "Escape") hide(); });
+  window.__TYLIX_OVERLAY__ = { push: push, hide: hide, errors: function () { return errors.slice(); } };
+})();
+</script>`
+
 // Reloads on an explicit "reload" message, and also when the connection
 // comes back after the dev server restarted (the old process is gone, so it
 // can never send a message; the browser just sees the stream drop and
@@ -337,4 +409,5 @@ export const HMR_CLIENT_SCRIPT = `
   };
 })();
 </script>
+${RUNTIME_ERROR_OVERLAY_SCRIPT}
 `

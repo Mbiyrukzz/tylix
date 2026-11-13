@@ -43,9 +43,9 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
   const lines = []
   const lineMap = []
   const sink = {
-    pushLine(text, originalLine) {
+    pushLine(text, originalLine, section = 'script') {
       if (originalLine != null) {
-        lineMap.push({ virtualLine: lines.length + 1, originalLine })
+        lineMap.push({ virtualLine: lines.length + 1, originalLine, section })
       }
       lines.push(text)
     },
@@ -118,7 +118,11 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
       sink.pushLine(``, null)
       // async so `await` inside event handlers typechecks
       sink.pushLine(`  async __render() {`, null)
-      emitChecks(checks, sink, '    ')
+      // Template check lines count from the template section's start.
+      const templateSink = {
+        pushLine: (text, line) => sink.pushLine(text, line, 'template'),
+      }
+      emitChecks(checks, templateSink, '    ')
       sink.pushLine(`  }`, null)
     }
   }
@@ -132,6 +136,17 @@ export function buildVirtualPageTs(pageNode, className, templateNodes = null) {
      }
 
   return { source: lines.join('\n') + '\n', lineMap }
+}
+
+// Like mapVirtualLineToSource, but also says which section the line
+// counts from: { line, section: 'script' | 'template' }.
+export function mapVirtualLine(lineMap, virtualLine) {
+  let best = lineMap[0] ?? { originalLine: 1, section: 'script' }
+  for (const entry of lineMap) {
+    if (entry.virtualLine <= virtualLine) best = entry
+    else break
+  }
+  return { line: best.originalLine, section: best.section ?? 'script' }
 }
 
 export function mapVirtualLineToSource(lineMap, virtualLine) {

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tylix</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <span class="brand">Tylix</span>
+      <span id="status" class="status" role="status">Connecting…</span>
+      <input id="filter" type="search" placeholder="Filter" aria-label="Filter components" />
+      <button id="refresh" type="button" title="Refresh">Refresh</button>
+    </header>
+
+    <main class="split">
+      <nav class="tree" aria-label="Components">
+        <section>
+          <h2>Components</h2>
+          <ul id="instances" role="tree"></ul>
+        </section>
+        <section>
+          <h2>Capabilities</h2>
+          <ul id="capabilities" role="tree"></ul>
+        </section>
+      </nav>
+
+      <section class="details" id="details" aria-live="polite">
+        <p class="empty">Select a component or capability to see its state.</p>
+      </section>
+    </main>
+
+    <div id="nohook" class="nohook" hidden>
+      <h1>No Tylix app on this page</h1>
+      <p>
+        The panel reads live state from pages served by <code>tylix dev</code>.
+        Open your app through the dev server (for example
+        <code>http://localhost:3000</code>) and this panel connects by itself.
+      </p>
+    </div>
+
+    <script src="panel.js"></script>
+  </body>
+</html>

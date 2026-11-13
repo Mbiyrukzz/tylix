@@ -129,20 +129,20 @@ declare function notFound(): void
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^1.1.0',
-  '@tylix/core': '^1.1.0',
-  '@tylix/compiler': '^1.1.0',
-  '@tylix/generator': '^1.1.0',
-  '@tylix/orm': '^1.1.0',
-  '@tylix/shared': '^1.1.0',
-  '@tylix/auth': '^1.1.0',
-  '@tylix/mail': '^1.1.0',
-  'tylix-icons': '^1.1.0',
-  '@tylix/client': '^1.1.0',
-  '@tylix/react': '^1.1.0',
-  '@tylix/svelte': '^1.1.0',
-  '@tylix/vue': '^1.1.0',
-  '@tylix/angular': '^1.1.0',
+  '@tylix/cli': '^1.2.0',
+  '@tylix/core': '^1.2.0',
+  '@tylix/compiler': '^1.2.0',
+  '@tylix/generator': '^1.2.0',
+  '@tylix/orm': '^1.2.0',
+  '@tylix/shared': '^1.2.0',
+  '@tylix/auth': '^1.2.0',
+  '@tylix/mail': '^1.2.0',
+  'tylix-icons': '^1.2.0',
+  '@tylix/client': '^1.2.0',
+  '@tylix/react': '^1.2.0',
+  '@tylix/svelte': '^1.2.0',
+  '@tylix/vue': '^1.2.0',
+  '@tylix/angular': '^1.2.0',
 }
 
 // Package name -> folder under packages/. Used for file: links and for

@@ -164,6 +164,8 @@ export function parsePageFile(source) {
         .trim()
     : ''
 
+  const declarationEnd = pageMatch.index + pageMatch[0].length
+
   return {
     pageName,
     script: scriptSource,
@@ -171,5 +173,9 @@ export function parsePageFile(source) {
     style,
     scriptStartLine,
     templateStartLine,
+    // Character offsets of `script` and `template` in `source`, so a
+    // position inside either maps straight back onto the file.
+    scriptOffset: declarationEnd + leadingWhitespaceLength,
+    templateOffset: absoluteContentStart + templateLeadingWhitespaceLength,
   }
 }

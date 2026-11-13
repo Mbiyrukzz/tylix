@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   Router,
   discoverFeatures,
@@ -16,6 +17,7 @@ import { configureObservability, registerOperationsRoutes } from './observabilit
 import { openStore } from './store.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
 import { renderErrorPage } from '../utils/error-page.js'
+import { locateCompileError } from './locateError.js'
 import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
 import { createRouteRecorder } from './routeRecorder.js'
 import { stripModuleSyntax } from './stripModuleSyntax.js'
@@ -241,8 +243,28 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
   return true
 }
 
+// The devtools hook goes in <head> so it is installed before the page
+// script registers anything (see @tylix/compiler runtime/devtoolsHook.js).
+let devtoolsHookTag = null
+function devtoolsHook() {
+  if (devtoolsHookTag === null) {
+    try {
+      const file = fileURLToPath(
+        import.meta.resolve('@tylix/compiler/src/runtime/devtoolsHook.js'),
+      )
+      devtoolsHookTag = `<script>${readFileSync(file, 'utf-8')}</script>`
+    } catch {
+      devtoolsHookTag = '' // older compiler without the hook
+    }
+  }
+  return devtoolsHookTag
+}
+
 function injectHmrScript(html) {
-  return html.replace('</body>', `${HMR_CLIENT_SCRIPT}</body>`)
+  const withHook = html.includes('</head>')
+    ? html.replace('</head>', `${devtoolsHook()}</head>`)
+    : html
+  return withHook.replace('</body>', `${HMR_CLIENT_SCRIPT}</body>`)
 }
 
 async function walkPagesDir(dir) {
@@ -553,7 +575,7 @@ async function registerPageRoutes(
   async function preparePage(filePath, ctx) {
     const {
       renderPageDocument,
-      typecheckPage,
+      diagnoseTyx,
       transpileTsToJs,
       extractImports,
       resolveImportedComponents,
@@ -581,16 +603,26 @@ async function registerPageRoutes(
       const projectLanguage = await detectLanguage(baseDir)
       if (projectLanguage === 'typescript') {
         const apiHelpersSource = await loadApiHelpersForTypecheck(baseDir)
-        const diagnostics = typecheckPage(
-          source,
+        const { diagnostics } = diagnoseTyx(rawSource, {
+          language: compilerOptions,
+          typecheck: true,
           apiHelpersSource,
-          compilerOptions,
-        )
+        })
         if (diagnostics.length > 0) {
           const message = diagnostics
             .map((d) => `Line ${d.line}: ${d.message}`)
             .join('\n')
-          throw new Error(`TypeScript errors in ${filePath}:\n${message}`)
+          const kind = diagnostics.every((d) => d.origin === 'typecheck')
+            ? 'TypeScript errors'
+            : 'Compile errors'
+          const err = new Error(`${kind} in ${filePath}:\n${message}`)
+          // Already placed: the error page shows each one in its spot.
+          err.diagnostics = diagnostics.map((d) => ({
+            ...d,
+            file: filePath,
+            source: rawSource,
+          }))
+          throw err
         }
       }
     }
@@ -716,8 +748,22 @@ async function registerPageRoutes(
         )
         return { html: renderProductionErrorPage(requestId), ok: false }
       }
+      const diagnostics = await locateCompileError(err, {
+        baseDir,
+        pageFile: filePath,
+        compilerOptions,
+      }).catch(() => null)
+      // The HMR script is injected here too, so fixing the file
+      // reloads the page instead of leaving the error up.
       return {
-        html: renderErrorPage(err, { file: filePath, source: ctx.source }),
+        html: injectHmrScript(
+          renderErrorPage(err, {
+            file: filePath,
+            source: ctx.source,
+            diagnostics,
+            baseDir,
+          }),
+        ),
         ok: false,
       }
     }

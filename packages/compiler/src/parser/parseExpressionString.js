@@ -13,6 +13,10 @@ import { TokenType } from '../lexer/tokenTypes.js'
 export function parseExpressionString(source, options = {}) {
   const tokens = new Lexer(source).tokenize()
   const parser = new Parser(tokens, options)
+  return parser.withErrorOffset(() => parseWhole(parser, source))
+}
+
+function parseWhole(parser, source) {
   const expression = parser.parseExpression()
   if (!parser.check(TokenType.EOF)) {
     const next = parser.peek()

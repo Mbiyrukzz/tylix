@@ -5,7 +5,7 @@ import { Parser } from './parser/Parser.js'
 import { normalizeLanguageOptions } from './parser/languageOptions.js'
 import {
   buildVirtualPageTs,
-  mapVirtualLineToSource,
+  mapVirtualLine,
 } from './typecheck/buildVirtualTs.js'
 import { typecheckSource } from './typecheck/typecheckVirtualFile.js'
 import { substituteCapabilityRefs } from './ast/substituteCapabilityRefs.js'
@@ -45,7 +45,8 @@ export function typecheckPage(
   }
   const language = normalizeLanguageOptions(languageOption ?? {})
 
-  const { pageName, script, template, scriptStartLine } = parsePageFile(source)
+  const { pageName, script, template, scriptStartLine, templateStartLine } =
+    parsePageFile(source)
 
   const pageNode = substituteCapabilityRefs(
     script.trim().length > 0
@@ -64,7 +65,8 @@ export function typecheckPage(
   const diagnostics = typecheckSource(virtualSource, apiHelpersSource)
 
   return diagnostics.map((d) => {
-    const scriptLine = mapVirtualLineToSource(lineMap, d.virtualLine)
-    return { message: d.message, line: scriptLine + scriptStartLine - 1 }
+    const { line, section } = mapVirtualLine(lineMap, d.virtualLine)
+    const startLine = section === 'template' ? templateStartLine : scriptStartLine
+    return { message: d.message, line: line + startLine - 1, section }
   })
 }
