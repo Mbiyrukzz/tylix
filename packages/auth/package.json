@@ -1,6 +1,6 @@
 {
   "name": "@tylix/auth",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Authentication for Tylix apps: password hashing, signed tokens, httpOnly cookie sessions with refresh, and the make:auth generator.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -40,11 +40,11 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/generator": "^1.0.0",
-    "@tylix/orm": "^1.0.0",
-    "@tylix/shared": "^1.0.0"
+    "@tylix/generator": "^1.1.0",
+    "@tylix/orm": "^1.1.0",
+    "@tylix/shared": "^1.1.0"
   },
   "peerDependencies": {
-    "@tylix/core": "^1.0.0"
+    "@tylix/core": "^1.1.0"
   }
 }

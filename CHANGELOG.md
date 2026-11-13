@@ -2,7 +2,7 @@
 
 All Tylix packages share one version number and are released together.
 
-## Unreleased
+## 1.1.0
 
 - **Hot reload**: saving `app/loading.tyx`, `app/index.html`,
   `app/tailwind-input.css` or any `.tyx`/`.css` file outside `app/pages`

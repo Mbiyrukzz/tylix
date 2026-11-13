@@ -1,6 +1,6 @@
 {
   "name": "@tylix/orm",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The Tylix ORM: models with observers and traits, a query builder, and adapters for SQLite, PostgreSQL, MySQL and MongoDB.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -43,7 +43,7 @@
     "test": "node --test 'src/**/*.test.js'"
   },
   "dependencies": {
-    "@tylix/shared": "^1.0.0",
+    "@tylix/shared": "^1.1.0",
     "mongodb": "^6.5.0",
     "mysql2": "^3.23.1",
     "pg": "^8.11.0"
