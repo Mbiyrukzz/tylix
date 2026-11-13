@@ -89,3 +89,10 @@ test('attachments can be read from disk', async () => {
 test('htmlToText', () => {
   assert.equal(htmlToText('<ul><li>One</li><li>Two &amp; three</li></ul>'), '- One\n- Two & three')
 })
+
+test('attachments render documents that have toBuffer()', async () => {
+  const doc = { toBuffer: async () => Buffer.from('%PDF-1.7') }
+  const [a] = await loadAttachments([{ filename: 'invoice.pdf', content: doc }])
+  assert.equal(a.content.toString(), '%PDF-1.7')
+  assert.equal(a.contentType, 'application/pdf')
+})

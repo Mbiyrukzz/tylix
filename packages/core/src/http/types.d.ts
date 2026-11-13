@@ -16,4 +16,10 @@ export interface TylixResponse extends ServerResponse {
   send(data?: unknown): TylixResponse
   cookie(name: string, value: string, options?: CookieOptions): TylixResponse
   clearCookie(name: string, options?: CookieOptions): TylixResponse
+  /** Send bytes, a string or a document with toBuffer() (PDF, workbook) as a download. */
+  download(
+    data: Uint8Array | ArrayBuffer | string | { toBuffer(): Promise<Uint8Array> },
+    filename?: string,
+    options?: { inline?: boolean; type?: string },
+  ): Promise<TylixResponse>
 }

@@ -152,6 +152,8 @@ export async function loadAttachments(list = []) {
       let content = a.content
       if (content == null && a.path) content = await fs.readFile(a.path)
       if (content == null) throw new Error(`Attachment #${i + 1} needs content or path`)
+      // Documents that render themselves (@tylix/pdf, @tylix/excel).
+      if (typeof content.toBuffer === 'function') content = await content.toBuffer()
       if (typeof content === 'string') {
         content = a.encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content)
       } else if (!Buffer.isBuffer(content)) {

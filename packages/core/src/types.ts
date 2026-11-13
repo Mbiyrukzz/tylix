@@ -23,4 +23,5 @@ export interface TylixResponse extends ServerResponse {
     send(data?: unknown): TylixResponse;
     cookie(name: string, value: string, options?: Record<string, unknown>): TylixResponse;
     clearCookie(name: string, options?: Record<string, unknown>): TylixResponse;
+    download(data: Uint8Array | ArrayBuffer | string | { toBuffer(): Promise<Uint8Array> }, filename?: string, options?: { inline?: boolean; type?: string }): Promise<TylixResponse>;
 }

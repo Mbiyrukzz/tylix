@@ -1,0 +1,50 @@
+{
+  "name": "@tylix/excel",
+  "version": "1.3.0",
+  "description": "Excel (.xlsx) and CSV for any JavaScript runtime: write styled sheets from objects in one call, read workbooks back into objects, formats, formulas, totals, tables, filters, dropdowns, conditional formatting, images and print setup. No dependencies.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "type": "module",
+  "keywords": [
+    "excel",
+    "xlsx",
+    "spreadsheet",
+    "csv",
+    "export",
+    "import",
+    "tylix"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/excel#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/excel"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

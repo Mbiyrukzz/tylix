@@ -309,6 +309,8 @@ Each folder has a README saying what goes there and which command makes it.
 | [`@tylix/shared`](packages/shared) | validation, settings, naming helpers |
 | [`@tylix/auth`](packages/auth) | authentication |
 | [`@tylix/mail`](packages/mail) | email |
+| [`@tylix/pdf`](packages/pdf) | PDF documents: tables, charts, QR codes, HTML, Unicode fonts; any JS runtime |
+| [`@tylix/excel`](packages/excel) | Excel (.xlsx) and CSV, writing and reading; any JS runtime |
 | [`@tylix/compiler`](packages/compiler) | the `.tyx` compiler |
 | [`@tylix/language-server`](packages/language-server) | `.tyx` language server for any LSP editor |
 | [`@tylix/generator`](packages/generator) | code generators |

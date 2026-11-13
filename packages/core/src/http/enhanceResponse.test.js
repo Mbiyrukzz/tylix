@@ -43,3 +43,24 @@ test("send() with no args ends the response with no body", () => {
   assert.equal(res.statusCode, 204);
   assert.equal(res.body, undefined);
 });
+
+test("download() sends bytes with a filename and inferred type", async () => {
+  const res = enhanceResponse(createMockResponse());
+  await res.download(Buffer.from("%PDF"), "Rapport été.pdf");
+  assert.equal(res.headers["Content-Type"], "application/pdf");
+  assert.equal(res.headers["Content-Length"], 4);
+  assert.equal(
+    res.headers["Content-Disposition"],
+    "attachment; filename=\"Rapport _t_.pdf\"; filename*=UTF-8''Rapport%20%C3%A9t%C3%A9.pdf",
+  );
+  assert.equal(res.body.toString(), "%PDF");
+});
+
+test("download() renders documents with toBuffer() and can show inline", async () => {
+  const res = enhanceResponse(createMockResponse());
+  const doc = { toBuffer: async () => new Uint8Array([1, 2, 3]) };
+  await res.download(doc, "orders.xlsx", { inline: true });
+  assert.equal(res.headers["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.match(res.headers["Content-Disposition"], /^inline; filename="orders.xlsx"/);
+  assert.deepEqual([...res.body], [1, 2, 3]);
+});

@@ -29,6 +29,7 @@ import { migrate } from './commands/migrate.js'
 import { makeIcon } from './commands/makeIcon.js'
 import { makeService } from './commands/makeService.js'
 import { makeMail } from './commands/makeMail.js'
+import { makePdf, makeExport } from './commands/makeDocument.js'
 import { makeApi } from './commands/makeApi.js'
 import { dev } from './commands/dev.js'
 import { build } from './commands/build.js'
@@ -205,6 +206,16 @@ async function main() {
     return
   }
 
+  if (command === 'make:pdf' || command === 'make:export') {
+    const [name] = rest
+    if (!name) {
+      console.error(`Usage: tylix ${command} <Name>`)
+      process.exit(1)
+    }
+    await (command === 'make:pdf' ? makePdf : makeExport)(name)
+    return
+  }
+
   if (command === 'make:api') {
     const [name] = positionalArgs(rest, ['method', 'path'])
     if (!name) {
@@ -327,7 +338,7 @@ async function main() {
   if (!handler) {
     console.error(`Unknown command: ${command}`)
     console.error(
-      `Available commands: dev, build, start, check, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, check, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

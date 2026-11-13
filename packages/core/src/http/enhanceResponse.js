@@ -49,6 +49,21 @@ function compress(res, text) {
   return null
 }
 
+const DOWNLOAD_TYPES = {
+  pdf: 'application/pdf',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  csv: 'text/csv; charset=utf-8',
+  json: 'application/json',
+  txt: 'text/plain; charset=utf-8',
+  zip: 'application/zip',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  svg: 'image/svg+xml',
+  html: 'text/html; charset=utf-8',
+  ics: 'text/calendar; charset=utf-8',
+}
+
 const helpers = {
   status(code) {
     this.statusCode = code
@@ -105,6 +120,33 @@ const helpers = {
     const cookies = existing ? (Array.isArray(existing) ? existing.slice() : [existing]) : []
     cookies.push(serialized)
     this.setHeader('Set-Cookie', cookies)
+    return this
+  },
+
+  // Sends a file to download: bytes, a string, or anything with an
+  // async toBuffer() (a @tylix/pdf document, a @tylix/excel workbook).
+  // The content type comes from the filename unless given.
+  //   await res.download(createPdf(def), 'invoice.pdf')
+  //   await res.download(workbook, 'orders.xlsx')
+  //   await res.download(pdf, 'invoice.pdf', { inline: true })  // view in the browser
+  async download(data, filename = 'download', options = {}) {
+    let body = data
+    if (body && typeof body.toBuffer === 'function') body = await body.toBuffer()
+    if (typeof body === 'string') body = Buffer.from(body)
+    else if (body instanceof ArrayBuffer) body = Buffer.from(body)
+    else if (ArrayBuffer.isView(body) && !Buffer.isBuffer(body)) body = Buffer.from(body.buffer, body.byteOffset, body.byteLength)
+    if (!Buffer.isBuffer(body)) throw new TypeError('res.download() needs bytes, a string or an object with toBuffer()')
+    const name = String(filename).replace(/["\\\r\n]/g, '_')
+    const ascii = name.replace(/[^\x20-\x7e]/g, '_')
+    const type = options.type ?? DOWNLOAD_TYPES[name.split('.').pop().toLowerCase()] ?? 'application/octet-stream'
+    this.setHeader('Content-Type', type)
+    this.setHeader('Content-Length', body.length)
+    this.setHeader(
+      'Content-Disposition',
+      `${options.inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+    )
+    this.setHeader('X-Content-Type-Options', 'nosniff')
+    this.end(this.req?.method === 'HEAD' ? undefined : body)
     return this
   },
 
