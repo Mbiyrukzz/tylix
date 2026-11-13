@@ -59,6 +59,12 @@ npm run dev
 
 Visit `http://localhost:3000`.
 
+Saving a file shows up in the browser without restarting anything: pages,
+components, styles and `app/index.html` reload the open tab; a new or
+deleted page is routed; backend files (controllers, models, routes,
+`.env`, `tylix.config`) restart the server, and the tab reloads once it is
+back. React, Vue, Svelte and Angular frontends hot-reload through Vite.
+
 ---
 
 # Example Page
@@ -311,6 +317,14 @@ npm test
 ```
 
 * `npm run test:e2e -- <url>` runs the browser checks against a running app.
+* `npm run test:e2e:frontends` scaffolds the React, Vue, Svelte, Angular and
+  native starters from this checkout and runs the browser checks (auth,
+  routing, SSR, hydration, hot reload, error pages) against each, under
+  `tylix dev` and `tylix start`. `--only react,vue` picks some.
+* `npm run test:compat` runs each frontend adapter's tests against the
+  oldest and newest framework major it supports.
+* `npm run verify` is the release check: unit tests, then the frontend
+  matrix.
 * `npm run bench` compares the server with Node, Fastify, Hono and Express.
 * `npm run release -- <version> bump|dry|publish` versions and publishes
   every package together.

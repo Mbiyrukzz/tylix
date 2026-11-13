@@ -10,6 +10,7 @@ import { parseQuery } from './parseQuery.js'
 import { parseCookies } from './parseCookies.js'
 import { buildDebugPayload } from './debug/buildDebugPayload.js'
 import { renderDebugPage } from './debug/renderDebugPage.js'
+import { renderStatusPage } from './statusPage.js'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024 // 1 MB
@@ -141,6 +142,14 @@ function wantsHtml(req) {
     !url.startsWith('/api/') &&
     String(req.headers.accept || '').includes('text/html')
   )
+}
+
+// The request's own path, for a "try again" link. Anything that isn't a
+// plain same-site path ("//other.example" is a valid request line) goes
+// to the home page instead.
+function samePagePath(url) {
+  const value = String(url ?? '/')
+  return value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\') ? value : '/'
 }
 
 export class Server {
@@ -345,6 +354,15 @@ export class Server {
         const handled = await this.notFoundHandler(req, res)
         if (handled) return
       }
+      if (wantsHtml(req)) {
+        this.sendStatusPage(res, 404, {
+          tone: 'notfound',
+          code: '404',
+          title: 'Page not found',
+          message: "The page you're looking for doesn't exist or has been moved.",
+        })
+        return
+      }
       res.status(404).json({ error: 'Not found' })
       return
     }
@@ -429,6 +447,14 @@ export class Server {
     }
 
     if (badRequest) {
+      if (wantsHtml(req)) {
+        this.sendStatusPage(res, 400, {
+          code: '400',
+          title: 'Bad request',
+          message: "The address of this page isn't valid. Check the link and try again.",
+        })
+        return
+      }
       res.status(400).json({ error: 'Bad request' })
       return
     }
@@ -443,9 +469,32 @@ export class Server {
       }
     }
 
+    // A browser navigation gets a page, not JSON. The details stay in the
+    // log; the page shows the request id to match it up.
+    if (wantsHtml(req)) {
+      this.sendStatusPage(res, 500, {
+        code: '500',
+        title: 'Something went wrong',
+        message: 'The server hit an unexpected error. Please try again in a moment.',
+        requestId: req.id,
+        actions: [
+          { label: 'Try again', href: samePagePath(req.url) },
+          { label: 'Go home', href: '/' },
+        ],
+      })
+      return
+    }
+
     res.status(500).json({
       error: this.production ? 'Internal server error' : err.message,
     })
+  }
+
+  sendStatusPage(res, status, page) {
+    res.statusCode = status
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-store')
+    res.end(renderStatusPage(page))
   }
 
   // Starts listening on `port`. If that port is taken and autoPort is on,

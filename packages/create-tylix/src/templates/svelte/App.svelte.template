@@ -21,6 +21,7 @@
   // @endif
   // tylix:imports (make:page adds page imports above this line)
   import NotFound from './pages/NotFound.svelte'
+  import ErrorPage from './pages/ErrorPage.svelte'
 
   // Frontend routes only. Tylix serves the API (/api/*) itself, so those
   // requests never reach this router. The first matching path wins.
@@ -94,13 +95,22 @@
 <div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
   <Navbar />
   <main class="flex-1">
-    {#if !current}
-      <NotFound />
-    {:else if !allowed}
-      <PageLoading />
-    {:else}
-      <current.page />
-    {/if}
+    <!-- A page that throws shows ErrorPage instead of a blank screen. Keyed
+         on the URL, so going to another page clears the error. -->
+    {#key $route.path}
+      <svelte:boundary>
+        {#if !current}
+          <NotFound />
+        {:else if !allowed}
+          <PageLoading />
+        {:else}
+          <current.page />
+        {/if}
+        {#snippet failed(error, reset)}
+          <ErrorPage {error} {reset} />
+        {/snippet}
+      </svelte:boundary>
+    {/key}
   </main>
   <footer class="border-t border-zinc-200 dark:border-zinc-800">
     <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Svelte.</div>

@@ -27,6 +27,7 @@ export const FRONTENDS = {
       'components/Layout.jsx',
       'pages/Home.jsx',
       'pages/NotFound.jsx',
+      'pages/ErrorPage.jsx',
     ],
     auth: [
       'components/Redirects.jsx',
@@ -54,6 +55,7 @@ export const FRONTENDS = {
       'components/PageLoading.svelte',
       'pages/Home.svelte',
       'pages/NotFound.svelte',
+      'pages/ErrorPage.svelte',
     ],
     auth: [
       'lib/next.js',
@@ -81,6 +83,7 @@ export const FRONTENDS = {
       'components/Navbar.vue',
       'pages/Home.vue',
       'pages/NotFound.vue',
+      'pages/ErrorPage.vue',
     ],
     auth: [
       'lib/next.js',
@@ -109,6 +112,7 @@ export const FRONTENDS = {
       'components/navbar.ts',
       'pages/home.ts',
       'pages/not-found.ts',
+      'pages/error-page.ts',
     ],
     auth: [
       'pages/login.ts',

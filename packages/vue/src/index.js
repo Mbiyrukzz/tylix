@@ -3,9 +3,11 @@
 // so every frontend behaves the same.
 import {
   computed,
+  defineComponent,
   getCurrentInstance,
   getCurrentScope,
   inject,
+  onErrorCaptured,
   onMounted,
   onScopeDispose,
   onServerPrefetch,
@@ -104,6 +106,39 @@ export function useHydrated() {
   })
   return hydrated
 }
+
+// Catches errors thrown by the components inside it (render, setup,
+// lifecycle hooks, watchers) and shows the `fallback` slot instead:
+//
+//   <ErrorBoundary :reset-key="route.fullPath">
+//     <RouterView />
+//     <template #fallback="{ error, reset }"><ErrorPage :error="error" :reset="reset" /></template>
+//   </ErrorBoundary>
+//
+// reset() renders the default slot again, and so does a change of
+// `resetKey` (the URL, usually), so navigating away from a broken page
+// recovers. The error stops here: it is passed to `onError` but does not
+// reach app.config.errorHandler.
+export const ErrorBoundary = defineComponent({
+  name: 'TylixErrorBoundary',
+  props: {
+    resetKey: { type: null, default: undefined },
+    onError: { type: Function, default: undefined },
+  },
+  setup(props, { slots }) {
+    const error = shallowRef(null)
+    const reset = () => {
+      error.value = null
+    }
+    watch(() => props.resetKey, reset)
+    onErrorCaptured((err, instance, info) => {
+      error.value = err ?? new Error('Unknown error')
+      props.onError?.(err, info)
+      return false
+    })
+    return () => (error.value ? slots.fallback?.({ error: error.value, reset }) : slots.default?.())
+  },
+})
 
 function isGet(options) {
   const method = toValue(options)?.method

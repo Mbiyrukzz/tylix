@@ -59,3 +59,12 @@ export function useChannel<T = unknown>(
 
 /** False on the server and during hydration, true once mounted. */
 export function useHydrated(): Ref<boolean>
+
+/**
+ * Shows its `fallback` slot (given { error, reset }) when a component
+ * inside it throws. A change of `resetKey` renders the default slot again.
+ */
+export const ErrorBoundary: import('vue').DefineComponent<{
+  resetKey?: unknown
+  onError?: (error: unknown, info: string) => void
+}>

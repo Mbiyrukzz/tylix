@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
+import { ErrorBoundary } from '@tylix/react'
+import ErrorPage from '../pages/ErrorPage'
 // @if auth
 import { useNavigate } from 'react-router'
 import { useAuth } from '@tylix/react'
@@ -131,11 +133,16 @@ export function PageLoading() {
 }
 
 export default function Layout() {
+  // A page that throws while rendering shows ErrorPage instead of a blank
+  // screen. Keyed on the URL, so going to another page clears the error.
+  const location = useLocation()
   return (
     <div className="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
       <Navbar />
       <main className="flex-1">
-        <Outlet />
+        <ErrorBoundary resetKey={location.pathname} fallback={({ error, reset }) => <ErrorPage error={error} reset={reset} />}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <footer className="border-t border-zinc-200 dark:border-zinc-800">
         <div className="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">

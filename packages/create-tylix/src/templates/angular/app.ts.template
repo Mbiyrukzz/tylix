@@ -1,5 +1,7 @@
 import { Component } from '@angular/core'
 import { RouterOutlet } from '@angular/router'
+import { injectAppError } from '@tylix/angular'
+import { ErrorPage } from './pages/error-page'
 // @if auth
 import { effect, inject, untracked } from '@angular/core'
 import { Router, type ActivatedRouteSnapshot } from '@angular/router'
@@ -9,12 +11,18 @@ import { Navbar } from './components/navbar'
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, Navbar],
+  imports: [RouterOutlet, Navbar, ErrorPage],
   template: `
     <div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
       <app-navbar />
       <main class="flex-1">
-        <router-outlet />
+        <!-- An error Angular could not handle shows the error page instead
+             of a half-rendered view. A new navigation clears it. -->
+        @if (appError.error(); as error) {
+          <app-error-page [error]="error" (retry)="appError.clear()" />
+        } @else {
+          <router-outlet />
+        }
       </main>
       <footer class="border-t border-zinc-200 dark:border-zinc-800">
         <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Angular.</div>
@@ -23,6 +31,7 @@ import { Navbar } from './components/navbar'
   `,
 })
 export class App {
+  protected readonly appError = injectAppError()
   // @if auth
   private readonly router = inject(Router)
   private readonly auth = injectAuth()

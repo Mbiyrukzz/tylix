@@ -1,4 +1,4 @@
-import type { InjectionToken, Signal } from '@angular/core'
+import type { EnvironmentProviders, InjectionToken, Signal } from '@angular/core'
 import type { CanActivateFn } from '@angular/router'
 import type { HttpInterceptorFn } from '@angular/common/http'
 import type { ApiOptions, ApiResult, Auth, TylixUser } from '@tylix/client'
@@ -73,3 +73,13 @@ export function injectChannel<T = unknown>(
 
 /** False on the server and during hydration, true after the first browser render. Injection context. */
 export function injectHydrated(): Signal<boolean>
+
+/**
+ * Keeps errors that reach Angular's ErrorHandler (a template that throws, a
+ * failed navigation) in a signal, so the app can show an error page. A new
+ * navigation clears it.
+ */
+export function provideAppErrorHandler(options?: { onError?: (error: unknown) => void }): EnvironmentProviders
+
+/** The error caught by provideAppErrorHandler, or null. Injection context. */
+export function injectAppError(): { error: Signal<unknown>; clear(): void }

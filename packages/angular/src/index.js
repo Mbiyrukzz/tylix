@@ -4,16 +4,19 @@
 // sync) lives in @tylix/client, so every frontend behaves the same.
 import {
   DestroyRef,
+  ErrorHandler,
   InjectionToken,
   PendingTasks,
   afterNextRender,
   computed,
   effect,
   inject,
+  makeEnvironmentProviders,
+  provideEnvironmentInitializer,
   signal,
   untracked,
 } from '@angular/core'
-import { Router } from '@angular/router'
+import { NavigationError, NavigationStart, Router } from '@angular/router'
 import { HttpErrorResponse } from '@angular/common/http'
 import { catchError, from, switchMap, throwError } from 'rxjs'
 import { api, auth, lazyChannel, refreshSession, resultFromResponse } from '@tylix/client'
@@ -281,4 +284,55 @@ export function tylixInterceptor(request, next) {
       )
     }),
   )
+}
+
+// The error that broke the current page, or null. One per app (and so one
+// per server render).
+const APP_ERROR = new InjectionToken('tylix:app-error', {
+  providedIn: 'root',
+  factory: () => signal(null),
+})
+
+// Angular has no error boundaries: an error in a template or a failed
+// navigation reaches the ErrorHandler and leaves a half-rendered view. With
+// this provider such errors are kept in a signal, so the app shell can show
+// an error page instead (see injectAppError). A new navigation clears it.
+//
+//   providers: [provideAppErrorHandler()]
+//
+// Errors are still logged to the console, and passed to `onError` if given
+// (to report them somewhere).
+export function provideAppErrorHandler({ onError } = {}) {
+  return makeEnvironmentProviders([
+    {
+      provide: ErrorHandler,
+      useFactory: () => {
+        const state = inject(APP_ERROR)
+        return {
+          handleError(error) {
+            console.error(error)
+            onError?.(error)
+            state.set(error ?? new Error('Unknown error'))
+          },
+        }
+      },
+    },
+    provideEnvironmentInitializer(() => {
+      const state = inject(APP_ERROR)
+      const router = inject(Router, { optional: true })
+      router?.events.subscribe((event) => {
+        if (event instanceof NavigationStart) state.set(null)
+        else if (event instanceof NavigationError) state.set(event.error ?? new Error('Navigation failed'))
+      })
+    }),
+  ])
+}
+
+// The error provideAppErrorHandler caught, as a signal, and clear() to try
+// the page again. Call in an injection context.
+//   readonly appError = injectAppError()
+//   @if (appError.error()) { <app-error-page /> } @else { <router-outlet /> }
+export function injectAppError() {
+  const state = inject(APP_ERROR)
+  return { error: state.asReadonly(), clear: () => state.set(null) }
 }

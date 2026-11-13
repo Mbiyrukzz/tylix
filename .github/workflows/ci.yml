@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  compat:
+    name: Framework compatibility (${{ matrix.adapter }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        adapter: [react, vue, svelte, angular]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/compat-matrix.mjs --only ${{ matrix.adapter }}
+
+  e2e:
+    name: E2E (${{ matrix.frontend }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        frontend: [react, vue, svelte, angular, tylix]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The runner image ships Google Chrome; the E2E scripts use it through
+      # playwright-core.
+      - run: node e2e/frontends.mjs --only ${{ matrix.frontend }}
+        env:
+          CHROMIUM_PATH: /usr/bin/google-chrome
+          TYLIX_E2E_DIR: ${{ runner.temp }}/tylix-e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.frontend }}-logs
+          path: ${{ runner.temp }}/tylix-e2e/*.log

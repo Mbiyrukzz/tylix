@@ -23,6 +23,7 @@ import {
 } from '../hotReload.js'
 import { createApp } from '../server/createApp.js'
 import { getTylixVersion } from '../utils/version.js'
+import { freePort } from '../frontend/frontendHost.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -37,11 +38,25 @@ const HOSTED_FRONTEND_DIR = 'frontend'
 // Files that don't need a server restart wherever they live under app/.
 const FRONTEND_EXTENSIONS = ['.tyx', '.css']
 
-// Project-root files that change how the server boots.
+// The page shell, read again on every page render (app/index.html,
+// app/head.html). Other .html files under app/ (mail templates, say) are
+// backend files.
+const FRONTEND_ROOT_FILES = ['index.html', 'head.html']
+
+// Project-root files that change how the server boots, or how its
+// Tailwind/PostCSS build runs (that build only happens at startup and on
+// page saves, so a config edit needs a fresh start).
 const RESTART_ROOT_FILES = new Set([
   '.env',
   'tylix.config.js',
   'tylix.config.ts',
+  'tailwind.config.js',
+  'tailwind.config.cjs',
+  'tailwind.config.mjs',
+  'tailwind.config.ts',
+  'postcss.config.js',
+  'postcss.config.cjs',
+  'postcss.config.mjs',
 ])
 
 
@@ -170,11 +185,27 @@ function printBanner({
 
 // True when a changed file only affects the browser, so it must not
 // restart the server.
-function isFrontendChange(baseDir, file) {
+export function isFrontendChange(baseDir, file) {
   if (FRONTEND_EXTENSIONS.includes(path.extname(file))) return true
   const relative = path.relative(path.join(baseDir, 'app'), file)
+  if (FRONTEND_ROOT_FILES.includes(relative)) return true
   const topFolder = relative.split(path.sep)[0]
   return FRONTEND_DIRS.includes(topFolder) || topFolder === HOSTED_FRONTEND_DIR
+}
+
+// Page routes are registered once, when the server starts, from the files
+// in app/pages. Editing a page needs no restart (it is read again on every
+// request), but a page that was added or deleted changes the routes.
+// Components, layouts (_layout.tyx) and not-found pages (_not-found.tyx)
+// are never routes themselves.
+export function isPageRouteChange(baseDir, { file, kind }) {
+  if (kind !== 'created' && kind !== 'removed') return false
+  if (path.extname(file) !== '.tyx') return false
+  const relative = path.relative(path.join(baseDir, 'app', 'pages'), file)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return false
+  const parts = relative.split(path.sep)
+  if (parts[0] === 'components') return false
+  return !path.basename(file).startsWith('_')
 }
 
 // Watches .env and tylix.config.* in the project root (the directory
@@ -210,8 +241,12 @@ function watchRootFiles(baseDir, tracker, onChange) {
 //
 // The supervisor owns the save tracker and prints every save, so counts
 // keep growing across child restarts. The child runs with logging off.
-function runSupervisor({ port }) {
+async function runSupervisor({ port }) {
   const baseDir = process.cwd()
+  // One Vite HMR port for the whole session (hosted frontends). Every
+  // restarted child binds it again, so an open tab's Vite client sees the
+  // server come back and reloads the page with the new backend.
+  const hmrPort = await freePort()
   const entry = process.argv[1]
   const tracker = createSaveTracker({ rootDir: baseDir })
 
@@ -225,6 +260,7 @@ function runSupervisor({ port }) {
       ...process.env,
       TYLIX_DEV_CHILD: '1',
       TYLIX_DEV_RESTARTED: isRestart ? '1' : '',
+      TYLIX_DEV_HMR_PORT: String(hmrPort),
     }
     if (port !== undefined) env.TYLIX_DEV_PORT = String(port)
 
@@ -278,15 +314,18 @@ function runSupervisor({ port }) {
     }
   }
 
-  // Every save under app/ is logged here. Only a backend file in the batch
-  // triggers a restart (checking all files, not just the last one, so a
-  // controller saved together with a page isn't missed).
+  // Every save under app/ is logged here. A backend file in the batch, or
+  // a page that was added or removed (new routes), triggers a restart.
+  // All files are checked, not just the last one, so a controller saved
+  // together with a page isn't missed.
   const appWatcher = watchDirectoryTree(
     path.join(baseDir, 'app'),
-    (_last, files) => {
+    (_last, files, events = []) => {
       const backendFile = files.find((f) => !isFrontendChange(baseDir, f))
-      if (!backendFile) return
-      restart(path.relative(baseDir, backendFile))
+      const routeChange = events.find((e) => isPageRouteChange(baseDir, e))
+      const reason = backendFile ?? routeChange?.file
+      if (!reason) return
+      restart(path.relative(baseDir, reason))
     },
     { tracker },
   )
@@ -346,16 +385,15 @@ async function runServer({ port } = {}) {
   //
   // A hosted frontend's own files are watched by Vite; only the backend
   // folders matter here, and only without the supervisor.
-  const backendFolders = ['controllers', 'models', 'validators', 'Features']
-  const watchedFolders = hostedFrontend
-    ? underSupervisor
-      ? []
-      : backendFolders
-    : underSupervisor
-      ? FRONTEND_DIRS
-      : [...FRONTEND_DIRS, ...backendFolders]
-
-  const watchedDirs = watchedFolders.map((d) => path.join(baseDir, 'app', d))
+  //
+  // Native pages: all of app/ is watched, because what a page shows can
+  // come from anywhere in it (app/loading.tyx, app/index.html,
+  // app/tailwind-input.css, components, useApi helpers), not only from
+  // app/pages. Under the supervisor only frontend files count here; the
+  // supervisor restarts the process for the rest.
+  const appDir = path.join(baseDir, 'app')
+  const watchedDirs = []
+  if (!hostedFrontend || !underSupervisor) watchedDirs.push(appDir)
 
   if (hotReloadCompiler) {
     watchedDirs.push(await resolveCompilerSrcDir(baseDir))
@@ -366,10 +404,24 @@ async function runServer({ port } = {}) {
   // total is correct across folders.
   const tracker = createSaveTracker({ rootDir: baseDir, log: !underSupervisor })
 
+  const hostedDir = path.join(appDir, HOSTED_FRONTEND_DIR)
+  const relevant = (file) => {
+    // Vite watches and hot-reloads the hosted frontend itself.
+    if (hostedFrontend && (file === hostedDir || file.startsWith(hostedDir + path.sep))) return false
+    if (!underSupervisor || !file.startsWith(appDir + path.sep)) return true
+    return isFrontendChange(baseDir, file)
+  }
+
   const watchers = watchedDirs.map((dir) =>
     watchDirectoryTree(
       dir,
-      async (_last, files) => {
+      async (_last, changed, events = []) => {
+        // A page added or removed: the supervisor restarts the server for
+        // the new routes, and the browser reloads when it reconnects.
+        // Reloading now would only show the old server's 404.
+        if (underSupervisor && events.some((e) => isPageRouteChange(baseDir, e))) return
+        const files = changed.filter(relevant)
+        if (files.length === 0) return
         if (hostedFrontend) {
           hostedFrontend.reload()
           return

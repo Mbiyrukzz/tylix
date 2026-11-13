@@ -49,7 +49,7 @@ const { ApplicationRef, provideZonelessChangeDetection, runInInjectionContext, s
 const { createApplication } = await import('@angular/platform-browser')
 const { HttpClient, provideHttpClient, withFetch, withInterceptors } = await import('@angular/common/http')
 const { firstValueFrom } = await import('rxjs')
-const { injectAuth, injectApi, sessionReady, auth, tylixInterceptor } = await import('./index.js')
+const { injectAuth, injectApi, sessionReady, auth, tylixInterceptor, provideAppErrorHandler, injectAppError } = await import('./index.js')
 const { decideAccess, nextPath, canRefreshAfter401 } = await import('./access.js')
 
 const appRef = await createApplication({
@@ -169,3 +169,25 @@ async function waitFor(check, timeoutMs = 3000) {
     await appRef.whenStable()
   }
 }
+
+test('provideAppErrorHandler keeps unhandled errors in a signal until cleared', async () => {
+  const { ErrorHandler } = await import('@angular/core')
+  const errorApp = await createApplication({
+    providers: [provideZonelessChangeDetection(), provideAppErrorHandler({ onError: (e) => reported.push(e.message) })],
+  })
+  const reported = []
+  const originalError = console.error
+  console.error = () => {}
+  try {
+    const appError = runInInjectionContext(errorApp.injector, () => injectAppError())
+    assert.equal(appError.error(), null)
+    errorApp.injector.get(ErrorHandler).handleError(new Error('template exploded'))
+    assert.equal(appError.error().message, 'template exploded')
+    assert.deepEqual(reported, ['template exploded'])
+    appError.clear()
+    assert.equal(appError.error(), null)
+  } finally {
+    console.error = originalError
+    errorApp.destroy()
+  }
+})

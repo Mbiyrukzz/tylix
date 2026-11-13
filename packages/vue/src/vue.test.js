@@ -40,7 +40,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 const { createApp, h, nextTick, ref } = await import('vue')
 const { installFakeWebSocket } = await import('../../client/src/fakeWebSocket.js')
-const { useAuth, useApi, sessionReady, auth } = await import('./index.js')
+const { useAuth, useApi, sessionReady, auth, ErrorBoundary } = await import('./index.js')
 
 const settle = async () => {
   await new Promise((r) => setTimeout(r, 20))
@@ -156,4 +156,42 @@ test('useChannel connects once mounted, delivers messages, sends, and closes on 
   } finally {
     fake.restore()
   }
+})
+
+test('ErrorBoundary shows the fallback slot for a render error, and recovers on reset or a new resetKey', async () => {
+  const broken = ref(true)
+  const key = ref('/a')
+  let resetFn
+  const caught = []
+  const Page = { setup: () => () => {
+    if (broken.value) throw new Error('page exploded')
+    return h('span', '[page]')
+  } }
+  const view = mount(() => () =>
+    h(ErrorBoundary, { resetKey: key.value, onError: (e) => caught.push(e.message) }, {
+      default: () => h(Page),
+      fallback: ({ error, reset }) => {
+        resetFn = reset
+        return h('span', `[error:${error.message}]`)
+      },
+    }),
+  )
+  await nextTick()
+  assert.equal(view.el.textContent, '[error:page exploded]')
+  assert.deepEqual(caught, ['page exploded'])
+
+  broken.value = false
+  resetFn()
+  await nextTick()
+  assert.equal(view.el.textContent, '[page]')
+
+  broken.value = true
+  await nextTick()
+  assert.equal(view.el.textContent, '[error:page exploded]')
+  broken.value = false
+  key.value = '/b'
+  await nextTick()
+  await nextTick()
+  assert.equal(view.el.textContent, '[page]')
+  view.unmount()
 })

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { buildDebugPayload, renderDebugPage } from '@tylix/core'
 import { FRONTEND_DRIVERS, resolveFrontendConfig } from '@tylix/shared'
 import { MIME_TYPES } from '../utils/mime.js'
 import { createProjectImporter, resolveFromProject } from './importFromProject.js'
@@ -78,6 +79,7 @@ function ssrEnabled(config, adapter) {
 async function renderDocument(template, { render, url, session, load, onRenderError, fallback = '', channelsPort }) {
   let html = template.replace(SSR_OUTLET, fallback)
   let status = 200
+  let renderError = null
   if (render) {
     try {
       const out = await render({ url, session, load })
@@ -91,9 +93,29 @@ async function renderDocument(template, { render, url, session, load, onRenderEr
     } catch (err) {
       onRenderError?.(err)
       console.error(`[tylix] Server rendering failed for ${url}; sending the client-rendered page instead.`, err)
+      renderError = err
     }
   }
-  return { html: injectChannelsPort(injectSession(html, session), channelsPort), status }
+  return { html: injectChannelsPort(injectSession(html, session), channelsPort), status, renderError }
+}
+
+// Dev only: when server rendering failed, the page still works (the
+// browser renders it), but the failure would otherwise only be in the
+// terminal. This opens Vite's error overlay with it, over the page.
+export function injectSsrErrorOverlay(html, err) {
+  const payload = {
+    message: `Server rendering failed, so this page was rendered in the browser instead.\n\n${err?.message ?? err}`,
+    stack: String(err?.stack ?? ''),
+    id: err?.id,
+    frame: err?.frame,
+    loc: err?.loc,
+    plugin: err?.plugin,
+  }
+  const json = JSON.stringify(payload).replace(/</g, '\\u003c').replace(/\u2028|\u2029/g, '')
+  const script =
+    `<script type="module">import { ErrorOverlay } from '/@vite/client';` +
+    `document.body.appendChild(new ErrorOverlay(${json}))</script>`
+  return html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : html + script
 }
 
 function sendDocument(res, result) {
@@ -160,7 +182,7 @@ async function assertRequiredPackages(baseDir, adapter) {
   }
 }
 
-function freePort() {
+export function freePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
     server.unref()
@@ -224,7 +246,11 @@ function sendHtml(res, html, status = 200) {
 
 async function createDevHost(baseDir, options) {
   const { vite, config } = await baseViteConfig(baseDir, options)
-  const hmrPort = await freePort()
+  // Under `tylix dev` the supervisor picks one HMR port for the whole
+  // session. A restarted server binds that same port again, so open tabs
+  // reconnect and reload; a new port each time would leave them pinging
+  // the old one forever.
+  const hmrPort = Number(process.env.TYLIX_DEV_HMR_PORT) || (await freePort())
   const allow = [vite.searchForWorkspaceRoot(baseDir), ...(await linkedPackageDirs(baseDir))]
 
   const server = await vite.createServer(
@@ -245,9 +271,11 @@ async function createDevHost(baseDir, options) {
   if (options.ssr && !serverEntry) {
     throw new Error(`frontend.ssr is on, but there is no entry-server file in ${path.relative(baseDir, config.root)}.`)
   }
+  if (serverEntry) keepSsrModulesFresh(server)
 
   return {
     mode: 'dev',
+    vite: server,
     ssr: Boolean(serverEntry),
     // Modules, CSS and Vite's own client. Resolves false when Vite
     // passes the request on.
@@ -284,15 +312,15 @@ async function createDevHost(baseDir, options) {
           channelsPort: options.channelsPort,
           onRenderError: (err) => server.ssrFixStacktrace(err),
         })
+        if (result.renderError) result.html = injectSsrErrorOverlay(result.html, result.renderError)
         sendDocument(res, result)
       } catch (err) {
+        // index.html itself could not be prepared (a broken entry-server
+        // import, a Vite plugin error): there is no page to fall back to,
+        // so the request gets the full debug page.
         server.ssrFixStacktrace?.(err)
         console.error('[tylix] Could not render index.html:', err)
-        sendHtml(
-          res,
-          `<!doctype html><title>Frontend error</title><pre style="padding:2rem;white-space:pre-wrap">${escapeHtml(err.stack || err.message)}</pre>`,
-          500,
-        )
+        sendHtml(res, renderFrontendDebugPage(err, req), 500)
       }
     },
     reload() {
@@ -301,6 +329,30 @@ async function createDevHost(baseDir, options) {
     close() {
       return server.close()
     },
+  }
+}
+
+// Server rendering loads the app through Vite's SSR module graph, which
+// only refreshes what the framework plugin tells it to. Angular's
+// component HMR patches the browser in place and its runtime keeps the old
+// component definitions, so even re-evaluating the changed module renders
+// the old template. Dropping the whole SSR graph on any saved file makes
+// the next render start from fresh modules. Only the SSR graph: the
+// browser keeps its HMR, and dependencies left external are Node modules,
+// which this never reloads.
+export function keepSsrModulesFresh(server) {
+  const graph = server.environments?.ssr?.moduleGraph ?? server.moduleGraph
+  const invalidate = () => graph?.invalidateAll()
+  for (const event of ['change', 'add', 'unlink']) server.watcher?.on(event, invalidate)
+}
+
+function renderFrontendDebugPage(err, req) {
+  try {
+    return renderDebugPage(buildDebugPayload(err, req, { status: 500 }))
+  } catch (pageErr) {
+    // The debug page must never be why a request hangs or shows nothing.
+    console.error('[tylix] debug page failed:', pageErr)
+    return `<!doctype html><title>Frontend error</title><pre style="padding:2rem;white-space:pre-wrap">${escapeHtml(err?.stack || err?.message || err)}</pre>`
   }
 }
 

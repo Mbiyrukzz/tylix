@@ -1,6 +1,7 @@
 // Browser parity check for a scaffolded Tylix app with a hosted frontend.
-// Every frontend (React today; Vue, Svelte and Angular later) must pass
-// the same script, so the starters stay interchangeable.
+// Every frontend (React, Vue, Svelte and Angular) must pass the same
+// script, so the starters stay interchangeable. e2e/frontends.mjs runs it
+// against all four, in dev and production.
 //
 //   node e2e/parity.mjs <baseUrl>                         full run, needs `tylix dev`
 //   node e2e/parity.mjs <baseUrl> --existing email:pass   production run
@@ -252,6 +253,35 @@ try {
       await page.getByTestId('public-posts').getByText(title).waitFor()
       await page.waitForLoadState('networkidle')
       if (countRequests('/api/public/posts') !== before) throw new Error('the browser fetched the posts again')
+    })
+
+    await step("SSR: concurrent renders keep each visitor's session apart", async () => {
+      // Renders for different visitors run at the same time on one server
+      // (and across workers in production). Interleaved requests with and
+      // without the session cookies must each get their own page.
+      const cookie = (await context.cookies()).map((c) => `${c.name}=${c.value}`).join('; ')
+      const visit = (url, withSession) =>
+        fetch(`${base}${url}`, {
+          headers: { Accept: 'text/html', ...(withSession ? { Cookie: cookie } : {}) },
+          redirect: 'manual',
+        }).then(async (res) => ({ url, withSession, status: res.status, html: await res.text() }))
+      const visits = []
+      for (let i = 0; i < 8; i++) {
+        visits.push(visit('/', i % 2 === 0), visit('/dashboard', i % 2 === 1))
+      }
+      for (const v of await Promise.all(visits)) {
+        const who = v.withSession ? 'logged-in' : 'guest'
+        if (v.url === '/dashboard') {
+          if (v.withSession && (v.status !== 200 || !v.html.includes(title))) {
+            throw new Error(`${who} /dashboard: status ${v.status}${v.html.includes(title) ? '' : ', without their post'}`)
+          }
+          if (!v.withSession && v.status !== 302) throw new Error(`guest /dashboard: expected 302, got ${v.status}`)
+        } else {
+          if (v.status !== 200) throw new Error(`${who} /: status ${v.status}`)
+          const loggedInNav = v.html.includes('data-testid="logout"')
+          if (loggedInNav !== v.withSession) throw new Error(`${who} / was rendered ${loggedInNav ? 'with' : 'without'} the logged-in navbar`)
+        }
+      }
     })
 
     await step('SSR: a logged-in user asking for /login gets a server redirect', async () => {

@@ -469,21 +469,14 @@ async function loadComponents(
   return { components, imported }
 }
 
-function renderProductionErrorPage() {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Something went wrong</title>
-</head>
-<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#334155">
-<div style="text-align:center">
-<h1 style="font-size:1.25rem;margin:0 0 .5rem">Something went wrong</h1>
-<p style="margin:0;color:#64748b">Please try again in a moment.</p>
-</div>
-</body>
-</html>`
+function renderProductionErrorPage(requestId) {
+  return renderStatusPage({
+    code: '500',
+    title: 'Something went wrong',
+    message: "This page couldn't be displayed. Please try again in a moment.",
+    requestId,
+    actions: [{ label: 'Go home', href: '/' }],
+  })
 }
 
 async function collectNotFoundFiles(dir, segments = [], found = []) {
@@ -697,7 +690,7 @@ async function registerPageRoutes(
     return promise
   }
 
-  async function renderFileSafely(filePath, params = {}) {
+  async function renderFileSafely(filePath, params = {}, { requestId } = {}) {
     const ctx = { source: null }
     try {
       const prepared = await getPrepared(filePath, ctx)
@@ -718,10 +711,10 @@ async function registerPageRoutes(
     } catch (err) {
       if (production) {
         console.error(
-          `[tylix] Error rendering ${path.relative(baseDir, filePath)}:`,
+          `[tylix] Error rendering ${path.relative(baseDir, filePath)}${requestId ? ` (request ${requestId})` : ''}:`,
           err,
         )
-        return { html: renderProductionErrorPage(), ok: false }
+        return { html: renderProductionErrorPage(requestId), ok: false }
       }
       return {
         html: renderErrorPage(err, { file: filePath, source: ctx.source }),
@@ -741,7 +734,7 @@ async function registerPageRoutes(
   for (const { filePath, routePath } of entries) {
     router.get(routePath, async (req, res) => {
       res.setHeader('Content-Type', 'text/html')
-      const { html, ok } = await renderFileSafely(filePath, req.params)
+      const { html, ok } = await renderFileSafely(filePath, req.params, { requestId: req.id })
       if (!ok) res.status(500)
       res.end(html)
     })
@@ -752,7 +745,7 @@ async function registerPageRoutes(
   if (files.includes(homeFile)) {
     router.get('/', async (req, res) => {
       res.setHeader('Content-Type', 'text/html')
-      const { html, ok } = await renderFileSafely(homeFile, req.params)
+      const { html, ok } = await renderFileSafely(homeFile, req.params, { requestId: req.id })
       if (!ok) res.status(500)
       res.end(html)
     })
@@ -774,7 +767,7 @@ async function registerPageRoutes(
     const file = pickNotFound(found, String(req.url).split('?')[0])
     if (!file) return false
 
-    const { html, ok } = await renderFileSafely(file, {})
+    const { html, ok } = await renderFileSafely(file, {}, { requestId: req.id })
     res.status(ok ? 404 : 500)
     res.setHeader('Content-Type', 'text/html')
     res.end(html)
@@ -983,6 +976,10 @@ export async function createApp(
         if (await frontendHost.handle(req, res)) return true
         if (wantsHtml(req)) {
           const pathname = String(req.url).split('?')[0]
+          // A URL with a broken %-escape can't be routed by anyone. Thrown
+          // as a URIError, the server answers it with a 400 page instead of
+          // the frontend failing on it with a 500.
+          decodeURIComponent(pathname)
           // With auth, the page always learns the session: the user, or
           // { user: null } when there's no valid access token (the client
           // then still checks in the background, since a refresh token may

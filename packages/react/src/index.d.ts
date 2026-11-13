@@ -1,4 +1,4 @@
-import type { Context, ReactNode } from 'react'
+import type { Context, ErrorInfo, ReactNode } from 'react'
 import type { Api, ApiOptions, ApiResult, Auth, TylixUser } from '@tylix/client'
 
 export { api, auth } from '@tylix/client'
@@ -70,3 +70,31 @@ export function useServerContext(): ServerRenderContext | null
 
 /** False on the server and during hydration, true once React runs the page. */
 export function useHydrated(): boolean
+
+export interface ErrorFallbackProps {
+  error: unknown
+  /** Renders the children again. */
+  reset: () => void
+}
+
+export interface ErrorBoundaryProps {
+  children?: ReactNode
+  /**
+   * Shown instead of the children after one of them threw while rendering:
+   * an element, or a function given { error, reset }. (The element side is
+   * spelled out rather than ReactNode so the function's parameters stay
+   * typed even where React's types don't resolve.)
+   */
+  fallback?: ((props: ErrorFallbackProps) => ReactNode) | object | string | number | boolean | null
+  /** When this changes (the URL, usually), the children render again. */
+  resetKey?: unknown
+  /** Called with every caught error, e.g. to report it. */
+  onError?: (error: unknown, info: ErrorInfo) => void
+}
+
+/**
+ * Shows `fallback` when a component inside it throws while rendering.
+ * (A class component at runtime; typed as a component function so it
+ * type-checks even where React's own types don't resolve.)
+ */
+export const ErrorBoundary: (props: ErrorBoundaryProps) => ReactNode

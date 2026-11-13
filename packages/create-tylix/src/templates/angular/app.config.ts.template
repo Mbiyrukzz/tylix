@@ -1,7 +1,7 @@
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http'
 import { provideZonelessChangeDetection, type ApplicationConfig } from '@angular/core'
 import { provideRouter, withComponentInputBinding } from '@angular/router'
-import { tylixInterceptor } from '@tylix/angular'
+import { provideAppErrorHandler, tylixInterceptor } from '@tylix/angular'
 import { routes } from './app.routes'
 
 // Shared by the browser (main.ts) and the server (entry-server.ts), which
@@ -14,5 +14,8 @@ export const appConfig: ApplicationConfig = {
     // HttpClient, if you prefer it to injectApi(): the interceptor sends the
     // session cookies and renews an expired session, like injectApi() does.
     provideHttpClient(withFetch(), withInterceptors([tylixInterceptor])),
+    // Errors Angular can't handle show pages/error-page instead of a
+    // half-rendered view (see app.ts).
+    provideAppErrorHandler(),
   ],
 }

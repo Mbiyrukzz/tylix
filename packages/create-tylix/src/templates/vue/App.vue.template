@@ -1,14 +1,17 @@
 <script setup__LANG__>
+import { useRoute } from 'vue-router'
+import { ErrorBoundary } from '@tylix/vue'
 // @if auth
 import { watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuth } from '@tylix/vue'
 import { nextPath } from './lib/next'
 // @endif
 import Navbar from './components/Navbar.vue'
-// @if auth
+import ErrorPage from './pages/ErrorPage.vue'
 
 const route = useRoute()
+// @if auth
 const router = useRouter()
 const { isAuthenticated, loading } = useAuth()
 
@@ -29,7 +32,14 @@ watch([isAuthenticated, loading], () => {
   <div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
     <Navbar />
     <main class="flex-1">
-      <RouterView />
+      <!-- A page that throws shows ErrorPage instead of a blank screen.
+           Keyed on the URL, so going to another page clears the error. -->
+      <ErrorBoundary :reset-key="route.path">
+        <RouterView />
+        <template #fallback="{ error, reset }">
+          <ErrorPage :error="error" :reset="reset" />
+        </template>
+      </ErrorBoundary>
     </main>
     <footer class="border-t border-zinc-200 dark:border-zinc-800">
       <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Vue.</div>

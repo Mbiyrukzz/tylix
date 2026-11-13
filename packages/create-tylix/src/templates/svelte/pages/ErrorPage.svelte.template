@@ -1,0 +1,50 @@
+<script__LANG__>
+  import { useServerContext } from '@tylix/svelte'
+
+  // Shown by the <svelte:boundary> in App.svelte when a page throws. The
+  // navbar stays usable, and moving to another page clears the error. In
+  // development the error itself is shown; in production visitors only see
+  // the message below.
+  // @if ts
+  let { error, reset }: { error: unknown; reset?: () => void } = $props()
+  // @endif
+  // @if !ts
+  let { error, reset } = $props()
+  // @endif
+
+  // A server-rendered error page answers with HTTP status 500.
+  const server = useServerContext()
+  if (server) server.status = 500
+
+  const dev = import.meta.env.DEV
+  const detail = $derived(error instanceof Error ? error.stack || error.message : String(error))
+</script>
+
+<div data-testid="error-page" class="min-h-[70vh] flex flex-col items-center justify-center text-center px-6 py-16">
+  <p class="text-sm font-bold tracking-widest text-rose-500">500</p>
+  <h1 class="mt-2 text-3xl font-semibold text-zinc-900 dark:text-zinc-100">Something went wrong</h1>
+  <p class="mt-3 max-w-md text-zinc-500 dark:text-zinc-400">
+    This page hit an unexpected error. Try again, or head back to the home page.
+  </p>
+  {#if dev}
+    <pre
+      class="mt-6 w-full max-w-2xl overflow-x-auto rounded-lg border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 p-4 text-left text-xs leading-relaxed text-rose-700 dark:text-rose-300 whitespace-pre-wrap">{detail}</pre>
+  {/if}
+  <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+    {#if reset}
+      <button
+        type="button"
+        onclick={reset}
+        class="px-5 py-2 rounded-full bg-emerald-500 text-white font-semibold hover:bg-emerald-400 transition-colors"
+      >
+        Try again
+      </button>
+    {/if}
+    <a
+      href="/"
+      class="px-5 py-2 rounded-full border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+    >
+      Go home
+    </a>
+  </div>
+</div>

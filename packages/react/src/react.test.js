@@ -41,7 +41,7 @@ globalThis.fetch = async (url, init = {}) => {
 
 const { createElement: h, act } = await import('react')
 const { createRoot } = await import('react-dom/client')
-const { useAuth, RequireAuth, GuestOnly, useApi, useChannel, auth } = await import('./index.js')
+const { useAuth, RequireAuth, GuestOnly, useApi, useChannel, auth, ErrorBoundary } = await import('./index.js')
 const { installFakeWebSocket } = await import('../../client/src/fakeWebSocket.js')
 
 let root
@@ -156,5 +156,40 @@ test('useChannel connects once mounted, delivers messages, sends, and closes on 
     assert.equal(fake.sockets[0].readyState, 3)
   } finally {
     fake.restore()
+  }
+})
+
+test('ErrorBoundary shows the fallback for a render error, and recovers on reset or a new resetKey', async () => {
+  let broken = true
+  let resetFn
+  const caught = []
+  function Page() {
+    if (broken) throw new Error('page exploded')
+    return h('span', null, '[page]')
+  }
+  const fallback = ({ error, reset }) => {
+    resetFn = reset
+    return h('span', null, `[error:${error.message}]`)
+  }
+  // React logs caught render errors; keep the test output clean.
+  const originalError = console.error
+  console.error = () => {}
+  try {
+    await render(h(ErrorBoundary, { fallback, resetKey: '/a', onError: (e) => caught.push(e.message) }, h(Page)))
+    assert.equal(text(), '[error:page exploded]')
+    assert.deepEqual(caught, ['page exploded'])
+
+    broken = false
+    await act(async () => resetFn())
+    assert.equal(text(), '[page]')
+
+    broken = true
+    await render(h(ErrorBoundary, { fallback, resetKey: '/a' }, h(Page, { n: 2 })))
+    assert.equal(text(), '[error:page exploded]')
+    broken = false
+    await render(h(ErrorBoundary, { fallback, resetKey: '/b' }, h(Page, { n: 3 })))
+    assert.equal(text(), '[page]')
+  } finally {
+    console.error = originalError
   }
 })

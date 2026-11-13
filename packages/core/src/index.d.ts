@@ -1,5 +1,6 @@
 export * from './router/Router.js'
 export * from './http/Server.js'
+export * from './http/statusPage.js'
 export * from './http/enhanceResponse.js'
 export * from './http/parseBody.js'
 export * from './http/parseQuery.js'

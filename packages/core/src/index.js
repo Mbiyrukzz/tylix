@@ -1,5 +1,8 @@
 export * from './router/Router.js'
 export * from './http/Server.js'
+export * from './http/statusPage.js'
+export { buildDebugPayload } from './http/debug/buildDebugPayload.js'
+export { renderDebugPage } from './http/debug/renderDebugPage.js'
 export * from './http/enhanceResponse.js'
 export * from './http/parseBody.js'
 export * from './http/parseQuery.js'

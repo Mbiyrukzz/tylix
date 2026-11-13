@@ -84,8 +84,10 @@ export function createSaveTracker({ rootDir = process.cwd(), log = true } = {}) 
  * fs.watch's `recursive: true` option only works on macOS/Windows, so
  * on Linux we manually enumerate directories and watch each one.
  *
- * `onChange(lastFile, changedFiles)` is called once per debounce window,
- * after real changes have been confirmed.
+ * `onChange(lastFile, changedFiles, events)` is called once per debounce
+ * window, after real changes have been confirmed. `events` lists
+ * { file, kind } with kind 'saved' | 'created' | 'removed', for callers
+ * that treat a new or deleted file differently from an edit.
  *
  * Options:
  *   debounceMs  - quiet period before changes are flushed (default 150)
@@ -129,6 +131,7 @@ export function watchDirectoryTree(
     pending.clear()
 
     const changed = []
+    const events = []
     for (const file of files) {
       const st = statOrNull(file)
       if (st?.isDirectory()) continue
@@ -155,12 +158,13 @@ export function watchDirectoryTree(
 
       tracker.record(kind, file)
       changed.push(file)
+      events.push({ file, kind })
     }
 
     if (changed.length === 0) return
 
     try {
-      onChange(changed[changed.length - 1], changed)
+      onChange(changed[changed.length - 1], changed, events)
     } catch (err) {
       console.error(`${c.red('[tylix]')} onChange failed: ${err.message}`)
     }

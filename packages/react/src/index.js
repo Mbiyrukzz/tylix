@@ -5,6 +5,7 @@
 // Written with createElement instead of JSX so the package ships as plain
 // JavaScript and needs no build step.
 import {
+  Component,
   createContext,
   createElement,
   Fragment,
@@ -117,6 +118,50 @@ export function GuestOnly({ children, fallback = null, loading = null }) {
   if (status === 'loading') return createElement(Fragment, null, loading)
   if (status === 'authenticated') return createElement(Fragment, null, fallback)
   return createElement(Fragment, null, children)
+}
+
+// Catches errors thrown while rendering the components inside it and shows
+// `fallback` instead of an empty screen:
+//
+//   <ErrorBoundary resetKey={location.pathname} fallback={({ error, reset }) => <ErrorPage error={error} reset={reset} />}>
+//     <Outlet />
+//   </ErrorBoundary>
+//
+// `fallback` is an element, or a function given { error, reset }. reset()
+// renders the children again. A change of `resetKey` (the URL, usually)
+// does the same, so navigating away from a broken page recovers. Like every
+// React error boundary it catches render and lifecycle errors, not errors
+// in event handlers or async code.
+export class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null, resetKey: props.resetKey }
+    this.reset = () => this.setState({ error: null })
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error: error ?? new Error('Unknown error') }
+  }
+
+  static getDerivedStateFromProps(props, state) {
+    if (props.resetKey !== state.resetKey) return { error: null, resetKey: props.resetKey }
+    return null
+  }
+
+  componentDidCatch(error, info) {
+    this.props.onError?.(error, info)
+  }
+
+  render() {
+    const { error } = this.state
+    if (!error) return createElement(Fragment, null, this.props.children)
+    const { fallback = null } = this.props
+    return createElement(
+      Fragment,
+      null,
+      typeof fallback === 'function' ? fallback({ error, reset: this.reset }) : fallback,
+    )
+  }
 }
 
 const IDLE = { data: null, error: null, errors: null, status: null, ok: false }
