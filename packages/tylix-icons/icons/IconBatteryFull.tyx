@@ -1,0 +1,9 @@
+component IconBatteryFull
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="7" width="17" height="10" rx="2"/><path d="M22 11v2M6 10v4m3.5-4v4m3.5-4v4"/>
+  </svg>

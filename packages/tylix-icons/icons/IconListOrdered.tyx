@@ -1,0 +1,9 @@
+component IconListOrdered
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 6h11M10 12h11M10 18h11M4 4l1.5-1v5M4 8h3M4 14.5a1.5 1.5 0 1 1 2.6 1L4 19h3"/>
+  </svg>

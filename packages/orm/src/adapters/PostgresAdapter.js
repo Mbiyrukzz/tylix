@@ -1,6 +1,7 @@
 import pg from 'pg'
 import { DatabaseAdapter } from './DatabaseAdapter.js'
 import { normalizeDatabaseError } from './DatabaseError.js'
+import { emitQuery, hasQueryListeners } from '../instrumentation.js'
 
 const COLUMN_TYPES = {
   increments: 'SERIAL PRIMARY KEY',
@@ -79,9 +80,14 @@ export class PostgresAdapter extends DatabaseAdapter {
   // SQL (with $1, $2 placeholders), exactly what PostgreSQL received.
   async execute(sql, params = []) {
     this.ensureConnected()
+    const timed = hasQueryListeners()
+    const start = timed ? performance.now() : 0
     try {
-      return await this.pool.query(sql, params)
+      const result = await this.pool.query(sql, params)
+      if (timed) emitQuery({ driver: 'postgres', sql, durationMs: performance.now() - start })
+      return result
     } catch (err) {
+      if (timed) emitQuery({ driver: 'postgres', sql, durationMs: performance.now() - start, error: err })
       throw normalizeDatabaseError('postgres', err, { sql, params })
     }
   }

@@ -16,6 +16,8 @@ export type {
   AppConfig,
   ServerConfig,
   ChannelsConfig,
+  ObservabilityConfig,
+  StoreConfig,
   CspMode,
   SettingSource,
 } from './config/loadConfig.js';
@@ -23,7 +25,7 @@ export * from './validation/index.js';
 export { resolveFieldRuleNames } from './validation/resolveFieldRules.js';
 export type { FieldDefinition } from './validation/resolveFieldRules.js';
 export { loadEnv, envSource, envFiles, parseEnv } from './config/loadEnv.js';
-export { resolveAppSettings, CSP_MODES } from './config/appSettings.js';
+export { resolveAppSettings, CSP_MODES, LOG_LEVELS } from './config/appSettings.js';
 export {
     printLogo,
     printDivider,

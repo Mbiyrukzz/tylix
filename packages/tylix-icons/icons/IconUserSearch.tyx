@@ -1,0 +1,9 @@
+component IconUserSearch
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="10" cy="8" r="3.5"/><path d="M3 20a7 7 0 0 1 9-6.7"/><circle cx="17" cy="17" r="2.5"/><path d="M19 19l2 2"/>
+  </svg>

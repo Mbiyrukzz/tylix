@@ -8,6 +8,12 @@ export declare class DatabaseAdapter {
     /** SQL keyword used for LIKE conditions: "LIKE" by default, "ILIKE" on Postgres. */
     readonly likeOperator: 'LIKE' | 'ILIKE';
 
+    /** Updates rows matching every field of `where` in one statement; resolves to how many changed. */
+    updateWhere(table: string, values: Record<string, unknown>, where: Record<string, unknown>): Promise<number>;
+
+    /** Resolves when the database answers (SELECT 1, or a ping on MongoDB). */
+    ping(): Promise<void>;
+
     connect(): Promise<this>;
     close(): Promise<void>;
     run(sql: string, params?: unknown[]): Promise<RunResult>;

@@ -17,11 +17,13 @@ export const FRONTENDS = {
   react: {
     templateDir: 'react',
     entry: { js: 'main.jsx', ts: 'main.tsx' },
-    rename: (file, isTs) => (isTs ? file.replace(/\.jsx$/, '.tsx') : file),
+    rename: (file, isTs) => (isTs ? file.replace(/\.jsx$/, '.tsx').replace(/\.js$/, '.ts') : file),
     base: [
       'main.jsx',
       'entry-server.jsx',
       'App.jsx',
+      'AppRoutes.jsx',
+      'providers/AppProviders.jsx',
       'components/Layout.jsx',
       'pages/Home.jsx',
       'pages/NotFound.jsx',
@@ -34,8 +36,10 @@ export const FRONTENDS = {
       'pages/ResetPassword.jsx',
       'pages/Dashboard.jsx',
       'pages/DevMail.jsx',
+      'providers/MailLogProvider.jsx',
+      'services/mail.js',
     ],
-    posts: ['pages/Posts.jsx', 'pages/PostDetail.jsx'],
+    posts: ['pages/Posts.jsx', 'pages/PostDetail.jsx', 'providers/PostsProvider.jsx', 'services/posts.js'],
   },
   svelte: {
     templateDir: 'svelte',
@@ -59,8 +63,10 @@ export const FRONTENDS = {
       'pages/ResetPassword.svelte',
       'pages/Dashboard.svelte',
       'pages/DevMail.svelte',
+      'providers/mail.js',
+      'services/mail.js',
     ],
-    posts: ['pages/Posts.svelte', 'pages/PostDetail.svelte'],
+    posts: ['pages/Posts.svelte', 'pages/PostDetail.svelte', 'providers/posts.js', 'services/posts.js'],
   },
   vue: {
     templateDir: 'vue',
@@ -84,8 +90,10 @@ export const FRONTENDS = {
       'pages/ResetPassword.vue',
       'pages/Dashboard.vue',
       'pages/DevMail.vue',
+      'providers/mail.js',
+      'services/mail.js',
     ],
-    posts: ['pages/Posts.vue', 'pages/PostDetail.vue'],
+    posts: ['pages/Posts.vue', 'pages/PostDetail.vue', 'providers/posts.js', 'services/posts.js'],
   },
   angular: {
     templateDir: 'angular',
@@ -109,8 +117,10 @@ export const FRONTENDS = {
       'pages/reset-password.ts',
       'pages/dashboard.ts',
       'pages/dev-mail.ts',
+      'providers/mail.store.ts',
+      'services/mail.ts',
     ],
-    posts: ['pages/posts.ts', 'pages/post-detail.ts'],
+    posts: ['pages/posts.ts', 'pages/post-detail.ts', 'providers/posts.store.ts', 'services/posts.ts'],
   },
 }
 

@@ -12,6 +12,8 @@ import {
 import { MailLog } from '@tylix/mail'
 import { loadConfig, loadEnv, detectLanguage, exists as pathExists, pascalCase } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
+import { configureObservability, registerOperationsRoutes } from './observability.js'
+import { openStore } from './store.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
 import { renderErrorPage } from '../utils/error-page.js'
 import { renderStatusPage, wantsHtml } from '../utils/status-page.js'
@@ -809,6 +811,7 @@ export async function createApp(
   const language = await detectLanguage(baseDir)
   const config = await loadConfig(baseDir, language)
   if (production) assertProductionConfig(config)
+  const serverOptions = configureObservability(config)
 
   // Compiler switches from the project config, e.g. { not: 'loose' }.
   // Omitted means legacy behaviour. Not to be confused with `language`
@@ -816,6 +819,7 @@ export async function createApp(
   const compilerOptions = config.compiler ?? {}
 
   await bootstrapDatabase()
+  const store = await openStore(config)
 
   const features = await discoverFeatures(baseDir)
   const router = new Router()
@@ -947,9 +951,14 @@ export async function createApp(
     })
   }
 
+  registerOperationsRoutes(router, config)
+
   return {
     router,
     config,
+    // For new Server(app.router, { ...app.serverOptions }): logging and
+    // metrics as the settings say.
+    serverOptions,
     features,
     pageRoutes,
     routes: recorder.routes,
@@ -959,8 +968,10 @@ export async function createApp(
       label: frontendHost ? frontendHost.label : 'Tylix',
       host: frontendHost,
     },
+    store,
     async close() {
       await frontendHost?.close()
+      await store.close()
     },
     notFoundHandler: async (req, res) => {
       if (await serveStaticAsset(req, res, baseDir, { production })) return true

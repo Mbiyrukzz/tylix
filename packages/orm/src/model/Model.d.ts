@@ -62,6 +62,8 @@ export declare class Model {
     static findOrFail(id: number | string): Promise<Row>;
     static create(data: Row): Promise<Row | null>;
     static update(id: number | string, data: Row): Promise<Row | null>;
+    /** Updates every row matching `where` in one statement; returns how many changed. Observers don't run. */
+    static updateWhere(where: Record<string, unknown>, values: Record<string, unknown>): Promise<number>;
     static delete(id: number | string): Promise<boolean>;
     static destroy(...ids: Array<number | string | Array<number | string>>): Promise<number>;
 

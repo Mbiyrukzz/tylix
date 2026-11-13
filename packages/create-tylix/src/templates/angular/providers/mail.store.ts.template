@@ -1,0 +1,17 @@
+import { Injectable, computed } from '@angular/core'
+import { injectApi } from '@tylix/angular'
+import { mailUrls } from '../services/mail'
+import type { MailLog } from '../services/mail'
+
+// The development mail log for DevMail. See providers/posts.store for how
+// page-level stores work.
+@Injectable()
+export class MailLogStore {
+  private readonly result = injectApi<{ data: MailLog[] }>(mailUrls.logs)
+  readonly mails = computed(() => this.result.data()?.data ?? [])
+  readonly loading = this.result.loading
+  readonly error = this.result.error
+  reload() {
+    return this.result.reload()
+  }
+}

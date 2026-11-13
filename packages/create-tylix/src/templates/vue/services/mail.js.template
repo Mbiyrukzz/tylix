@@ -1,0 +1,17 @@
+// The development mail log (MAIL_DRIVER=log): mails the app "sent", so
+// verification and reset links can be clicked without a mail server.
+
+// @if ts
+export type MailLog = {
+  id: number
+  recipient: string
+  subject: string
+  body: string
+  status: string
+  created_at: string
+}
+
+// @endif
+export const mailUrls = {
+  logs: '/api/_tylix/mail-logs',
+}

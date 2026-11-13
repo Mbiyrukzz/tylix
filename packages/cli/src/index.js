@@ -102,7 +102,7 @@ async function main() {
   }
 
   if (command === 'start') {
-    await start({ port: portFlag(rest) })
+    await start({ port: portFlag(rest), workers: flagValue(rest, 'workers') })
     return
   }
 

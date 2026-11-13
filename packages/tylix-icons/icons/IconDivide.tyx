@@ -1,0 +1,9 @@
+component IconDivide
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5 12h14"/><circle cx="12" cy="6.5" r="1"/><circle cx="12" cy="17.5" r="1"/>
+  </svg>

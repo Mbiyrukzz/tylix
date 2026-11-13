@@ -1,0 +1,9 @@
+component IconAperture
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M14.3 3.3L9 12.5M20.6 9.5H10M18.5 18.2L13.2 9M9.7 20.7l5.3-9.2M3.4 14.5H14M5.5 5.8l5.3 9.2"/>
+  </svg>

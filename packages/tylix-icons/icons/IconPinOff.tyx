@@ -1,0 +1,9 @@
+component IconPinOff
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 17v5M9 3h6l-1 5 3 3v2H7v-2l3-3z"/><path d="M3 3l18 18"/>
+  </svg>

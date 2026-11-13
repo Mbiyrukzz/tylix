@@ -1,25 +1,8 @@
 <script setup__LANG__>
-import { useApi } from '@tylix/vue'
+import { usePublicPosts } from '../providers/posts'
 
-// @if ts
-// What GET /api/public/posts returns for each post.
-type PublicPost = {
-  id: number
-  title: string
-  excerpt: string
-  cover_image: string | null
-  author: string
-  created_at: string
-}
-
-// @endif
-// Everyone's posts, newest first. /api/public/posts needs no login.
-// @if ts
-const { data: posts, loading, error } = useApi<PublicPost[]>('/api/public/posts')
-// @endif
-// @if !ts
-const { data: posts, loading, error } = useApi('/api/public/posts')
-// @endif
+// Everyone's posts, newest first (providers/posts).
+const { posts, loading, error } = usePublicPosts()
 // A fixed locale and time zone: with SSR, a date must read the same on the
 // server and in the visitor's browser, or hydration fails.
 const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' })
@@ -28,9 +11,9 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZ
 <template>
   <div class="max-w-3xl mx-auto px-6 py-12">
     <h1 class="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
-    <p v-if="loading && !posts" class="text-sm text-zinc-500">Loading posts…</p>
+    <p v-if="loading && posts.length === 0" class="text-sm text-zinc-500">Loading posts…</p>
     <p v-else-if="error" class="text-sm text-rose-600">{{ error }}</p>
-    <ul v-else-if="posts && posts.length > 0" class="space-y-4" data-testid="public-posts">
+    <ul v-else-if="posts.length > 0" class="space-y-4" data-testid="public-posts">
       <li v-for="post in posts" :key="post.id">
         <RouterLink
           :to="`/posts/${post.id}`"

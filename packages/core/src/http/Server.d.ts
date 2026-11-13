@@ -21,6 +21,17 @@ export interface ServerOptions {
    */
   trustProxy?: boolean
 
+  /** Where request, error and slow-request logs go. Default: the app's logger. */
+  logger?: import('../observability/index.js').Logger
+  /** One log line per request: true, false or "api" (only /api/). Default: true in production, "api" otherwise. */
+  accessLog?: boolean | 'api'
+  /** Requests slower than this are logged as warnings; 0 turns it off. Default 1000. */
+  slowRequestMs?: number
+  /** Record HTTP and process metrics: true for the app's registry, or a registry. Default off. */
+  metrics?: boolean | import('../observability/index.js').MetricsRegistry
+  /** Compress JSON responses of at least minBytes (default 1024) with Brotli or gzip; false turns it off. */
+  compression?: false | { minBytes?: number }
+
   /** Other origins allowed to send browser writes. Defaults to TRUSTED_ORIGINS. */
   trustedOrigins?: string[]
   /** The app's public URL, always a trusted origin. Defaults to APP_URL. */

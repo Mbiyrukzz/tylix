@@ -1,7 +1,7 @@
 {
   "name": "tylix-icons",
   "version": "0.6.0",
-  "description": "Official icon library for the Tylix framework.",
+  "description": "Icons for Tylix apps: native .tyx components plus React, Vue, Svelte and Angular components, from one source.",
   "license": "MIT",
   "private": false,
   "type": "module",
@@ -12,12 +12,69 @@
     "components",
     "svg"
   ],
+  "sideEffects": false,
   "files": [
     "icons",
+    "react",
+    "vue",
+    "svelte",
+    "angular",
+    "data",
+    "src/icons.json",
     "tylix-components.json",
     "README.md",
     "LICENSE"
   ],
+  "exports": {
+    "./react": {
+      "types": "./react/index.d.ts",
+      "default": "./react/index.js"
+    },
+    "./vue": {
+      "types": "./vue/index.d.ts",
+      "default": "./vue/index.js"
+    },
+    "./svelte": {
+      "types": "./svelte/index.d.ts",
+      "svelte": "./svelte/index.js",
+      "default": "./svelte/index.js"
+    },
+    "./angular": {
+      "types": "./angular/index.d.ts",
+      "default": "./angular/fesm2022/index.mjs"
+    },
+    "./data": {
+      "types": "./data/index.d.ts",
+      "default": "./data/index.js"
+    },
+    "./tylix-components.json": "./tylix-components.json",
+    "./icons/*": "./icons/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "vue": ">=3.3",
+    "svelte": ">=5",
+    "@angular/core": ">=20"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
+    },
+    "@angular/core": {
+      "optional": true
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Mbiyrukzz/tylix.git"

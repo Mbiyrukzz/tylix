@@ -186,6 +186,15 @@ export class Model {
     return row
   }
 
+  // Updates every row matching `where` in one statement and returns how
+  // many changed. Bulk: observers don't run. Useful for check-and-set:
+  //   const claimed = (await Job.updateWhere({ id, status: 'pending' }, { status: 'processing' })) === 1
+  static async updateWhere(where, values) {
+    const data = { ...values }
+    if (this.timestamps) data.updated_at = new Date().toISOString()
+    return ConnectionManager.getAdapter().updateWhere(this.getTable(), data, where)
+  }
+
   static async delete(id) {
     const adapter = ConnectionManager.getAdapter()
     const observers = observersOf(this)

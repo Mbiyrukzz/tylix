@@ -1,0 +1,161 @@
+import { getContext, setContext } from 'svelte'
+import { derived, get } from 'svelte/store'
+// @if ts
+import type { Readable } from 'svelte/store'
+// @endif
+import { matchPath, useApi, useRoute } from '@tylix/svelte'
+import { postUrls, postsService } from '../services/posts'
+// @if ts
+import type { Post, PostInput, PublicPost, PublicPostDetail } from '../services/posts'
+// @endif
+
+// Post data for the pages, as stores. A page calls usePublicPosts(),
+// usePost() or useMyPosts() at the top of its <script> and reads
+// $posts.loading, $posts.posts ...; the URLs stay in services/posts.
+//
+// The first component that calls one (usually the page) loads the data
+// and puts it in context; components inside it that call the same function
+// get that instance instead of loading again. With SSR the data is loaded
+// on the server and reused in the browser.
+
+// @if ts
+type Loadable = { loading: boolean; error: string | null }
+type ApiState<T> = { data: T | null; loading: boolean; error: string | null; status: number | null }
+
+function shared<T>(key: symbol, create: () => T): T {
+  const existing = getContext<T | undefined>(key)
+// @endif
+// @if !ts
+function shared(key, create) {
+  const existing = getContext(key)
+// @endif
+  if (existing) return existing
+  const value = create()
+  setContext(key, value)
+  return value
+}
+
+// ---- Everyone's posts (/posts) ----------------------------------------
+
+const PUBLIC_POSTS = Symbol('publicPosts')
+
+export function usePublicPosts() {
+  return shared(PUBLIC_POSTS, () => {
+// @if ts
+    const result = useApi<PublicPost[]>(postUrls.publicList)
+    const state: Readable<Loadable & { posts: PublicPost[] }> = derived(result, (r) => ({
+// @endif
+// @if !ts
+    const result = useApi(postUrls.publicList)
+    const state = derived(result, (r) => ({
+// @endif
+      posts: r.data ?? [],
+      loading: r.loading,
+      error: r.error,
+    }))
+    return { subscribe: state.subscribe, reload: result.reload }
+  })
+}
+
+// ---- One post (/posts/:id) --------------------------------------------
+
+const POST = Symbol('post')
+
+export function usePost() {
+  return shared(POST, () => {
+    // The request's location during SSR, the browser's otherwise.
+    const route = useRoute()
+// @if ts
+    const urlOf = (path: string) => {
+// @endif
+// @if !ts
+    const urlOf = (path) => {
+// @endif
+      const id = matchPath('/posts/:id', path)?.id
+      return id ? postUrls.publicOne(id) : null
+    }
+    // The first store is made now, while the component initialises, so a
+    // server render loads it. Moving to another post (browser only) makes
+    // a new one.
+    let url = urlOf(get(route).path)
+// @if ts
+    let source = useApi<PublicPostDetail>(url)
+    const shape = (r: ApiState<PublicPostDetail>) => ({
+// @endif
+// @if !ts
+    let source = useApi(url)
+    const shape = (r) => ({
+// @endif
+      post: r.data ?? null,
+      notFound: r.status === 404,
+      loading: r.loading,
+      error: r.error,
+    })
+    const state = derived(
+      route,
+      ($route, set) => {
+        const next = urlOf($route.path)
+        if (next !== url) {
+          url = next
+// @if ts
+          source = useApi<PublicPostDetail>(url)
+// @endif
+// @if !ts
+          source = useApi(url)
+// @endif
+        }
+        return source.subscribe((r) => set(shape(r)))
+      },
+      shape({ data: null, loading: url !== null, error: null, status: null }),
+    )
+    return { subscribe: state.subscribe, reload: () => source.reload() }
+  })
+}
+
+// ---- The logged-in user's posts (/dashboard) --------------------------
+
+const MY_POSTS = Symbol('myPosts')
+
+// Writes reload the list afterwards and return null or the error to show.
+export function useMyPosts() {
+  return shared(MY_POSTS, () => {
+// @if ts
+    const result = useApi<Post[]>(postUrls.mine)
+    const state: Readable<Loadable & { posts: Post[] }> = derived(result, (r) => ({
+// @endif
+// @if !ts
+    const result = useApi(postUrls.mine)
+    const state = derived(result, (r) => ({
+// @endif
+      posts: r.data ?? [],
+      loading: r.loading,
+      error: r.error,
+    }))
+
+// @if ts
+    async function create(input: PostInput) {
+// @endif
+// @if !ts
+    async function create(input) {
+// @endif
+      const saved = await postsService.create(input)
+      if (!saved.ok) return saved.error ?? 'Could not save the post.'
+      await result.reload()
+      return null
+    }
+
+// @if ts
+    async function remove(id: number) {
+// @endif
+// @if !ts
+    async function remove(id) {
+// @endif
+      const removed = await postsService.remove(id)
+      if (!removed.ok) return removed.error ?? 'Could not delete the post.'
+      await result.reload()
+      return null
+    }
+
+    return { subscribe: state.subscribe, reload: result.reload, create, remove }
+  })
+}

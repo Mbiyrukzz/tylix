@@ -40,10 +40,19 @@ test('route lines, with and without --auth', () => {
 })
 
 test('route files per frontend', () => {
-  assert.equal(routeFile('react', true), 'App.tsx')
+  assert.equal(routeFile('react', true), 'AppRoutes.tsx')
   assert.equal(routeFile('vue', false), 'router.js')
   assert.equal(routeFile('svelte', true), 'App.svelte')
   assert.equal(routeFile('angular', true), 'app.routes.ts')
+})
+
+test('findRouteFile falls back to React projects that still route in App.jsx', async () => {
+  const { findRouteFile } = await import('./generateFiles.js')
+  const has = (files) => async (file) => files.includes(file)
+  assert.equal(await findRouteFile('react', false, has(['App.jsx', 'AppRoutes.jsx'])), 'AppRoutes.jsx')
+  assert.equal(await findRouteFile('react', false, has(['App.jsx'])), 'App.jsx')
+  assert.equal(await findRouteFile('react', true, has([])), 'AppRoutes.tsx')
+  assert.equal(await findRouteFile('vue', false, has(['router.js'])), 'router.js')
 })
 
 test('lines go above the marker, with its indentation', () => {

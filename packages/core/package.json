@@ -9,7 +9,7 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "scripts": {
-    "test": "node --test src/**/*.test.js"
+    "test": "node --test 'src/**/*.test.js'"
   },
   "dependencies": {
     "@tylix/auth": "^0.6.0",

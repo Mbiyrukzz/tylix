@@ -1,31 +1,22 @@
-import { Component } from '@angular/core'
+import { Component, inject } from '@angular/core'
 import { RouterLink } from '@angular/router'
-import { injectApi } from '@tylix/angular'
+import { PublicPostsStore } from '../providers/posts.store'
 
-// What GET /api/public/posts returns for each post.
-type PublicPost = {
-  id: number
-  title: string
-  excerpt: string
-  cover_image: string | null
-  author: string
-  created_at: string
-}
-
-// Everyone's posts, newest first. /api/public/posts needs no login.
+// Everyone's posts, newest first, from PublicPostsStore (providers/).
 @Component({
   selector: 'app-posts',
   imports: [RouterLink],
+  providers: [PublicPostsStore],
   template: `
     <div class="max-w-3xl mx-auto px-6 py-12">
       <h1 class="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
-      @if (posts.loading() && !posts.data()) {
+      @if (store.loading() && store.posts().length === 0) {
         <p class="text-sm text-zinc-500">Loading posts…</p>
-      } @else if (posts.error()) {
-        <p class="text-sm text-rose-600">{{ posts.error() }}</p>
-      } @else if (posts.data()?.length) {
+      } @else if (store.error()) {
+        <p class="text-sm text-rose-600">{{ store.error() }}</p>
+      } @else if (store.posts().length) {
         <ul class="space-y-4" data-testid="public-posts">
-          @for (post of posts.data(); track post.id) {
+          @for (post of store.posts(); track post.id) {
             <li>
               <a
                 [routerLink]="['/posts', post.id]"
@@ -45,7 +36,7 @@ type PublicPost = {
   `,
 })
 export class Posts {
-  protected readonly posts = injectApi<PublicPost[]>('/api/public/posts')
+  protected readonly store = inject(PublicPostsStore)
 
   // A fixed locale and time zone: with SSR, a date must read the same on the
   // server and in the visitor's browser, or hydration fails.

@@ -1,0 +1,76 @@
+import { Injectable, computed, inject } from '@angular/core'
+import { ActivatedRoute } from '@angular/router'
+import { toSignal } from '@angular/core/rxjs-interop'
+import { injectApi } from '@tylix/angular'
+import { postUrls, postsService } from '../services/posts'
+import type { Post, PostInput, PublicPost, PublicPostDetail } from '../services/posts'
+
+// Post data for the pages, as signals. A page lists the store it needs in
+// its own providers and injects it:
+//
+//   @Component({ providers: [PublicPostsStore], ... })
+//   export class Posts { protected readonly store = inject(PublicPostsStore) }
+//
+// so the data loads with that page and is dropped when it is left (a
+// route-level provider would live on, and show one user's posts after
+// another logs in). Child components inject the same instance. The URLs
+// stay in services/posts. With SSR the data is loaded on the server and
+// reused in the browser.
+
+// Everyone's posts (/posts).
+@Injectable()
+export class PublicPostsStore {
+  private readonly result = injectApi<PublicPost[]>(postUrls.publicList)
+  readonly posts = computed(() => this.result.data() ?? [])
+  readonly loading = this.result.loading
+  readonly error = this.result.error
+  reload() {
+    return this.result.reload()
+  }
+}
+
+// The post for the current route's :id (/posts/:id).
+@Injectable()
+export class PostStore {
+  private readonly params = toSignal(inject(ActivatedRoute).paramMap, { requireSync: true })
+  // Reads the id signal, so moving to another post loads it.
+  private readonly result = injectApi<PublicPostDetail>(() => {
+    const id = this.params().get('id')
+    return id ? postUrls.publicOne(id) : null
+  })
+  readonly post = this.result.data
+  readonly notFound = computed(() => this.result.status() === 404)
+  readonly loading = this.result.loading
+  readonly error = this.result.error
+  reload() {
+    return this.result.reload()
+  }
+}
+
+// The logged-in user's posts (/dashboard). Writes reload the list
+// afterwards and return null or the error to show.
+@Injectable()
+export class MyPostsStore {
+  private readonly result = injectApi<Post[]>(postUrls.mine)
+  readonly posts = computed(() => this.result.data() ?? [])
+  readonly loading = this.result.loading
+  readonly error = this.result.error
+
+  reload() {
+    return this.result.reload()
+  }
+
+  async create(input: PostInput): Promise<string | null> {
+    const saved = await postsService.create(input)
+    if (!saved.ok) return saved.error ?? 'Could not save the post.'
+    await this.result.reload()
+    return null
+  }
+
+  async remove(id: number): Promise<string | null> {
+    const removed = await postsService.remove(id)
+    if (!removed.ok) return removed.error ?? 'Could not delete the post.'
+    await this.result.reload()
+    return null
+  }
+}

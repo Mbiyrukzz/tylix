@@ -1,0 +1,9 @@
+component IconLibrary
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 4v16M8 6v14M12 4v16"/><path d="M14.5 5.8l3.4-.9 3.6 14.5-3.4.9z"/>
+  </svg>

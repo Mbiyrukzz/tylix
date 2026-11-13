@@ -1,0 +1,9 @@
+component IconUsb
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3v15"/><circle cx="12" cy="19.5" r="1.5"/><path d="M10 6l2-3 2 3z"/><path d="M12 14l-4-2.5V9.5M12 12l4-2V8.5"/><circle cx="8" cy="8.5" r="1"/><path d="M15 6.5h2v2h-2z"/>
+  </svg>

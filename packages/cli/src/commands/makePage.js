@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { detectLanguage, loadConfig, loadEnv, exists } from '@tylix/shared'
-import { pageFiles, registerRoute, routeFile, IMPORTS_MARKER, ROUTES_MARKER } from '../frontend/generateFiles.js'
+import { pageFiles, registerRoute, routeFile, findRouteFile, IMPORTS_MARKER, ROUTES_MARKER } from '../frontend/generateFiles.js'
 
 const STARTER_TEMPLATE = (name) => `page ${name}
 
@@ -73,7 +73,7 @@ export async function makePage(name, { auth = false } = {}) {
   const frontendDir = path.join(baseDir, 'app', 'frontend')
   const page = pageFiles(driver, name, { ts })
   const pagePath = path.join(frontendDir, page.file)
-  const routesPath = path.join(frontendDir, routeFile(driver, ts))
+  const routesPath = path.join(frontendDir, await findRouteFile(driver, ts, (file) => exists(path.join(frontendDir, file))))
   const rel = (p) => path.relative(baseDir, p)
 
   if (await exists(pagePath)) throw new Error(`${rel(pagePath)} already exists.`)

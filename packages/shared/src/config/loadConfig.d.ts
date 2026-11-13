@@ -66,6 +66,8 @@ export interface ServerConfig {
     trustProxy: boolean;
     /** TRUSTED_ORIGINS (comma separated): other origins allowed to send writes. */
     trustedOrigins: string[];
+    /** WORKERS: processes "tylix start" runs, sharing the port; "auto" is one per CPU core. Default 1. */
+    workers: number | 'auto';
     /** MAX_BODY_BYTES. Default 1 MB. */
     maxBodyBytes: number;
     csp: {
@@ -74,6 +76,32 @@ export interface ServerConfig {
         /** CSP_POLICY. Unset: the built-in policy. */
         policy?: string;
     };
+}
+
+export interface ObservabilityConfig {
+    /** LOG_LEVEL. Default info. */
+    logLevel: 'debug' | 'info' | 'warn' | 'error' | 'silent';
+    /** LOG_FORMAT. Default json in production, pretty otherwise. */
+    logFormat: 'json' | 'pretty';
+    /** ACCESS_LOG: one line per request; "api" logs only /api/. Default true in production, "api" otherwise. */
+    accessLog: boolean | 'api';
+    /** SLOW_REQUEST_MS: slower requests are logged as warnings; 0 turns it off. Default 1000. */
+    slowRequestMs: number;
+    /** SLOW_QUERY_MS: slower SQL is logged as a warning; 0 turns it off. Default 200. */
+    slowQueryMs: number;
+    /** METRICS: Prometheus metrics at /metrics. Default false. */
+    metrics: boolean;
+    /** METRICS_TOKEN: required as a bearer token for /metrics when set. */
+    metricsToken?: string;
+}
+
+export interface StoreConfig {
+    /** STORE_DRIVER: where rate limits, the cache and channel messages live. Default database. */
+    driver: 'memory' | 'database' | 'redis';
+    /** REDIS_URL. Default redis://127.0.0.1:6379. */
+    redisUrl: string;
+    /** STORE_PREFIX: put in front of every key. Default "<app name>:". */
+    prefix: string;
 }
 
 export interface ChannelsConfig {
@@ -92,7 +120,9 @@ export interface TylixConfig {
     app: AppConfig;
     server: ServerConfig;
     channels: ChannelsConfig;
-    /** For app.*, server.* and channels.* keys: where each value came from. */
+    observability: ObservabilityConfig;
+    store: StoreConfig;
+    /** For app.*, server.*, channels.* and observability.* keys: where each value came from. */
     readonly sources: Record<string, SettingSource>;
     database: DatabaseConfig;
     auth: AuthConfig;
@@ -106,6 +136,8 @@ export interface UserConfig {
     app?: Partial<Omit<AppConfig, 'production'>>;
     server?: Partial<Omit<ServerConfig, 'csp'>> & { csp?: Partial<ServerConfig['csp']> };
     channels?: Partial<ChannelsConfig>;
+    observability?: Partial<ObservabilityConfig>;
+    store?: Partial<StoreConfig>;
     database?: Partial<DatabaseConfig>;
     auth?: Partial<AuthConfig> & Record<string, unknown>;
     mail?: Partial<MailConfig>;

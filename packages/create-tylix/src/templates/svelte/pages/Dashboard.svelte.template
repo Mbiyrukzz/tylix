@@ -1,31 +1,17 @@
 <script__LANG__>
+  import { IconMail, IconServer, IconShieldCheck } from 'tylix-icons/svelte'
   import { useHydrated, useSession } from '@tylix/svelte'
   // @if posts
-  import { api, useApi } from '@tylix/svelte'
+  import { useMyPosts } from '../providers/posts'
   // @endif
 
   // The request's state during SSR, the browser's otherwise.
   const session = useSession()
   // @if posts
 
-  // @if ts
-  // The fields GET /api/posts returns (app/models/Post).
-  type Post = {
-    id: number
-    title: string
-    body: string
-    cover_image: string | null
-  }
-
-  // @endif
-  // Your posts, from the Post feature the starter generated. /api/posts is
-  // behind requireAuth and only returns the logged-in user's posts.
-  // @if ts
-  const posts = useApi<Post[]>('/api/posts')
-  // @endif
-  // @if !ts
-  const posts = useApi('/api/posts')
-  // @endif
+  // Your posts (providers/posts): the list plus create and remove, which
+  // reload it. Only the logged-in user's posts.
+  const posts = useMyPosts()
 
   let title = $state('')
   let body = $state('')
@@ -39,16 +25,15 @@
       return
     }
     saving = true
-    const result = await api.post('/api/posts', { title: title.trim(), body: body.trim() })
+    const problem = await posts.create({ title: title.trim(), body: body.trim() })
     saving = false
-    if (!result.ok) {
-      error = result.error ?? 'Could not save the post.'
+    if (problem) {
+      error = problem
       return
     }
     error = ''
     title = ''
     body = ''
-    posts.reload()
   }
 
   // @if ts
@@ -57,9 +42,8 @@
   // @if !ts
   async function remove(id) {
   // @endif
-    const result = await api.delete(`/api/posts/${id}`)
-    if (result.ok) posts.reload()
-    else error = result.error ?? 'Could not delete the post.'
+    const problem = await posts.remove(id)
+    if (problem) error = problem
   }
   // @endif
 
@@ -75,14 +59,17 @@
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
     <div class={cardClass}>
+      <IconMail class="w-4 h-4 text-emerald-500 mb-3" />
       <p class="text-xs text-zinc-500 mb-1">Email</p>
       <p class="text-sm font-semibold truncate">{$session.user?.email}</p>
     </div>
     <div class={cardClass}>
+      <IconShieldCheck class="w-4 h-4 text-emerald-500 mb-3" />
       <p class="text-xs text-zinc-500 mb-1">Session</p>
       <p class="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
     </div>
     <div class={cardClass}>
+      <IconServer class="w-4 h-4 text-emerald-500 mb-3" />
       <p class="text-xs text-zinc-500 mb-1">Protected API</p>
       <p class="text-sm font-semibold">GET /api/me</p>
     </div>
@@ -124,13 +111,13 @@
       </button>
     </form>
 
-    {#if $posts.loading && !$posts.data}
+    {#if $posts.loading && $posts.posts.length === 0}
       <p class="text-sm text-zinc-500">Loading posts…</p>
     {:else if $posts.error}
       <p class="text-sm text-rose-600">{$posts.error}</p>
-    {:else if $posts.data && $posts.data.length > 0}
+    {:else if $posts.posts.length > 0}
       <ul class="space-y-3" data-testid="posts">
-        {#each $posts.data as post (post.id)}
+        {#each $posts.posts as post (post.id)}
           <li class="{cardClass} flex items-start justify-between gap-4">
             <div>
               <p class="font-semibold">{post.title}</p>

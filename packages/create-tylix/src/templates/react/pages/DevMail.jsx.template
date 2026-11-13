@@ -1,32 +1,15 @@
-import { useApi } from '@tylix/react'
+import { useMailLog } from '../providers/MailLogProvider'
 
-// @if ts
-type MailLog = {
-  id: number
-  recipient: string
-  subject: string
-  body: string
-  status: string
-  created_at: string
-}
-
-// @endif
 // A fixed locale and time zone: with SSR, a date must read the same on the
 // server and in the visitor's browser, or hydration fails.
 const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
 
-// Development only (App.jsx registers this route when import.meta.env.DEV
+// Development only (AppRoutes registers this route when import.meta.env.DEV
 // is true, and the API behind it doesn't exist in production). With
 // MAIL_DRIVER=log, mails are recorded instead of sent, so verification and
 // password-reset links can be clicked from here.
 export default function DevMail() {
-  // @if ts
-  const logs = useApi<{ data: MailLog[] }>('/api/_tylix/mail-logs')
-  // @endif
-  // @if !ts
-  const logs = useApi('/api/_tylix/mail-logs')
-  // @endif
-  const mails = logs.data ? logs.data.data : []
+  const { mails, loading, error, reload } = useMailLog()
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
@@ -34,7 +17,7 @@ export default function DevMail() {
         <h1 className="text-3xl font-semibold tracking-tight">Dev mail log</h1>
         <button
           type="button"
-          onClick={() => logs.reload()}
+          onClick={() => reload()}
           className="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
         >
           Refresh
@@ -42,10 +25,10 @@ export default function DevMail() {
       </div>
       <p className="text-sm text-zinc-500 mb-8">The last 50 mails, newest first. Only available in development.</p>
 
-      {logs.loading && !logs.data ? (
+      {loading && mails.length === 0 ? (
         <p className="text-sm text-zinc-500">Loading…</p>
-      ) : logs.error ? (
-        <p className="text-sm text-rose-600">{logs.error}</p>
+      ) : error ? (
+        <p className="text-sm text-rose-600">{error}</p>
       ) : mails.length === 0 ? (
         <p className="text-sm text-zinc-500">No mails yet.</p>
       ) : (

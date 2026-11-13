@@ -1,75 +1,63 @@
-import { CacheRecord } from './CacheRecord.js'
+import { getStore } from '../store/index.js'
 
-function isExpired(row) {
-  if (!row.expires_at) return false
-  return new Date(row.expires_at).getTime() <= Date.now()
-}
+// The app cache, kept in the app's store (STORE_DRIVER), so every worker
+// and server shares it.
+//
+//   const stats = await cache.remember('stats:home', 60, () => computeStats())
+//   await cache.forget('stats:home')
+//   await cache.clear('user:')            // every key starting with user:
+//
+// Values are stored as JSON. null means "not cached", so caching null
+// has no effect.
+
+const key = (name) => `cache:${name}`
+const ttl = (seconds) => (seconds ? { ttlMs: seconds * 1000 } : {})
+
+// remember() calls already computing a key in this process; the others
+// wait for that result instead of computing it again.
+const computing = new Map()
 
 export const cache = {
   // ttlSeconds omitted or null = never expires
-  async set(key, value, ttlSeconds = null) {
-    const serialized = JSON.stringify(value)
-    const expiresAt =
-      ttlSeconds !== null
-        ? new Date(Date.now() + ttlSeconds * 1000).toISOString()
-        : null
-
-    const existing = await CacheRecord.query().where('key', key).first()
-
-    if (existing) {
-      return CacheRecord.update(existing.id, {
-        value: serialized,
-        expires_at: expiresAt,
-      })
-    }
-    return CacheRecord.create({ key, value: serialized, expires_at: expiresAt })
+  async set(name, value, ttlSeconds = null) {
+    await getStore().set(key(name), value, ttl(ttlSeconds))
+    return value
   },
 
-  async get(key) {
-    const row = await CacheRecord.query().where('key', key).first()
-    if (!row) return null
-
-    if (isExpired(row)) {
-      await CacheRecord.delete(row.id)
-      return null
-    }
-
-    return JSON.parse(row.value)
+  async get(name) {
+    return getStore().get(key(name))
   },
 
-  async has(key) {
-    const row = await CacheRecord.query().where('key', key).first()
-    if (!row) return false
-    if (isExpired(row)) {
-      await CacheRecord.delete(row.id)
-      return false
-    }
+  async has(name) {
+    return (await getStore().get(key(name))) !== null
+  },
+
+  async forget(name) {
+    await getStore().delete(key(name))
     return true
   },
 
-  async forget(key) {
-    const row = await CacheRecord.query().where('key', key).first()
-    if (row) await CacheRecord.delete(row.id)
-    return true
+  // Clears everything, or -- if a prefix is given -- only keys starting
+  // with it (cache.clear('user:') drops every per-user entry).
+  async clear(prefix = '') {
+    return getStore().deletePrefix(key(prefix ?? ''))
   },
 
-  // Clears everything, or -- if a prefix is given -- only keys
-  // starting with it (e.g. cache.clear('user:') to drop all
-  // per-user cache entries without wiping the whole table).
-  async clear(prefix = null) {
-    if (prefix === null) {
-      const all = await CacheRecord.all()
-      for (const row of all) {
-        await CacheRecord.delete(row.id)
+  // The cached value, or compute() it, cache it and return it.
+  async remember(name, ttlSeconds, compute) {
+    const hit = await cache.get(name)
+    if (hit !== null) return hit
+    if (computing.has(name)) return computing.get(name)
+    const pending = (async () => {
+      try {
+        const value = await compute()
+        if (value !== null && value !== undefined) await cache.set(name, value, ttlSeconds)
+        return value
+      } finally {
+        computing.delete(name)
       }
-      return all.length
-    }
-
-    const all = await CacheRecord.all()
-    const matching = all.filter((row) => row.key.startsWith(prefix))
-    for (const row of matching) {
-      await CacheRecord.delete(row.id)
-    }
-    return matching.length
+    })()
+    computing.set(name, pending)
+    return pending
   },
 }

@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { JobRecord } from '@tylix/core'
-import { detectLanguage } from '@tylix/shared'
+import { JobRecord, logger } from '@tylix/core'
+import { detectLanguage, loadConfig } from '@tylix/shared'
 import { bootstrapDatabase } from '../bootstrap.js'
-
-const stamp = () => new Date().toTimeString().slice(0, 8)
+import { configureObservability } from '../server/observability.js'
+import { openStore } from '../server/store.js'
 
 async function loadJobHandler(baseDir, jobName) {
   const language = await detectLanguage(baseDir)
@@ -29,51 +29,69 @@ async function loadJobHandler(baseDir, jobName) {
   return handler
 }
 
-export async function queueWork() {
+export async function queueWork({ pollMs = 2000, batch = 5 } = {}) {
   const baseDir = process.cwd()
   console.log('Queue worker starting...')
 
   await bootstrapDatabase()
+  const config = await loadConfig(baseDir, await detectLanguage(baseDir))
+  configureObservability(config)
+  // Jobs may use the cache or broadcast() to channels.
+  await openStore(config, { role: 'queue' })
 
-  console.log('Queue worker running — polling every 2s for pending jobs...\n')
+  console.log(`Queue worker running — polling every ${pollMs / 1000}s for pending jobs...\n`)
 
-  let isPolling = false
+  let running = null
+  let stopping = false
 
-  setInterval(async () => {
-    if (isPolling) return
-    isPolling = true
+  async function runBatch() {
+    const pending = await JobRecord.query().where('status', 'pending').orderBy('id', 'ASC').limit(batch).get()
 
-    try {
-      const pending = await JobRecord.query()
-        .where('status', 'pending')
-        .orderBy('id', 'ASC')
-        .limit(5)
-        .get()
+    for (const job of pending) {
+      if (stopping) return
+      // Claim it: only one worker's update changes a pending job, so
+      // several workers never run the same job.
+      const claimed = await JobRecord.updateWhere({ id: job.id, status: 'pending' }, { status: 'processing' })
+      if (claimed !== 1) continue
 
-      for (const job of pending) {
-        await JobRecord.update(job.id, { status: 'processing' })
-        const startedAt = Date.now()
-        console.log(`[${stamp()}] Job #${job.id} (${job.job}) started`)
-
-        try {
-          const handler = await loadJobHandler(baseDir, job.job)
-          await handler.handle(JSON.parse(job.payload))
-          await JobRecord.update(job.id, { status: 'done' })
-          const seconds = Math.round((Date.now() - startedAt) / 1000)
-          console.log(`[${stamp()}] Job #${job.id} (${job.job}) done in ${seconds}s`)
-        } catch (err) {
-          await JobRecord.update(job.id, {
-            status: 'failed',
-            attempts: (job.attempts ?? 0) + 1,
-            error: err.message,
-          })
-          console.error(`[${stamp()}] Job #${job.id} (${job.job}) failed:`, err.message)
-        }
+      const startedAt = Date.now()
+      const log = logger.child({ job: job.job, jobId: job.id })
+      log.info(`Job #${job.id} (${job.job}) started`)
+      try {
+        const handler = await loadJobHandler(baseDir, job.job)
+        await handler.handle(JSON.parse(job.payload))
+        await JobRecord.update(job.id, { status: 'done' })
+        log.info(`Job #${job.id} (${job.job}) done in ${Math.round((Date.now() - startedAt) / 1000)}s`)
+      } catch (err) {
+        await JobRecord.update(job.id, {
+          status: 'failed',
+          attempts: (job.attempts ?? 0) + 1,
+          error: err.message,
+        })
+        log.error(`Job #${job.id} (${job.job}) failed`, { error: err })
       }
-    } catch (err) {
-      console.error('Queue polling error:', err.message)
-    } finally {
-      isPolling = false
     }
-  }, 2000)
+  }
+
+  const timer = setInterval(() => {
+    if (running || stopping) return
+    running = runBatch()
+      .catch((err) => logger.error('Queue polling error', { error: err }))
+      .finally(() => {
+        running = null
+      })
+  }, pollMs)
+
+  // On SIGTERM (a deploy, Ctrl+C): take no new jobs, let the running one
+  // finish, then exit. A second signal exits at once.
+  const stop = async (signal) => {
+    if (stopping) process.exit(1)
+    stopping = true
+    clearInterval(timer)
+    console.log(`\n${signal}: finishing the current job, then stopping...`)
+    await running
+    process.exit(0)
+  }
+  process.on('SIGTERM', () => stop('SIGTERM'))
+  process.on('SIGINT', () => stop('SIGINT'))
 }

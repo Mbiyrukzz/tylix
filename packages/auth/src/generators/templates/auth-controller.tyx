@@ -34,9 +34,11 @@ import {
 const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60; // 15 minutes, used if config doesn't specify one
 
 // In-memory limits (per server process).
-const registerLimiter = createRateLimiter({ max: 20, windowMs: 60 * 60 * 1000 });
-const forgotIpLimiter = createRateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
-const forgotEmailLimiter = createRateLimiter({ max: 5, windowMs: 60 * 60 * 1000 });
+// Counted in the app's store (STORE_DRIVER), so the limits hold across
+// every worker and server, not per process.
+const registerLimiter = createRateLimiter({ name: "register", max: 20, windowMs: 60 * 60 * 1000, store: "shared" });
+const forgotIpLimiter = createRateLimiter({ name: "forgot-password-ip", max: 10, windowMs: 15 * 60 * 1000, store: "shared" });
+const forgotEmailLimiter = createRateLimiter({ name: "forgot-password-email", max: 5, windowMs: 60 * 60 * 1000, store: "shared" });
 
 // Emails are case-insensitive: always compare and store them trimmed and lowercased.
 function normalizeEmail(value) {
@@ -55,7 +57,7 @@ export class AuthController {
     }
 
     async register(req, res) {
-        const limit = registerLimiter(clientIp(req));
+        const limit = await registerLimiter(clientIp(req));
         if (!limit.allowed) {
             return res.status(429).json({
                 error: `Too many sign-ups from this address. Try again in ${limit.retryAfterSeconds} seconds.`,
@@ -203,7 +205,7 @@ export class AuthController {
     }
 
     async forgotPassword(req, res) {
-        const ipLimit = forgotIpLimiter(clientIp(req));
+        const ipLimit = await forgotIpLimiter(clientIp(req));
         if (!ipLimit.allowed) {
             return res.status(429).json({
                 error: `Too many requests. Try again in ${ipLimit.retryAfterSeconds} seconds.`,
@@ -219,7 +221,7 @@ export class AuthController {
 
         // Counted for every address, registered or not, so hitting this limit
         // reveals nothing. When it is hit we answer as normal but send nothing.
-        const emailLimit = forgotEmailLimiter(email);
+        const emailLimit = await forgotEmailLimiter(email);
         const user = await User.findByEmail(email);
 
         if (user && emailLimit.allowed) {

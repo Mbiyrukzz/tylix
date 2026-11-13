@@ -1,6 +1,7 @@
 import mysql from 'mysql2/promise'
 import { DatabaseAdapter } from './DatabaseAdapter.js'
 import { normalizeDatabaseError } from './DatabaseError.js'
+import { emitQuery, hasQueryListeners } from '../instrumentation.js'
 
 const COLUMN_TYPES = {
   increments: 'INT AUTO_INCREMENT PRIMARY KEY',
@@ -78,10 +79,14 @@ export class MysqlAdapter extends DatabaseAdapter {
   async execute(sql, params = []) {
     this.ensureConnected()
     const converted = params.map(toMysqlDateTime)
+    const timed = hasQueryListeners()
+    const start = timed ? performance.now() : 0
     try {
       const [result] = await this.connection.execute(sql, converted)
+      if (timed) emitQuery({ driver: 'mysql', sql, durationMs: performance.now() - start })
       return result
     } catch (err) {
+      if (timed) emitQuery({ driver: 'mysql', sql, durationMs: performance.now() - start, error: err })
       throw normalizeDatabaseError('mysql', err, { sql, params: converted })
     }
   }

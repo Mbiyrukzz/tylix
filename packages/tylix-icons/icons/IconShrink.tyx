@@ -1,0 +1,9 @@
+component IconShrink
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 10l7-7M14 4v6h6M10 14l-7 7M10 20v-6H4"/>
+  </svg>

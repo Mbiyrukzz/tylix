@@ -1,0 +1,32 @@
+import { createContext, useContext } from 'react'
+// @if ts
+import type { ReactNode } from 'react'
+// @endif
+import { Outlet } from 'react-router'
+import { useApi } from '@tylix/react'
+import { mailUrls } from '../services/mail'
+// @if ts
+import type { MailLog } from '../services/mail'
+
+type MailLogValue = { mails: MailLog[]; loading: boolean; error: string | null; reload: () => Promise<unknown> }
+const MailLogContext = createContext<MailLogValue | null>(null)
+
+export function MailLogProvider({ children }: { children?: ReactNode }) {
+  const result = useApi<{ data: MailLog[] }>(mailUrls.logs)
+// @endif
+// @if !ts
+
+const MailLogContext = createContext(null)
+
+export function MailLogProvider({ children }) {
+  const result = useApi(mailUrls.logs)
+// @endif
+  const value = { mails: result.data?.data ?? [], loading: result.loading, error: result.error, reload: result.reload }
+  return <MailLogContext.Provider value={value}>{children ?? <Outlet />}</MailLogContext.Provider>
+}
+
+export function useMailLog() {
+  const value = useContext(MailLogContext)
+  if (value === null) throw new Error('useMailLog() needs a <MailLogProvider> above it (see AppRoutes).')
+  return value
+}

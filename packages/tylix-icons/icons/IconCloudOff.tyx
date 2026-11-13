@@ -1,0 +1,9 @@
+component IconCloudOff
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 18h11a4 4 0 0 0 .5-8A6 6 0 0 0 7.1 8.6 4.5 4.5 0 0 0 7 18z"/><path d="M3 3l18 18"/>
+  </svg>

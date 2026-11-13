@@ -1,17 +1,10 @@
 import { Component } from '@angular/core'
+import { IconMail, IconServer, IconShieldCheck } from 'tylix-icons/angular'
 import { injectAuth, injectHydrated } from '@tylix/angular'
 // @if posts
-import { signal } from '@angular/core'
+import { inject, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { api, injectApi } from '@tylix/angular'
-
-// The fields GET /api/posts returns (app/models/Post).
-type Post = {
-  id: number
-  title: string
-  body: string
-  cover_image: string | null
-}
+import { MyPostsStore } from '../providers/posts.store'
 // @endif
 
 const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5'
@@ -19,7 +12,11 @@ const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-whi
 @Component({
   selector: 'app-dashboard',
   // @if posts
-  imports: [FormsModule],
+  imports: [FormsModule, IconMail, IconServer, IconShieldCheck],
+  providers: [MyPostsStore],
+  // @endif
+  // @if !posts
+  imports: [IconMail, IconServer, IconShieldCheck],
   // @endif
   template: `
     <div class="max-w-6xl mx-auto px-6 py-12">
@@ -28,14 +25,17 @@ const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-whi
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
         <div [class]="cardClass">
+          <icon-mail class="w-4 h-4 text-emerald-500 mb-3" />
           <p class="text-xs text-zinc-500 mb-1">Email</p>
           <p class="text-sm font-semibold truncate">{{ auth.user()?.email }}</p>
         </div>
         <div [class]="cardClass">
+          <icon-shield-check class="w-4 h-4 text-emerald-500 mb-3" />
           <p class="text-xs text-zinc-500 mb-1">Session</p>
           <p class="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
         </div>
         <div [class]="cardClass">
+          <icon-server class="w-4 h-4 text-emerald-500 mb-3" />
           <p class="text-xs text-zinc-500 mb-1">Protected API</p>
           <p class="text-sm font-semibold">GET /api/me</p>
         </div>
@@ -71,13 +71,13 @@ const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-whi
           </button>
         </form>
 
-        @if (posts.loading() && !posts.data()) {
+        @if (posts.loading() && posts.posts().length === 0) {
           <p class="text-sm text-zinc-500">Loading posts…</p>
         } @else if (posts.error()) {
           <p class="text-sm text-rose-600">{{ posts.error() }}</p>
-        } @else if (posts.data()?.length) {
+        } @else if (posts.posts().length) {
           <ul class="space-y-3" data-testid="posts">
-            @for (post of posts.data(); track post.id) {
+            @for (post of posts.posts(); track post.id) {
               <li [class]="cardClass + ' flex items-start justify-between gap-4'">
                 <div>
                   <p class="font-semibold">{{ post.title }}</p>
@@ -105,9 +105,9 @@ export class Dashboard {
   protected readonly cardClass = cardClass
   // @if posts
 
-  // Your posts, from the Post feature the starter generated. /api/posts is
-  // behind requireAuth and only returns the logged-in user's posts.
-  protected readonly posts = injectApi<Post[]>('/api/posts')
+  // Your posts, from MyPostsStore (providers/): the list plus create and
+  // remove, which reload it. Only the logged-in user's posts.
+  protected readonly posts = inject(MyPostsStore)
 
   protected readonly title = signal('')
   protected readonly body = signal('')
@@ -121,22 +121,20 @@ export class Dashboard {
       return
     }
     this.saving.set(true)
-    const result = await api.post('/api/posts', { title: this.title().trim(), body: this.body().trim() })
+    const problem = await this.posts.create({ title: this.title().trim(), body: this.body().trim() })
     this.saving.set(false)
-    if (!result.ok) {
-      this.error.set(result.error ?? 'Could not save the post.')
+    if (problem) {
+      this.error.set(problem)
       return
     }
     this.error.set('')
     this.title.set('')
     this.body.set('')
-    this.posts.reload()
   }
 
   protected async remove(id: number) {
-    const result = await api.delete(`/api/posts/${id}`)
-    if (result.ok) this.posts.reload()
-    else this.error.set(result.error ?? 'Could not delete the post.')
+    const problem = await this.posts.remove(id)
+    if (problem) this.error.set(problem)
   }
   // @endif
 }

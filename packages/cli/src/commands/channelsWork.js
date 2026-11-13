@@ -3,13 +3,15 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { ChannelServer } from '@tylix/core'
 import { loadConfig, detectLanguage } from '@tylix/shared'
+import { bootstrapDatabase } from '../bootstrap.js'
+import { openStore } from '../server/store.js'
 
 export async function channelsWork() {
   const baseDir = process.cwd()
   const language = await detectLanguage(baseDir)
   // CHANNELS_PORT (.env) or channels.port (tylix.config), default 6001.
-  const { channels: settings } = await loadConfig(baseDir, language)
-  const port = settings.port
+  const config = await loadConfig(baseDir, language)
+  const port = config.channels.port
   const ext = language === 'typescript' ? 'ts' : 'js'
   const channelsPath = path.join(baseDir, 'app', `channels.${ext}`)
 
@@ -32,9 +34,15 @@ export async function channelsWork() {
     process.exit(1)
   }
 
+  // broadcast() calls from the app (and other channel servers) arrive
+  // through the store; the database driver needs the database.
+  if (config.store.driver === 'database') await bootstrapDatabase(baseDir)
+  const store = await openStore(config, { role: 'channels' })
+
   const server = new ChannelServer()
   await mod.channels(server)
+  await server.connectStore(store)
   server.listen(port)
 
-  console.log(`Channel server running on ws://localhost:${port}\n`)
+  console.log(`Channel server running on ws://localhost:${port} (store: ${store.driver})\n`)
 }

@@ -1,0 +1,9 @@
+component IconWifiOff
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 3l18 18"/><path d="M8.5 16.4a5 5 0 0 1 6.9-.4M5 12.9a10 10 0 0 1 5-2.7M2 9a15 15 0 0 1 4.2-2.6M14.6 10.3a10 10 0 0 1 4.4 2.6M10.7 5.1A15 15 0 0 1 22 9M12 20h.01"/>
+  </svg>

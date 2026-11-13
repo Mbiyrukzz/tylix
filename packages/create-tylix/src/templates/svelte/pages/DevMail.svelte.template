@@ -1,28 +1,12 @@
 <script__LANG__>
-  import { useApi } from '@tylix/svelte'
+  import { useMailLog } from '../providers/mail'
 
-  // @if ts
-  type MailLog = {
-    id: number
-    recipient: string
-    subject: string
-    body: string
-    status: string
-    created_at: string
-  }
-
-  // @endif
   // Development only (App.svelte registers this route when
   // import.meta.env.DEV is true, and the API behind it doesn't exist in
   // production). With MAIL_DRIVER=log, mails are recorded instead of sent,
   // so verification and password-reset links can be clicked from here.
-  // @if ts
-  const logs = useApi<{ data: MailLog[] }>('/api/_tylix/mail-logs')
-  // @endif
-  // @if !ts
-  const logs = useApi('/api/_tylix/mail-logs')
-  // @endif
-  const mails = $derived($logs.data ? $logs.data.data : [])
+  const logs = useMailLog()
+  const mails = $derived($logs.mails)
 
   // A mail usually holds each link twice (href and text). The links are
   // made relative, so they open on this server whatever APP_URL says.
@@ -54,7 +38,7 @@
   </div>
   <p class="text-sm text-zinc-500 mb-8">The last 50 mails, newest first. Only available in development.</p>
 
-  {#if $logs.loading && !$logs.data}
+  {#if $logs.loading && mails.length === 0}
     <p class="text-sm text-zinc-500">Loading…</p>
   {:else if $logs.error}
     <p class="text-sm text-rose-600">{$logs.error}</p>

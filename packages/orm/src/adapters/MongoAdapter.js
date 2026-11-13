@@ -111,6 +111,17 @@ export class MongoAdapter extends DatabaseAdapter {
     this.counters = {}
   }
 
+  async updateWhere(table, values, where) {
+    this.ensureConnected()
+    const result = await this.db.collection(table).updateMany({ ...where }, { $set: { ...values } })
+    return result.modifiedCount
+  }
+
+  async ping() {
+    this.ensureConnected()
+    await this.db.command({ ping: 1 })
+  }
+
   async connect() {
     try {
       // Fail after 5s instead of the driver's default 30s, so a stopped

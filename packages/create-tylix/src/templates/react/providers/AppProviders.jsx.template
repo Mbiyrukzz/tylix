@@ -1,0 +1,19 @@
+// @if ts
+import type { ReactNode } from 'react'
+
+// @endif
+// Providers the whole app shares, around every route. Put app-wide state
+// here (theme, toasts, feature flags). Data for particular pages belongs
+// in a provider on those routes instead (see AppRoutes), so it loads only
+// where it is used.
+//
+// The session needs no provider: useAuth() from @tylix/react reads the
+// one shared session, which also stays in sync across tabs.
+// @if ts
+export default function AppProviders({ children }: { children: ReactNode }) {
+// @endif
+// @if !ts
+export default function AppProviders({ children }) {
+// @endif
+  return <>{children}</>
+}

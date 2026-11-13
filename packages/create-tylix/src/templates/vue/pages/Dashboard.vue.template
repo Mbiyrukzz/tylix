@@ -1,27 +1,13 @@
 <script setup__LANG__>
+import { IconMail, IconServer, IconShieldCheck } from 'tylix-icons/vue'
 import { useAuth, useHydrated } from '@tylix/vue'
 // @if posts
 import { ref } from 'vue'
-import { api, useApi } from '@tylix/vue'
+import { useMyPosts } from '../providers/posts'
 
-// @if ts
-// The fields GET /api/posts returns (app/models/Post).
-type Post = {
-  id: number
-  title: string
-  body: string
-  cover_image: string | null
-}
-
-// @endif
-// Your posts, from the Post feature the starter generated. /api/posts is
-// behind requireAuth and only returns the logged-in user's posts.
-// @if ts
-const { data: posts, loading: postsLoading, error: postsError, reload: reloadPosts } = useApi<Post[]>('/api/posts')
-// @endif
-// @if !ts
-const { data: posts, loading: postsLoading, error: postsError, reload: reloadPosts } = useApi('/api/posts')
-// @endif
+// Your posts (providers/posts): the list plus create and remove, which
+// reload it. Only the logged-in user's posts.
+const { posts, loading: postsLoading, error: postsError, create: createPost, remove: removePost } = useMyPosts()
 
 const title = ref('')
 const body = ref('')
@@ -35,16 +21,15 @@ async function create() {
     return
   }
   saving.value = true
-  const result = await api.post('/api/posts', { title: title.value.trim(), body: body.value.trim() })
+  const problem = await createPost({ title: title.value.trim(), body: body.value.trim() })
   saving.value = false
-  if (!result.ok) {
-    error.value = result.error ?? 'Could not save the post.'
+  if (problem) {
+    error.value = problem
     return
   }
   error.value = ''
   title.value = ''
   body.value = ''
-  reloadPosts()
 }
 
 // @if ts
@@ -53,9 +38,8 @@ async function remove(id: number) {
 // @if !ts
 async function remove(id) {
 // @endif
-  const result = await api.delete(`/api/posts/${id}`)
-  if (result.ok) reloadPosts()
-  else error.value = result.error ?? 'Could not delete the post.'
+  const problem = await removePost(id)
+  if (problem) error.value = problem
 }
 // @endif
 
@@ -73,14 +57,17 @@ const hydrated = useHydrated()
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
       <div :class="cardClass">
+        <IconMail class="w-4 h-4 text-emerald-500 mb-3" />
         <p class="text-xs text-zinc-500 mb-1">Email</p>
         <p class="text-sm font-semibold truncate">{{ user?.email }}</p>
       </div>
       <div :class="cardClass">
+        <IconShieldCheck class="w-4 h-4 text-emerald-500 mb-3" />
         <p class="text-xs text-zinc-500 mb-1">Session</p>
         <p class="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
       </div>
       <div :class="cardClass">
+        <IconServer class="w-4 h-4 text-emerald-500 mb-3" />
         <p class="text-xs text-zinc-500 mb-1">Protected API</p>
         <p class="text-sm font-semibold">GET /api/me</p>
       </div>
@@ -114,9 +101,9 @@ const hydrated = useHydrated()
         </button>
       </form>
 
-      <p v-if="postsLoading && !posts" class="text-sm text-zinc-500">Loading posts…</p>
+      <p v-if="postsLoading && posts.length === 0" class="text-sm text-zinc-500">Loading posts…</p>
       <p v-else-if="postsError" class="text-sm text-rose-600">{{ postsError }}</p>
-      <ul v-else-if="posts && posts.length > 0" class="space-y-3" data-testid="posts">
+      <ul v-else-if="posts.length > 0" class="space-y-3" data-testid="posts">
         <li v-for="post in posts" :key="post.id" :class="[cardClass, 'flex items-start justify-between gap-4']">
           <div>
             <p class="font-semibold">{{ post.title }}</p>

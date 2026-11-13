@@ -9,6 +9,7 @@
 import { envSource } from './loadEnv.js'
 
 export const CSP_MODES = ['off', 'report-only', 'enforce']
+export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent']
 
 function raw(name) {
   const value = process.env[name]
@@ -52,6 +53,36 @@ const parsers = {
     } catch {
       throw invalid(label, 'a full URL such as https://example.com', value)
     }
+  },
+  nonNegativeInteger(value, label) {
+    const number = Number(value)
+    if (!Number.isInteger(number) || number < 0) throw invalid(label, 'a whole number, 0 or more', value)
+    return number
+  },
+  logLevel(value, label) {
+    const level = String(value).trim().toLowerCase()
+    if (!LOG_LEVELS.includes(level)) throw invalid(label, LOG_LEVELS.join(', '), value)
+    return level
+  },
+  logFormat(value, label) {
+    const format = String(value).trim().toLowerCase()
+    if (format !== 'json' && format !== 'pretty') throw invalid(label, 'json or pretty', value)
+    return format
+  },
+  // true, false, or "api" (only /api/ requests).
+  accessLog(value, label) {
+    if (String(value).trim().toLowerCase() === 'api') return 'api'
+    return parsers.boolean(value, label)
+  },
+  storeDriver(value, label) {
+    const driver = String(value).trim().toLowerCase()
+    if (!['memory', 'database', 'redis'].includes(driver)) throw invalid(label, 'memory, database or redis', value)
+    return driver
+  },
+  // A number of processes, or "auto" for one per CPU core.
+  workers(value, label) {
+    if (String(value).trim().toLowerCase() === 'auto') return 'auto'
+    return parsers.positiveInteger(value, label)
   },
   cspMode(value, label) {
     const mode = String(value).trim().toLowerCase()
@@ -132,6 +163,9 @@ export function resolveAppSettings(userConfig = {}, sources = {}) {
       fallback: () => [],
       type: 'list',
     }),
+    // Processes "tylix start" runs, sharing the port: a number, or "auto"
+    // for one per CPU core.
+    workers: setting(sources, 'server.workers', { env: 'WORKERS', fileValue: server.workers, fallback: 1, type: 'workers' }),
     maxBodyBytes: setting(sources, 'server.maxBodyBytes', {
       env: 'MAX_BODY_BYTES',
       fileValue: server.maxBodyBytes,
@@ -155,9 +189,64 @@ export function resolveAppSettings(userConfig = {}, sources = {}) {
     },
   }
 
+  const observability = userConfig.observability ?? {}
+  const resolvedObservability = {
+    logLevel: setting(sources, 'observability.logLevel', { env: 'LOG_LEVEL', fileValue: observability.logLevel, fallback: 'info', type: 'logLevel' }),
+    // JSON lines for log collectors in production, readable lines otherwise.
+    logFormat: setting(sources, 'observability.logFormat', {
+      env: 'LOG_FORMAT',
+      fileValue: observability.logFormat,
+      fallback: production ? 'json' : 'pretty',
+      type: 'logFormat',
+    }),
+    accessLog: setting(sources, 'observability.accessLog', {
+      env: 'ACCESS_LOG',
+      fileValue: observability.accessLog,
+      fallback: production ? true : 'api',
+      type: 'accessLog',
+    }),
+    slowRequestMs: setting(sources, 'observability.slowRequestMs', {
+      env: 'SLOW_REQUEST_MS',
+      fileValue: observability.slowRequestMs,
+      fallback: 1000,
+      type: 'nonNegativeInteger',
+    }),
+    slowQueryMs: setting(sources, 'observability.slowQueryMs', {
+      env: 'SLOW_QUERY_MS',
+      fileValue: observability.slowQueryMs,
+      fallback: 200,
+      type: 'nonNegativeInteger',
+    }),
+    // Prometheus metrics at /metrics.
+    metrics: setting(sources, 'observability.metrics', { env: 'METRICS', fileValue: observability.metrics, fallback: false, type: 'boolean' }),
+    // When set, /metrics needs "Authorization: Bearer <token>"; when not,
+    // it answers only requests from this machine.
+    metricsToken: setting(sources, 'observability.metricsToken', {
+      env: 'METRICS_TOKEN',
+      fileValue: observability.metricsToken,
+      fallback: undefined,
+      type: 'string',
+    }),
+  }
+
+  const store = userConfig.store ?? {}
+  const resolvedStore = {
+    // Where rate limits, the cache and channel messages live. "database"
+    // (default) shares them between processes through the app's database;
+    // "redis" is faster for heavy traffic; "memory" is one process only.
+    driver: setting(sources, 'store.driver', { env: 'STORE_DRIVER', fileValue: store.driver, fallback: 'database', type: 'storeDriver' }),
+    redisUrl: setting(sources, 'store.redisUrl', { env: 'REDIS_URL', fileValue: store.redisUrl, fallback: 'redis://127.0.0.1:6379', type: 'string' }),
+    prefix: setting(sources, 'store.prefix', {
+      env: 'STORE_PREFIX',
+      fileValue: store.prefix,
+      fallback: `${String(resolvedApp.name).toLowerCase().replace(/[^a-z0-9]+/g, '-')}:`,
+      type: 'string',
+    }),
+  }
+
   const resolvedChannels = {
     port: setting(sources, 'channels.port', { env: 'CHANNELS_PORT', fileValue: channels.port, fallback: 6001, type: 'port' }),
   }
 
-  return { app: resolvedApp, server: resolvedServer, channels: resolvedChannels }
+  return { app: resolvedApp, server: resolvedServer, channels: resolvedChannels, observability: resolvedObservability, store: resolvedStore }
 }

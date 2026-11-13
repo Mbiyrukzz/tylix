@@ -1,0 +1,9 @@
+component IconGitCompare
+
+props
+  class?: string
+
+template
+  <svg class='{{ class or "w-5 h-5" }}' fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M13 6h3a2 2 0 0 1 2 2v8M11 18H8a2 2 0 0 1-2-2V8M15 3l-2 3 2 3M9 15l2 3-2 3"/>
+  </svg>

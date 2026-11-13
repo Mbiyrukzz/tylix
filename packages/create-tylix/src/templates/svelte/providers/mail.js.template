@@ -1,0 +1,35 @@
+import { getContext, setContext } from 'svelte'
+import { derived } from 'svelte/store'
+import { useApi } from '@tylix/svelte'
+import { mailUrls } from '../services/mail'
+// @if ts
+import type { MailLog } from '../services/mail'
+// @endif
+
+const MAIL_LOG = Symbol('mailLog')
+
+// The development mail log for DevMail, as a store: $log.mails, $log.loading.
+// See providers/posts for how the context sharing works.
+export function useMailLog() {
+// @if ts
+  const existing = getContext<ReturnType<typeof createMailLog> | undefined>(MAIL_LOG)
+// @endif
+// @if !ts
+  const existing = getContext(MAIL_LOG)
+// @endif
+  if (existing) return existing
+  const value = createMailLog()
+  setContext(MAIL_LOG, value)
+  return value
+}
+
+function createMailLog() {
+// @if ts
+  const result = useApi<{ data: MailLog[] }>(mailUrls.logs)
+// @endif
+// @if !ts
+  const result = useApi(mailUrls.logs)
+// @endif
+  const state = derived(result, (r) => ({ mails: r.data?.data ?? [], loading: r.loading, error: r.error }))
+  return { subscribe: state.subscribe, reload: result.reload }
+}

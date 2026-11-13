@@ -38,9 +38,11 @@ export default {
   // Bundle Angular into the server build too. Its npm packages are only
   // partially compiled; the Vite plugin's linker finishes them when they're
   // bundled. Left external, Node would load them unlinked, and they fail
-  // without the JIT compiler.
+  // without the JIT compiler. The same goes for any Angular component
+  // library, like tylix-icons/angular; add others to frontend.vite in
+  // tylix.config (ssr.noExternal).
   viteConfig: {
-    ssr: { noExternal: [/^@angular\//] },
+    ssr: { noExternal: [/^@angular\//, /^tylix-icons\/angular/] },
   },
 
   // Server-side rendering (frontend.ssr: true): app/frontend/entry-server

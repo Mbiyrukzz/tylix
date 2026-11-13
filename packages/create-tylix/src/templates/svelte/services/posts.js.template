@@ -1,0 +1,61 @@
+import { api } from '@tylix/svelte'
+
+// Everything the app knows about the Post API (app/controllers/PostController).
+// Only providers use this file: pages get their data from providers and
+// never see a URL.
+
+// @if ts
+// What GET /api/public/posts returns for each post.
+export type PublicPost = {
+  id: number
+  title: string
+  excerpt: string
+  cover_image: string | null
+  author: string
+  created_at: string
+}
+
+// What GET /api/public/posts/:id returns.
+export type PublicPostDetail = {
+  id: number
+  title: string
+  body: string
+  cover_image: string | null
+  author: string
+  created_at: string
+}
+
+// What GET /api/posts returns: the logged-in user's own posts.
+export type Post = {
+  id: number
+  title: string
+  body: string
+  cover_image: string | null
+}
+
+export type PostInput = { title: string; body: string }
+
+// @endif
+// URLs read through useApi, so server rendering can load them in-process.
+export const postUrls = {
+  publicList: '/api/public/posts',
+// @if ts
+  publicOne: (id: string | number) => `/api/public/posts/${id}`,
+// @endif
+// @if !ts
+  publicOne: (id) => `/api/public/posts/${id}`,
+// @endif
+  mine: '/api/posts',
+}
+
+// Writes. Each returns the api() result: { ok, status, data, error, errors }.
+export const postsService = {
+// @if ts
+  create: (input: PostInput) => api.post<Post>('/api/posts', input),
+  remove: (id: number) => api.delete(`/api/posts/${id}`),
+// @endif
+// @if !ts
+  create: (input) => api.post('/api/posts', input),
+  remove: (id) => api.delete(`/api/posts/${id}`),
+// @endif
+}

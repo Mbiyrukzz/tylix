@@ -32,6 +32,26 @@ export class DatabaseAdapter {
     throw new Error('columnType() not implemented')
   }
 
+  // Updates the rows matching every field in `where`; resolves to how
+  // many rows changed. One statement, so a check-and-set such as
+  // { status: 'pending' } -> { status: 'processing' } is atomic.
+  async updateWhere(table, values, where) {
+    const q = (name) => this.quoteIdentifier(name)
+    const sets = Object.keys(values).map((column) => `${q(column)} = ?`)
+    const conditions = Object.keys(where).map((column) => `${q(column)} = ?`)
+    if (sets.length === 0 || conditions.length === 0) throw new Error('updateWhere() needs values and at least one condition.')
+    const result = await this.run(`UPDATE ${q(table)} SET ${sets.join(', ')} WHERE ${conditions.join(' AND ')}`, [
+      ...Object.values(values),
+      ...Object.values(where),
+    ])
+    return Number(result?.changes ?? result?.rowCount ?? result?.affectedRows ?? 0)
+  }
+
+  // Resolves when the database answers; used by /ready.
+  async ping() {
+    await this.get('SELECT 1')
+  }
+
   async count(table) {
     throw new Error('count() not implemented')
   }

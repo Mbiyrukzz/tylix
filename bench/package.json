@@ -1,0 +1,16 @@
+{
+  "name": "tylix-bench",
+  "private": true,
+  "type": "module",
+  "description": "HTTP benchmarks: Tylix's server against node:http, Fastify, Express and Hono. Not part of the workspaces; run npm install here first.",
+  "scripts": {
+    "bench": "node run.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "1.14.4",
+    "autocannon": "8.0.0",
+    "express": "5.1.0",
+    "fastify": "5.4.0",
+    "hono": "4.8.3"
+  }
+}

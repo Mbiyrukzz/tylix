@@ -312,6 +312,10 @@ try {
     await step('forgot password sends a reset link', async () => {
       await page.goto(`${base}/login`)
       await page.getByRole('link', { name: 'Forgot password?' }).click()
+      // The login page has an #email field too: wait for the new page
+      // before filling, or the old form may get the text.
+      await page.waitForURL('**/forgot-password')
+      await page.getByRole('button', { name: 'Send reset link' }).waitFor()
       await page.fill('#email', email)
       await page.getByRole('button', { name: 'Send reset link' }).click()
       await page.getByTestId('reset-sent').waitFor()

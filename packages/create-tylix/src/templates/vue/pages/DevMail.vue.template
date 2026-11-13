@@ -1,29 +1,11 @@
 <script setup__LANG__>
-import { computed } from 'vue'
-import { useApi } from '@tylix/vue'
+import { useMailLog } from '../providers/mail'
 
-// @if ts
-type MailLog = {
-  id: number
-  recipient: string
-  subject: string
-  body: string
-  status: string
-  created_at: string
-}
-
-// @endif
 // Development only (router registers this route when import.meta.env.DEV
 // is true, and the API behind it doesn't exist in production). With
 // MAIL_DRIVER=log, mails are recorded instead of sent, so verification and
 // password-reset links can be clicked from here.
-// @if ts
-const { data, loading, error, reload } = useApi<{ data: MailLog[] }>('/api/_tylix/mail-logs')
-// @endif
-// @if !ts
-const { data, loading, error, reload } = useApi('/api/_tylix/mail-logs')
-// @endif
-const mails = computed(() => (data.value ? data.value.data : []))
+const { mails, loading, error, reload } = useMailLog()
 
 // A mail usually holds each link twice (href and text). The links are made
 // relative, so they open on this server whatever APP_URL says.
@@ -56,7 +38,7 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeS
     </div>
     <p class="text-sm text-zinc-500 mb-8">The last 50 mails, newest first. Only available in development.</p>
 
-    <p v-if="loading && !data" class="text-sm text-zinc-500">Loading…</p>
+    <p v-if="loading && mails.length === 0" class="text-sm text-zinc-500">Loading…</p>
     <p v-else-if="error" class="text-sm text-rose-600">{{ error }}</p>
     <p v-else-if="mails.length === 0" class="text-sm text-zinc-500">No mails yet.</p>
     <ul v-else class="space-y-3" data-testid="mail-log">

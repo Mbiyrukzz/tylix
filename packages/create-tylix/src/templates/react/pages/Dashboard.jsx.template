@@ -1,6 +1,8 @@
+import { IconMail, IconServer, IconShieldCheck } from 'tylix-icons/react'
 // @if posts
 import { useState } from 'react'
-import { api, useApi, useAuth, useHydrated } from '@tylix/react'
+import { useAuth, useHydrated } from '@tylix/react'
+import { useMyPosts } from '../providers/PostsProvider'
 // @endif
 // @if !posts
 import { useAuth } from '@tylix/react'
@@ -20,14 +22,17 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
         <div className={cardClass}>
+          <IconMail className="w-4 h-4 text-emerald-500 mb-3" />
           <p className="text-xs text-zinc-500 mb-1">Email</p>
           <p className="text-sm font-semibold truncate">{user?.email}</p>
         </div>
         <div className={cardClass}>
+          <IconShieldCheck className="w-4 h-4 text-emerald-500 mb-3" />
           <p className="text-xs text-zinc-500 mb-1">Session</p>
           <p className="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
         </div>
         <div className={cardClass}>
+          <IconServer className="w-4 h-4 text-emerald-500 mb-3" />
           <p className="text-xs text-zinc-500 mb-1">Protected API</p>
           <p className="text-sm font-semibold">GET /api/me</p>
         </div>
@@ -41,27 +46,12 @@ export default function Dashboard() {
 }
 // @if posts
 
-// @if ts
-// The fields GET /api/posts returns (app/models/Post).
-type Post = {
-  id: number
-  title: string
-  body: string
-  cover_image: string | null
-}
-
-// @endif
-// Your posts, from the Post feature the starter generated. /api/posts is
-// behind requireAuth and only returns the logged-in user's posts.
+// Your posts, from <MyPostsProvider> (AppRoutes): the list plus create
+// and remove, which reload it. Only the logged-in user's posts.
 function Posts() {
   // Submitting before hydration would reload the page; see useHydrated.
   const hydrated = useHydrated()
-  // @if ts
-  const posts = useApi<Post[]>('/api/posts')
-  // @endif
-  // @if !ts
-  const posts = useApi('/api/posts')
-  // @endif
+  const { posts, loading, error: loadError, create: createPost, remove: removePost } = useMyPosts()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [error, setError] = useState('')
@@ -74,16 +64,15 @@ function Posts() {
       return
     }
     setSaving(true)
-    const result = await api.post('/api/posts', { title: title.trim(), body: body.trim() })
+    const problem = await createPost({ title: title.trim(), body: body.trim() })
     setSaving(false)
-    if (!result.ok) {
-      setError(result.error ?? 'Could not save the post.')
+    if (problem) {
+      setError(problem)
       return
     }
     setError('')
     setTitle('')
     setBody('')
-    posts.reload()
   }
 
   return (
@@ -126,13 +115,13 @@ function Posts() {
         </button>
       </form>
 
-      {posts.loading && !posts.data ? (
+      {loading && posts.length === 0 ? (
         <p className="text-sm text-zinc-500">Loading posts…</p>
-      ) : posts.error ? (
-        <p className="text-sm text-rose-600">{posts.error}</p>
-      ) : posts.data && posts.data.length > 0 ? (
+      ) : loadError ? (
+        <p className="text-sm text-rose-600">{loadError}</p>
+      ) : posts.length > 0 ? (
         <ul className="space-y-3" data-testid="posts">
-          {posts.data.map((post) => (
+          {posts.map((post) => (
             <li key={post.id} className={`${cardClass} flex items-start justify-between gap-4`}>
               <div>
                 <p className="font-semibold">{post.title}</p>
@@ -141,9 +130,8 @@ function Posts() {
               <button
                 type="button"
                 onClick={async () => {
-                  const result = await api.delete(`/api/posts/${post.id}`)
-                  if (result.ok) posts.reload()
-                  else setError(result.error ?? 'Could not delete the post.')
+                  const problem = await removePost(post.id)
+                  if (problem) setError(problem)
                 }}
                 className="text-sm text-zinc-500 hover:text-rose-600 transition-colors"
               >

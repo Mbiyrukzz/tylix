@@ -53,7 +53,9 @@ function reactPage(n, ts) {
   const { heading, hint } = pageBody(n.base, file)
   return {
     file,
-    content: `export default function ${n.base}() {
+    content: `// Pages render; data comes from a provider on this page's route (see
+// AppRoutes and providers/), which calls the API through services/.
+export default function ${n.base}() {
   return (
     <section className="max-w-6xl mx-auto px-6 py-12">
       <h1 className="text-3xl font-semibold tracking-tight">${heading}</h1>
@@ -148,7 +150,7 @@ const PAGES = { react: reactPage, vue: vuePage, svelte: sveltePage, angular: ang
 export function routeFile(driver, ts) {
   switch (driver) {
     case 'react':
-      return ts ? 'App.tsx' : 'App.jsx'
+      return ts ? 'AppRoutes.tsx' : 'AppRoutes.jsx'
     case 'vue':
       return ts ? 'router.ts' : 'router.js'
     case 'svelte':
@@ -158,6 +160,22 @@ export function routeFile(driver, ts) {
     default:
       throw new Error(`No hosted frontend "${driver}".`)
   }
+}
+
+// The route file a project actually has: the current one, or the older
+// location (React's App.jsx) when only that exists. `exists` checks a
+// path relative to app/frontend.
+export async function findRouteFile(driver, ts, exists) {
+  const current = routeFile(driver, ts)
+  const legacy = legacyRouteFile(driver, ts)
+  if (legacy && !(await exists(current)) && (await exists(legacy))) return legacy
+  return current
+}
+
+// Where projects made before a frontend's current layout keep their routes
+// (React starters used to route in App.jsx), or null.
+export function legacyRouteFile(driver, ts) {
+  return driver === 'react' ? (ts ? 'App.tsx' : 'App.jsx') : null
 }
 
 export function pageFiles(driver, name, { ts = false } = {}) {

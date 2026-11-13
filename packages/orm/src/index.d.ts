@@ -10,4 +10,4 @@ export * from "./adapters/MysqlAdapter.js";
 export * from "./adapters/MongoAdapter.js";
 export * from "./query/QueryBuilder.js";
 export * from "./query/buildSelectSql.js";
-export * from "./query/types.js";
+export * from "./query/types.js";export * from "./instrumentation.js";

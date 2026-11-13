@@ -1,0 +1,40 @@
+import { computed, inject, provide } from 'vue'
+// @if ts
+import type { InjectionKey } from 'vue'
+// @endif
+import { useApi } from '@tylix/vue'
+import { mailUrls } from '../services/mail'
+// @if ts
+import type { MailLog } from '../services/mail'
+// @endif
+
+// The development mail log for DevMail. See providers/posts for how the
+// provide/inject sharing works.
+function createMailLog() {
+// @if ts
+  const result = useApi<{ data: MailLog[] }>(mailUrls.logs)
+// @endif
+// @if !ts
+  const result = useApi(mailUrls.logs)
+// @endif
+  return {
+    mails: computed(() => result.data.value?.data ?? []),
+    loading: result.loading,
+    error: result.error,
+    reload: result.reload,
+  }
+}
+// @if ts
+const MAIL_LOG: InjectionKey<ReturnType<typeof createMailLog>> = Symbol('mailLog')
+// @endif
+// @if !ts
+const MAIL_LOG = Symbol('mailLog')
+// @endif
+
+export function useMailLog() {
+  const existing = inject(MAIL_LOG, null)
+  if (existing) return existing
+  const value = createMailLog()
+  provide(MAIL_LOG, value)
+  return value
+}

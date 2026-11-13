@@ -8,13 +8,13 @@ import { discoverFeatures } from '@tylix/core'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { FRONTEND_PACKAGES, NATIVE_DRIVER, SSR_OUTLET, loadFrontendAdapter } from '../frontend/frontendHost.js'
 import { resolveFromProject } from '../frontend/importFromProject.js'
-import { routeFile, ROUTES_MARKER } from '../frontend/generateFiles.js'
+import { findRouteFile, ROUTES_MARKER } from '../frontend/generateFiles.js'
 
 const execFileAsync = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
-const LABEL_WIDTH = 22
+const LABEL_WIDTH = 30
 const MIN_NODE_MAJOR = 22
 
 // Folders the make:* commands write into. Missing ones aren't errors: the
@@ -31,7 +31,7 @@ function settingRows(config) {
       else if (config.sources[key]) rows.push([key, describeSetting(value, config.sources[key])])
     }
   }
-  for (const section of ['app', 'server', 'channels']) walk(section, config[section])
+  for (const section of ['app', 'server', 'store', 'channels', 'observability']) walk(section, config[section])
   return rows
 }
 
@@ -66,7 +66,8 @@ async function walk(dir, keep) {
 function createReporter() {
   const counts = { ok: 0, warn: 0, fail: 0 }
   async function check(label, fn) {
-    const name = label.padEnd(LABEL_WIDTH)
+    // Always at least two spaces between a long label and its detail.
+    const name = label.length >= LABEL_WIDTH - 1 ? `${label}  ` : label.padEnd(LABEL_WIDTH)
     try {
       const result = await fn()
       if (result instanceof Warning) {
@@ -308,7 +309,7 @@ export async function doctor() {
       }
     }
     await check('route markers', async () => {
-      const file = path.join(frontendDir, routeFile(driver, ts))
+      const file = path.join(frontendDir, await findRouteFile(driver, ts, (f) => pathExists(path.join(frontendDir, f))))
       const source = await fs.readFile(file, 'utf-8').catch(() => null)
       if (source === null) return warn(`${rel(file)} not found, so make:page can't add routes`)
       if (!source.includes(ROUTES_MARKER)) return warn(`${rel(file)} has no "${ROUTES_MARKER}" marker; make:page will print routes to add by hand`)

@@ -1,5 +1,10 @@
 import http from 'node:http'
-import { enhanceResponse } from './enhanceResponse.js'
+import { randomUUID } from 'node:crypto'
+import { monitorEventLoopDelay } from 'node:perf_hooks'
+import { TylixResponse, enhanceResponse } from './enhanceResponse.js'
+import { requestContext } from '../observability/context.js'
+import { logger as defaultLogger } from '../observability/logger.js'
+import { metrics as defaultMetrics } from '../observability/metrics.js'
 import { readBody } from './parseBody.js'
 import { parseQuery } from './parseQuery.js'
 import { parseCookies } from './parseCookies.js'
@@ -80,6 +85,53 @@ function isSecure(req, trustProxy) {
 // link click, reload). fetch()/useApi sends "empty", so API calls from
 // the app keep getting JSON. Clients without the header (curl) fall
 // back to the Accept check.
+function pathOf(url) {
+  const queryAt = String(url).indexOf('?')
+  return queryAt === -1 ? String(url) : String(url).slice(0, queryAt)
+}
+
+// HTTP/1.1: a request has a body only when it says so with
+// Content-Length or Transfer-Encoding.
+function hasBody(req) {
+  const length = req.headers['content-length']
+  if (length !== undefined) return length !== '0'
+  return req.headers['transfer-encoding'] !== undefined
+}
+
+// A client-sent X-Request-Id is kept (it ties the request to the
+// caller's logs) when it looks like an id; otherwise a new one is made.
+const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/
+const QUIET_PATHS = new Set(['/health', '/ready', '/metrics'])
+
+function requestIdOf(req) {
+  const given = req.headers['x-request-id']
+  return typeof given === 'string' && REQUEST_ID.test(given) ? given : randomUUID()
+}
+
+// HTTP and process metrics, defined once per registry.
+const httpMetricsByRegistry = new WeakMap()
+
+function httpMetrics(registry) {
+  let defined = httpMetricsByRegistry.get(registry)
+  if (defined) return defined
+  const loopDelay = monitorEventLoopDelay({ resolution: 20 })
+  loopDelay.enable()
+  defined = {
+    requests: registry.counter('http_requests_total', 'HTTP requests by method, route and status'),
+    duration: registry.histogram('http_request_duration_seconds', 'HTTP request duration by method and route'),
+  }
+  registry.gauge('process_resident_memory_bytes', 'Resident memory', () => process.memoryUsage.rss())
+  registry.gauge('nodejs_heap_used_bytes', 'V8 heap in use', () => process.memoryUsage().heapUsed)
+  registry.gauge('process_uptime_seconds', 'Seconds since the process started', () => Math.round(process.uptime()))
+  registry.gauge('nodejs_eventloop_lag_p99_seconds', 'Event loop delay, 99th percentile', () => {
+    const p99 = loopDelay.percentile(99) / 1e9
+    loopDelay.reset()
+    return p99
+  })
+  httpMetricsByRegistry.set(registry, defined)
+  return defined
+}
+
 function wantsHtml(req) {
   if (req.method !== 'GET') return false
   const dest = req.headers['sec-fetch-dest']
@@ -105,6 +157,11 @@ export class Server {
       appUrl,
       cspMode,
       csp,
+      logger,
+      accessLog,
+      slowRequestMs,
+      metrics,
+      compression,
     } = {},
   ) {
     this.router = router
@@ -157,6 +214,19 @@ export class Server {
     ).toLowerCase()
     this.csp = csp ?? (process.env.CSP_POLICY || DEFAULT_CSP)
 
+    this.logger = logger ?? defaultLogger
+    // One line per request: true, false, or "api" (only /api/ requests,
+    // the development default, so asset and page requests stay quiet).
+    this.accessLog = accessLog ?? (this.production ? true : 'api')
+    // Requests slower than this are logged as warnings (0 turns it off).
+    this.slowRequestMs = slowRequestMs ?? 1000
+    // A metrics registry (or true for the shared one) to record HTTP
+    // metrics in; off by default.
+    this.metrics = metrics === true ? defaultMetrics : metrics || null
+    this.httpMetrics = this.metrics ? httpMetrics(this.metrics) : null
+    // Compress JSON responses of at least this many bytes (false: never).
+    this.compressMinBytes = compression === false ? 0 : (compression?.minBytes ?? 1024)
+
     if (this.debug && this.production) {
       console.warn(
         '[tylix] APP_DEBUG is on while NODE_ENV=production. Error responses ' +
@@ -166,13 +236,46 @@ export class Server {
   }
 
   createHandler() {
-    return async (req, res) => {
-      enhanceResponse(res)
-      try {
-        await this.handle(req, res)
-      } catch (err) {
-        this.fail(req, res, err)
-      }
+    return (req, res) => {
+      const startedAt = performance.now()
+      const requestId = requestIdOf(req)
+      req.id = requestId
+      res.setHeader('X-Request-Id', requestId)
+      res.once('finish', () => this.finishRequest(req, res, startedAt))
+      // Everything the request awaits runs inside its context, so logs
+      // anywhere below carry its id.
+      res.compressMinBytes = this.compressMinBytes
+      return requestContext.run({ requestId, method: req.method, path: pathOf(req.url) }, async () => {
+        enhanceResponse(res)
+        try {
+          await this.handle(req, res)
+        } catch (err) {
+          this.fail(req, res, err)
+        }
+      })
+    }
+  }
+
+  // Access log, slow-request warning and metrics, once the response is sent.
+  finishRequest(req, res, startedAt) {
+    const durationMs = performance.now() - startedAt
+    const path = pathOf(req.url)
+    // The route's pattern, not the URL: /posts/:id stays one series.
+    const route = req.route?.pattern ?? (res.statusCode === 404 ? 'not_found' : 'other')
+    if (this.httpMetrics) {
+      this.httpMetrics.requests.inc({ method: req.method, route, status: res.statusCode })
+      this.httpMetrics.duration.observe(durationMs / 1000, { method: req.method, route })
+    }
+    const fields = { method: req.method, path, status: res.statusCode, ms: Math.round(durationMs), requestId: req.id }
+    if (this.slowRequestMs > 0 && durationMs > this.slowRequestMs) {
+      this.logger.warn('Slow request', { ...fields, route })
+      return
+    }
+    // Health checks and metrics scrapes arrive every few seconds; logging
+    // them would bury everything else.
+    if (QUIET_PATHS.has(path)) return
+    if (this.accessLog === true || (this.accessLog === 'api' && path.startsWith('/api/'))) {
+      if (this.logger.isLevelEnabled('info')) this.logger.info(`${req.method} ${path} ${res.statusCode} ${fields.ms}ms`, this.production ? fields : undefined)
     }
   }
 
@@ -247,8 +350,18 @@ export class Server {
     }
 
     req.params = match.params
+    req.route = match.route
     req.query = parseQuery(req.url)
     req.cookies = parseCookies(req)
+
+    // Nothing to read on a request without a body (most GETs): skip
+    // waiting for the stream to end.
+    if (!hasBody(req)) {
+      req.rawBody = ''
+      req.body = {}
+      await match.handler(req, res)
+      return
+    }
 
     try {
       const { raw, body } = await readBody(req, { maxBytes: this.maxBodyBytes })
@@ -270,20 +383,18 @@ export class Server {
 
   logFailure(req, err) {
     // Log the path only: query strings can carry tokens.
-    const where = `${req.method} ${String(req.url).split('?')[0]}`
+    const fields = { method: req.method, path: pathOf(req.url), requestId: req.id }
 
     if (err?.name === 'DatabaseError') {
-      const lines = [
-        `[tylix] ${where} failed: ${err.title || 'Database error'}` +
-          ` (${err.driver}/${err.kind})`,
-        `  ${err.message}`,
-      ]
-      if (err.sql) lines.push(`  SQL: ${err.sql}`)
-      if (err.hint) lines.push(`  Fix: ${err.hint}`)
-      console.error(lines.join('\n'))
+      this.logger.error(`${err.title || 'Database error'} (${err.driver}/${err.kind})`, {
+        ...fields,
+        detail: err.message,
+        ...(err.sql ? { sql: err.sql } : {}),
+        ...(err.hint ? { fix: err.hint } : {}),
+      })
     }
 
-    console.error(`[tylix] ${where} failed:`, err)
+    this.logger.error(`${fields.method} ${fields.path} failed`, { ...fields, error: err })
   }
 
   sendDebug(req, res, err) {
@@ -344,7 +455,7 @@ export class Server {
   // the one requested, so print THAT in your "running at" message.
   // Port 0 (let the OS pick) never retries.
   listen(port, callback) {
-    const server = http.createServer(this.createHandler())
+    const server = http.createServer({ ServerResponse: TylixResponse }, this.createHandler())
     const requested = Number(port)
     let attempt = 0
 

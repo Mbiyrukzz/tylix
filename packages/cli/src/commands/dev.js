@@ -410,6 +410,7 @@ async function runServer({ port } = {}) {
     appUrl: app.config.app.url,
     cspMode: settings.csp.mode,
     csp: settings.csp.policy,
+    ...app.serverOptions,
   })
 
   // `actualPort` is the port that was really bound. It differs from

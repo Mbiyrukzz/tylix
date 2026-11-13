@@ -1,0 +1,108 @@
+import { Route, Routes } from 'react-router'
+// @if auth
+import { GuestOnly, RequireAuth } from '@tylix/react'
+import { RedirectAfterLogin, RedirectToLogin } from './components/Redirects'
+// @endif
+import Layout, { PageLoading } from './components/Layout'
+// @if posts
+import { MyPostsProvider, PostProvider, PublicPostsProvider } from './providers/PostsProvider'
+// @endif
+// @if auth
+import { MailLogProvider } from './providers/MailLogProvider'
+// @endif
+import Home from './pages/Home'
+// @if auth
+import Login from './pages/Login'
+import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import Dashboard from './pages/Dashboard'
+import DevMail from './pages/DevMail'
+// @endif
+// @if posts
+import Posts from './pages/Posts'
+import PostDetail from './pages/PostDetail'
+// @endif
+// tylix:imports (make:page adds page imports above this line)
+import NotFound from './pages/NotFound'
+
+// Every page and its URL. Tylix serves the API (/api/*) itself, so those
+// requests never reach this router.
+//
+// Data providers wrap the routes that use them: <PublicPostsProvider>
+// around /posts loads the posts for that page only, and the page reads
+// them with usePublicPosts(). Pages never call the API themselves.
+//
+// RequireAuth and GuestOnly decide what to show. They don't protect data:
+// the API routes behind requireAuth do. The server also redirects guests
+// away from the paths in frontend.protected (tylix.config) before any
+// HTML is sent.
+export default function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<Home />} />
+        {/* @if posts */}
+        <Route element={<PublicPostsProvider />}>
+          <Route path="posts" element={<Posts />} />
+        </Route>
+        <Route element={<PostProvider />}>
+          <Route path="posts/:id" element={<PostDetail />} />
+        </Route>
+        {/* @endif */}
+        {/* @if auth */}
+        <Route
+          path="login"
+          element={
+            <GuestOnly fallback={<RedirectAfterLogin />} loading={<PageLoading />}>
+              <Login />
+            </GuestOnly>
+          }
+        />
+        <Route
+          path="register"
+          element={
+            <GuestOnly fallback={<RedirectAfterLogin />} loading={<PageLoading />}>
+              <Register />
+            </GuestOnly>
+          }
+        />
+        <Route
+          path="forgot-password"
+          element={
+            <GuestOnly fallback={<RedirectAfterLogin />} loading={<PageLoading />}>
+              <ForgotPassword />
+            </GuestOnly>
+          }
+        />
+        {/* Not guarded: the link in the reset email must work in any state. */}
+        <Route path="reset-password" element={<ResetPassword />} />
+        <Route
+          path="dashboard"
+          element={
+            <RequireAuth fallback={<RedirectToLogin />} loading={<PageLoading />}>
+              {/* @if posts */}
+              <MyPostsProvider>
+                <Dashboard />
+              </MyPostsProvider>
+              {/* @endif */}
+              {/* @if !posts */}
+              <Dashboard />
+              {/* @endif */}
+            </RequireAuth>
+          }
+        />
+        {/* Development only: the mails MAIL_DRIVER=log recorded, so you can
+            click verification and reset links without a mail server. */}
+        {import.meta.env.DEV && (
+          <Route element={<MailLogProvider />}>
+            <Route path="dev/mail" element={<DevMail />} />
+          </Route>
+        )}
+        {/* @endif */}
+        {/* tylix:routes (make:page adds routes above this line) */}
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  )
+}

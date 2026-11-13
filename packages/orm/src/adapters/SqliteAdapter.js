@@ -1,5 +1,15 @@
 import { DatabaseAdapter } from './DatabaseAdapter.js'
 import { normalizeDatabaseError } from './DatabaseError.js'
+import { emitQuery, hasQueryListeners } from '../instrumentation.js'
+
+// Prepared statements kept per connection, so a repeated query skips
+// SQLite's parse and plan step. Bounded: the oldest is dropped first.
+// A prepared "SELECT *" keeps the columns it was prepared with, so the
+// cache is cleared when the schema changes: at once for DDL run here, and
+// within a second for a migration run by another process.
+const STATEMENT_CACHE_SIZE = 500
+const SCHEMA_CHECK_MS = 1000
+const DDL = /^\s*(CREATE|ALTER|DROP)\b/i
 
 const COLUMN_TYPES = {
   increments: 'INTEGER PRIMARY KEY AUTOINCREMENT',
@@ -19,6 +29,9 @@ export class SqliteAdapter extends DatabaseAdapter {
     super()
     this.filename = filename
     this.db = null
+    this.statements = new Map()
+    this.schemaVersion = null
+    this.schemaCheckedAt = 0
   }
 
   async connect() {
@@ -35,6 +48,7 @@ export class SqliteAdapter extends DatabaseAdapter {
 
   async close() {
     if (this.db) {
+      this.statements.clear()
       this.db.close()
       this.db = null
     }
@@ -55,11 +69,49 @@ export class SqliteAdapter extends DatabaseAdapter {
   // is prepared, so prepare() is inside the try as well.
   execute(method, sql, params = []) {
     this.ensureConnected()
+    const timed = hasQueryListeners()
+    const start = timed ? performance.now() : 0
     try {
-      return this.db.prepare(sql)[method](...params)
+      const result = this.statement(sql)[method](...params)
+      if (timed) emitQuery({ driver: 'sqlite', sql, durationMs: performance.now() - start })
+      return result
     } catch (err) {
+      if (timed) emitQuery({ driver: 'sqlite', sql, durationMs: performance.now() - start, error: err })
       throw normalizeDatabaseError('sqlite', err, { sql, params })
     }
+  }
+
+  statement(sql) {
+    if (DDL.test(sql)) {
+      this.statements.clear()
+      this.schemaCheckedAt = 0
+      return this.db.prepare(sql)
+    }
+    const now = Date.now()
+    if (now - this.schemaCheckedAt > SCHEMA_CHECK_MS) {
+      this.schemaCheckedAt = now
+      const { schema_version: version } = this.db.prepare('PRAGMA schema_version').get()
+      if (version !== this.schemaVersion) {
+        // Reading the schema table makes SQLite reload this connection's
+        // copy of the schema; reading the version alone does not, and new
+        // statements would still be prepared against the old columns.
+        if (this.schemaVersion !== null) this.db.prepare('SELECT 1 FROM sqlite_schema LIMIT 1').get()
+        this.statements.clear()
+        this.schemaVersion = version
+      }
+    }
+    let statement = this.statements.get(sql)
+    if (statement) {
+      // Most recently used goes last, so the first entry is the oldest.
+      this.statements.delete(sql)
+    } else {
+      statement = this.db.prepare(sql)
+      if (this.statements.size >= STATEMENT_CACHE_SIZE) {
+        this.statements.delete(this.statements.keys().next().value)
+      }
+    }
+    this.statements.set(sql, statement)
+    return statement
   }
 
   async run(sql, params = []) {

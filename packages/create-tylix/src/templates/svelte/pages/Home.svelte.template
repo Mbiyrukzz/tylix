@@ -49,7 +49,7 @@
     </div>
     <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
       <h2 class="font-semibold mb-2">@tylix/svelte</h2>
-      <p class="text-sm text-zinc-500">session, useApi and a router, wired to the same session as the API.</p>
+      <p class="text-sm text-zinc-500">session, data providers and a router, wired to the same session as the API.</p>
     </div>
   </div>
 </section>

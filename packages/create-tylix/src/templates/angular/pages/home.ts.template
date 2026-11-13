@@ -52,7 +52,7 @@ import { injectAuth } from '@tylix/angular'
         </div>
         <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
           <h2 class="font-semibold mb-2">&#64;tylix/angular</h2>
-          <p class="text-sm text-zinc-500">injectAuth, injectApi and route guards, wired to the same session as the API.</p>
+          <p class="text-sm text-zinc-500">injectAuth, page stores and route guards, wired to the same session as the API.</p>
         </div>
       </div>
     </section>

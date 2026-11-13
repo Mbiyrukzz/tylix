@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pascalCase, detectLanguage, loadConfig, loadEnv, exists } from '@tylix/shared'
-import { channelPageFiles, registerRoute, routeFile } from '../frontend/generateFiles.js'
+import { channelPageFiles, registerRoute, routeFile, findRouteFile } from '../frontend/generateFiles.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
@@ -93,7 +93,7 @@ async function writeHostedDemo(baseDir, driver, pageName, channelName, ts) {
   const frontendDir = path.join(baseDir, 'app', 'frontend')
   const page = channelPageFiles(driver, pageName, channelName, { ts })
   const pagePath = path.join(frontendDir, page.file)
-  const routesPath = path.join(frontendDir, routeFile(driver, ts))
+  const routesPath = path.join(frontendDir, await findRouteFile(driver, ts, (file) => exists(path.join(frontendDir, file))))
   const rel = (p) => path.relative(baseDir, p)
 
   if (await exists(pagePath)) {
