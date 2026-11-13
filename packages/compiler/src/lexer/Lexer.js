@@ -163,7 +163,20 @@ export class Lexer {
     this.tokenStart = 0
   }
 
+  // Errors leave with `offset` (a character index into this source)
+  // so tools can point at the exact spot, not just the line.
   tokenize() {
+    try {
+      return this.tokenizeAll()
+    } catch (err) {
+      if (err && typeof err === 'object' && err.offset === undefined) {
+        err.offset = this.tokenStart
+      }
+      throw err
+    }
+  }
+
+  tokenizeAll() {
     const src = this.source
 
     while (this.pos < src.length) {

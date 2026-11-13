@@ -24,7 +24,12 @@ export function parseComponentFile(source) {
   const scriptEnd =
     boundaries.find((b) => b.keyword === 'template')?.start ??
     afterDeclaration.length
-  const scriptSource = afterDeclaration.slice(0, scriptEnd).trim()
+  const rawScript = afterDeclaration.slice(0, scriptEnd)
+  const scriptSource = rawScript.trim()
+  const declarationEnd = componentMatch.index + componentMatch[0].length
+  const leading = (text) => text.length - text.trimStart().length
+  const scriptOffset = declarationEnd + leading(rawScript)
+  let templateOffset = declarationEnd
 
   const templateBoundary = boundaries.find((b) => b.keyword === 'template')
   const styleBoundary = boundaries.find((b) => b.keyword === 'style')
@@ -35,9 +40,13 @@ export function parseComponentFile(source) {
       styleBoundary && styleBoundary.start > templateBoundary.start
         ? styleBoundary.start
         : afterDeclaration.length
-    template = afterDeclaration
-      .slice(templateBoundary.contentStart, templateEnd)
-      .trim()
+    const rawTemplate = afterDeclaration.slice(
+      templateBoundary.contentStart,
+      templateEnd,
+    )
+    template = rawTemplate.trim()
+    templateOffset =
+      declarationEnd + templateBoundary.contentStart + leading(rawTemplate)
   }
 
   let style = ''
@@ -51,5 +60,12 @@ export function parseComponentFile(source) {
     )
   }
 
-  return { componentName, script: scriptSource, template, style }
+  return {
+    componentName,
+    script: scriptSource,
+    template,
+    style,
+    scriptOffset,
+    templateOffset,
+  }
 }

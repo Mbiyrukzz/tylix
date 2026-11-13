@@ -1,6 +1,6 @@
 {
   "name": "@tylix/charts",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Hand-rolled SVG charts for Tylix: sparkline, line, area, bar, pie and donut",
   "license": "MIT",
   "author": "Mbiyrukzz",

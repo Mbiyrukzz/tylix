@@ -9,48 +9,12 @@ import {
   loadFrontendAdapter,
   resolveFrontendDriver,
 } from '../frontend/frontendHost.js'
+import { runCheck } from './check.js'
 
 const execFileAsync = promisify(execFile)
 
 const DEV_AUTH_SECRET = 'tylix-dev-secret-change-me'
 
-
-async function walkPagesDir(dir) {
-  if (!(await pathExists(dir))) return []
-  const entries = await fs.readdir(dir, { withFileTypes: true })
-  const files = []
-  for (const entry of entries) {
-    if (entry.isDirectory() && entry.name === 'components') continue
-    const fullPath = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      files.push(...(await walkPagesDir(fullPath)))
-    } else if (entry.name.endsWith('.tyx') && entry.name !== '_layout.tyx') {
-      files.push(fullPath)
-    }
-  }
-  return files
-}
-
-// Same source dev.js feeds typecheckPage as its second argument, so
-// pages that call generated API helpers (useApi) typecheck the same
-// way in build as they do in dev. Kept in sync with dev.js's
-// loadApiHelpersForTypecheck -- worth moving into a shared util.
-async function loadApiHelpersForTypecheck(baseDir) {
-  const apiDir = path.join(baseDir, 'app', 'useApi')
-  if (!(await pathExists(apiDir))) return ''
-
-  const entries = await fs.readdir(apiDir, { withFileTypes: true })
-  const sources = []
-  for (const entry of entries) {
-    if (entry.isFile() && entry.name.endsWith('.ts')) {
-      const raw = await fs.readFile(path.join(apiDir, entry.name), 'utf-8')
-      sources.push(
-        raw.replace(/^import\s+.*$/gm, '').replace(/export\s+/g, ''),
-      )
-    }
-  }
-  return sources.join('\n\n')
-}
 
 // Returns true if the config check passed.
 async function checkConfig(baseDir, language, isProduction) {
@@ -82,46 +46,32 @@ async function checkConfig(baseDir, language, isProduction) {
   return true
 }
 
-// Returns true if every page passed.
-async function typecheckPages(baseDir) {
-  const { typecheckPage, extractImports } = await import('@tylix/compiler')
+// Returns true if every .tyx file under app/ parsed (and typechecked).
+async function checkTyxFiles(baseDir, typecheck) {
+  const { formatDiagnostic } = await import('@tylix/compiler')
+  const result = await runCheck({ baseDir, typecheck })
+  const what = typecheck ? 'Typechecking' : 'Checking'
+  console.log(`\n${what} ${result.checked} .tyx file(s)...`)
 
-  const pagesDir = path.join(baseDir, 'app', 'pages')
-  const files = await walkPagesDir(pagesDir)
-  const apiHelpersSource = await loadApiHelpersForTypecheck(baseDir)
-
-  console.log(`\nTypechecking ${files.length} page(s)...`)
-
-  let failed = 0
-  for (const filePath of files) {
-    const rel = path.relative(baseDir, filePath)
-    try {
-      const raw = await fs.readFile(filePath, 'utf-8')
-      // Import lines never reach the parser -- strip them first,
-      // exactly like dev does before compiling a page.
-      const { source } = extractImports(raw)
-      const diagnostics = typecheckPage(source, apiHelpersSource)
-      if (diagnostics.length > 0) {
-        failed++
-        console.log(`\n✘ ${rel}`)
-        for (const d of diagnostics) {
-          console.log(`  Line ${d.line}: ${d.message}`)
-        }
-      }
-    } catch (err) {
-      // Parse/lex errors throw instead of returning diagnostics.
-      // Report them per page so one bad file doesn't hide the rest.
-      failed++
-      console.log(`\n✘ ${rel}`)
-      console.log(`  ${err.message}`)
+  const failed = result.files.filter((f) => f.diagnostics.length > 0)
+  for (const f of failed) {
+    const rel = path.relative(baseDir, f.file)
+    console.log(`\n✘ ${rel}`)
+    for (const d of f.diagnostics) {
+      console.log(
+        formatDiagnostic(f.source, d, rel)
+          .split('\n')
+          .map((l) => `  ${l}`)
+          .join('\n'),
+      )
     }
   }
 
-  if (failed === 0) {
-    console.log('✔ No type errors found.')
+  if (failed.length === 0) {
+    console.log(typecheck ? '✔ No type errors found.' : '✔ No syntax errors found.')
     return true
   }
-  console.log(`\n${failed} of ${files.length} page(s) failed.`)
+  console.log(`\n${failed.length} of ${result.checked} .tyx file(s) failed.`)
   return false
 }
 
@@ -224,9 +174,9 @@ export async function build() {
   }
 
   if (driver === NATIVE_DRIVER) {
-    if (language === 'typescript') {
-      results.push(await typecheckPages(baseDir))
-    }
+    // Every .tyx file is parsed (so a syntax error fails the build in
+    // JavaScript projects too); TypeScript projects are typechecked.
+    results.push(await checkTyxFiles(baseDir, language === 'typescript'))
     results.push(await buildCss(baseDir))
   } else {
     if (language === 'typescript') {

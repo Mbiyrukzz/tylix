@@ -7,6 +7,25 @@ const GLOBALS_FILE = fileURLToPath(
   new URL('./tylix-globals.d.ts', import.meta.url),
 )
 
+// lib.*.d.ts and the Tylix globals almost never change while a process runs,
+// and parsing them is most of a check's cost, so each one is parsed
+// once. Keyed by file, target and modification time (the globals file
+// can change under `tylix dev` with a hot-reloaded compiler).
+const libCache = new Map()
+
+function cachedLibFile(fileName, languageVersion, load) {
+  let mtime = 0
+  try {
+    mtime = ts.sys.getModifiedTime?.(fileName)?.getTime() ?? 0
+  } catch {}
+  const key = `${fileName}\0${JSON.stringify(languageVersion)}`
+  const hit = libCache.get(key)
+  if (hit && hit.mtime === mtime) return hit.file
+  const file = load()
+  if (file) libCache.set(key, { file, mtime })
+  return file
+}
+
 export function typecheckSource(
   virtualSource,
   apiHelpersSource = '',
@@ -24,6 +43,11 @@ export function typecheckSource(
   const host = ts.createCompilerHost(options)
   const originalGetSourceFile = host.getSourceFile
   host.getSourceFile = (fileName, languageVersion, ...rest) => {
+    if (fileName !== VIRTUAL_FILE_NAME && fileName !== API_HELPERS_VIRTUAL_FILE_NAME) {
+      return cachedLibFile(fileName, languageVersion, () =>
+        originalGetSourceFile(fileName, languageVersion, ...rest),
+      )
+    }
     if (fileName === VIRTUAL_FILE_NAME) {
       return ts.createSourceFile(fileName, virtualSource, languageVersion, true)
     }

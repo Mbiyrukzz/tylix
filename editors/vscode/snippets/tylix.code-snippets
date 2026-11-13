@@ -1,0 +1,128 @@
+{
+  "Page": {
+    "prefix": "page",
+    "isFileTemplate": true,
+    "body": [
+      "page ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}",
+      "",
+      "title \"${2:Title}\"",
+      "",
+      "state",
+      "  ${3:count}: ${4:0}",
+      "",
+      "action",
+      "  ${5:increment}() {",
+      "    this.${3:count} += 1",
+      "  }",
+      "",
+      "template",
+      "  <div>",
+      "    $0",
+      "  </div>",
+      ""
+    ],
+    "description": "A new page"
+  },
+  "Component": {
+    "prefix": "component",
+    "isFileTemplate": true,
+    "body": [
+      "component ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}",
+      "",
+      "props",
+      "  ${2:label}: ${3:string}",
+      "",
+      "template",
+      "  <div>",
+      "    {{ ${2:label} }}$0",
+      "  </div>",
+      ""
+    ],
+    "description": "A new component"
+  },
+  "Capability": {
+    "prefix": "capability",
+    "isFileTemplate": true,
+    "body": [
+      "capability ${1:${TM_FILENAME_BASE/(.*)/${1:/pascalcase}/}}",
+      "",
+      "state",
+      "  ${2:data}: []",
+      "  loading: false",
+      "",
+      "action",
+      "  async load() {",
+      "    this.loading = true",
+      "    const result = await useApi(\"${3:/api/items}\")",
+      "    if result.ok {",
+      "      this.${2:data} = result.data",
+      "    }",
+      "    this.loading = false",
+      "  }",
+      "",
+      "init",
+      "  async {",
+      "    await this.load()",
+      "  }",
+      ""
+    ],
+    "description": "Shared state and actions, used as Name.member from any page"
+  },
+  "Action": {
+    "prefix": "act",
+    "body": ["${1:name}(${2}) {", "  $0", "}"],
+    "description": "An action method"
+  },
+  "Async action": {
+    "prefix": "aact",
+    "body": ["async ${1:name}(${2}) {", "  $0", "}"],
+    "description": "An async action method"
+  },
+  "Computed": {
+    "prefix": "comp",
+    "body": ["${1:name}() {", "  return $0", "}"],
+    "description": "A computed value"
+  },
+  "onMount": {
+    "prefix": "onMount",
+    "body": ["onMount", "  async {", "    $0", "  }"],
+    "description": "Runs in the browser after the page mounts"
+  },
+  "useApi call": {
+    "prefix": "useApi",
+    "body": [
+      "const result = await useApi(\"${1:/api/items}\")",
+      "if result.ok {",
+      "  ${2:this.items = result.data}",
+      "} else {",
+      "  ${3:this.error = result.error}",
+      "}"
+    ],
+    "description": "Call an API route and branch on the result"
+  },
+  "if block": {
+    "prefix": "#if",
+    "body": ["{{#if ${1:condition}}}", "  $0", "{{/if}}"],
+    "description": "{{#if}} ... {{/if}}"
+  },
+  "if / else block": {
+    "prefix": "#ife",
+    "body": ["{{#if ${1:condition}}}", "  $2", "{{#else}}", "  $0", "{{/if}}"],
+    "description": "{{#if}} ... {{#else}} ... {{/if}}"
+  },
+  "each block": {
+    "prefix": "#each",
+    "body": ["{{#each ${1:item} in ${2:items}}}", "  $0", "{{/each}}"],
+    "description": "{{#each item in items}} ... {{/each}}"
+  },
+  "each with index": {
+    "prefix": "#eachi",
+    "body": ["{{#each ${1:item}, ${2:i} in ${3:items}}}", "  $0", "{{/each}}"],
+    "description": "{{#each item, i in items}} ... {{/each}}"
+  },
+  "Import component": {
+    "prefix": "imp",
+    "body": ["import ${1:Card} from \"./${2:components/}${1:Card}\""],
+    "description": "Import a local component"
+  }
+}

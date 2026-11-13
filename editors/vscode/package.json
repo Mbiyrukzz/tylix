@@ -1,0 +1,128 @@
+{
+  "name": "tylix-vscode",
+  "displayName": "Tylix",
+  "description": "Tylix .tyx language support: syntax highlighting, snippets, and a language server with live errors, type checking, completion, hover, go to definition and outline.",
+  "version": "1.2.0",
+  "private": true,
+  "publisher": "tylix",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Linters"
+  ],
+  "keywords": [
+    "tylix",
+    "tyx"
+  ],
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onLanguage:tyx",
+    "workspaceContains:**/tylix.config.{js,ts,mjs}"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In untrusted workspaces the language server uses its bundled compiler and never loads code from the project."
+    }
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "tyx",
+        "aliases": [
+          "Tylix",
+          "tyx"
+        ],
+        "extensions": [
+          ".tyx"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tyx",
+        "scopeName": "source.tyx",
+        "path": "./syntaxes/tylix.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.template.tylix": "html",
+          "meta.style.tylix": "css",
+          "meta.embedded.expression.tylix": "javascript"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "tyx",
+        "path": "./snippets/tylix.code-snippets"
+      }
+    ],
+    "configuration": {
+      "title": "Tylix",
+      "properties": {
+        "tylix.typecheck": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "Typecheck in TypeScript projects (tsconfig.json or tylix.config.ts), like `tylix dev`.",
+            "Typecheck every page and component.",
+            "Only report syntax errors."
+          ],
+          "default": "auto",
+          "description": "When the language server runs the TypeScript checker on .tyx files."
+        },
+        "tylix.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Log the messages between VS Code and the Tylix language server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "tylix.restartServer",
+        "title": "Restart Language Server",
+        "category": "Tylix"
+      },
+      {
+        "command": "tylix.showOutput",
+        "title": "Show Language Server Output",
+        "category": "Tylix"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "package": "node scripts/build.mjs && vsce package --no-dependencies --out tylix.vsix"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
+    "vscode-languageclient": "^10.1.2",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  }
+}

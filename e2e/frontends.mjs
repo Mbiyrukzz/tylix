@@ -11,6 +11,8 @@
 //   dev         parity.mjs --ssr   auth, routing, API, SSR, hydration
 //               hot-reload.mjs     saved files reach the open tab
 //               error-pages.mjs    error boundary, 404/400/500 pages
+//               dev-tools.mjs      native only: tylix check, compile error
+//                                  locations, runtime overlay, DevTools panel
 //   production  tylix build, then tylix start with two workers:
 //               parity.mjs --ssr --existing (the account from the dev run)
 //               error-pages.mjs --production
@@ -169,6 +171,7 @@ async function runFrontend(frontend, index) {
     // --keep: the throwing page stays, so the production build has it.
     const keep = hosted && !skipProduction ? ['--keep'] : []
     record('dev error pages', (await check('error-pages.mjs', [appDir, base(devPort), ...keep], { log })).ok)
+    if (!hosted) record('dev tooling', (await check('dev-tools.mjs', [appDir, base(devPort)], { log })).ok)
   } finally {
     await dev.stop()
   }

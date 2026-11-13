@@ -54,6 +54,13 @@ export function resolveCapability(name) {
     // keep writing to reactive state.
     instance.ready = () => entry.initPromise ?? Promise.resolve()
     entry.instance = instance
+    const hook =
+      typeof window !== 'undefined' ? window.__TYLIX_DEVTOOLS_HOOK__ : undefined
+    if (hook && hook.capability) {
+      try {
+        hook.capability(name, instance)
+      } catch {}
+    }
   }
 
   // init() runs exactly once, whether it is async or not.

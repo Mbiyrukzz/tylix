@@ -1,0 +1,51 @@
+{
+  "name": "@tylix/language-server",
+  "version": "1.2.0",
+  "description": "Language server for Tylix .tyx files: diagnostics, completion, hover, go to definition and outline for any LSP editor.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "type": "module",
+  "keywords": [
+    "tylix",
+    "language-server",
+    "lsp",
+    "tyx"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/language-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/language-server"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "main": "./src/server.js",
+  "exports": {
+    ".": "./src/server.js",
+    "./analysis": "./src/analysis.js"
+  },
+  "bin": {
+    "tylix-language-server": "src/bin.js"
+  },
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "@tylix/compiler": "^1.2.0",
+    "vscode-languageserver": "^10.1.2",
+    "vscode-languageserver-textdocument": "^1.0.16"
+  }
+}

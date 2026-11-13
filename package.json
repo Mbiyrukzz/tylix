@@ -1,6 +1,6 @@
 {
   "name": "tylix-monorepo",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Tylix: a full-stack JavaScript framework with its own .tyx pages or React, Vue, Svelte and Angular frontends, built-in auth, ORM, queue, channels and observability.",
   "license": "MIT",
@@ -38,7 +38,9 @@
     "test:compat": "node scripts/compat-matrix.mjs",
     "verify": "npm test && npm run test:e2e:frontends",
     "bench": "cd bench && npm install --no-audit --no-fund && node run.mjs",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "build:editor": "cd editors/vscode && npm install --no-audit --no-fund && npm run package",
+    "test:editor": "cd editors/vscode && npm install --no-audit --no-fund && npm run build && npm test && cd ../.. && TYLIX_LS_BIN=editors/vscode/dist/server.cjs node --test packages/language-server/src/server.test.js"
   },
   "devDependencies": {
     "playwright-core": "^1.65.0"

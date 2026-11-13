@@ -143,15 +143,39 @@ function findInterpEnd(source, from) {
 //
 // HTML comments (<!-- ... -->) are allowed anywhere a node is allowed
 // and produce no output.
+// Errors leave with `offset` (index into `source`) and, when known,
+// `length`, so the dev overlay and editor can underline the spot.
 export function parseTemplate(source, options = {}) {
   const parser = new TemplateParser(source, options)
-  const nodes = parser.parseNodes(null)
-  if (parser.pos < parser.source.length) {
-    throw new Error(
-      `Unexpected closing tag near: ${parser.remaining().slice(0, 30)}`,
-    )
+  try {
+    const nodes = parser.parseNodes(null)
+    if (parser.pos < parser.source.length) {
+      throw new Error(
+        `Unexpected closing tag near: ${parser.remaining().slice(0, 30)}`,
+      )
+    }
+    return nodes
+  } catch (err) {
+    if (err && typeof err === 'object') {
+      if (err.templateOffset !== undefined) {
+        err.offset = err.templateOffset
+        delete err.templateOffset
+      } else {
+        err.offset = parser.pos
+        delete err.length
+      }
+    }
+    throw err
   }
-  return nodes
+}
+
+// Marks where in the template an error belongs (first mark wins).
+function markAt(err, offset, length) {
+  if (err && typeof err === 'object' && err.templateOffset === undefined) {
+    err.templateOffset = offset
+    if (length !== undefined) err.length = length
+  }
+  return err
 }
 
 class TemplateParser {
@@ -159,6 +183,9 @@ class TemplateParser {
     this.options = options
     this.source = source
     this.pos = 0
+    // Elements and {{#if}}/{{#each}} blocks still open, innermost
+    // last, so "unclosed" errors can point at the opening.
+    this.open = []
     // Set by parseNodes: which marker it stopped at (the stopMarker,
     // one of alsoStopAt, or null for a closing tag).
     this.stopHit = null
@@ -209,6 +236,17 @@ class TemplateParser {
 
   findInterpEnd(from) {
     return findInterpEnd(this.source, from)
+  }
+
+  // parseExpressionString on `raw`, which starts at `start` in the
+  // template; errors are rebased onto the template.
+  parseExpr(raw, start) {
+    const lead = raw.length - raw.trimStart().length
+    try {
+      return parseExpressionString(raw.trim(), this.options)
+    } catch (err) {
+      throw markAt(err, start + lead + (err?.offset ?? 0), err?.length)
+    }
   }
 
   // <!-- ... --> is skipped entirely: nothing inside it is parsed,
@@ -291,13 +329,22 @@ class TemplateParser {
       }
     }
 
+    const opener = this.open[this.open.length - 1]
     if (stopMarker !== null) {
-      throw new Error(
-        `Unclosed block: reached end of template looking for "${stopMarker}"`,
+      throw markAt(
+        new Error(
+          `Unclosed block: reached end of template looking for "${stopMarker}"`,
+        ),
+        opener?.pos ?? this.pos,
+        opener?.length,
       )
     }
     if (stopTag !== null) {
-      throw new Error(`Unclosed tag <${stopTag}>: reached end of template`)
+      throw markAt(
+        new Error(`Unclosed tag <${stopTag}>: reached end of template`),
+        opener?.pos ?? this.pos,
+        opener?.length,
+      )
     }
     this.stopHit = null
     return nodes
@@ -328,19 +375,26 @@ class TemplateParser {
     }
     const exprSource = this.source.slice(start, end).trim()
     if (exprSource.startsWith('#') || exprSource.startsWith('/')) {
-      throw new Error(
-        `Unexpected block tag "{{${exprSource}}}" at line ${line}: it has no matching opening or closing tag (check {{#if}} / {{#each}} / {{#else}} / {{/if}} / {{/each}})`,
+      throw markAt(
+        new Error(
+          `Unexpected block tag "{{${exprSource}}}" at line ${line}: it has no matching opening or closing tag (check {{#if}} / {{#each}} / {{#else}} / {{/if}} / {{/each}})`,
+        ),
+        start - 2,
+        end + 2 - (start - 2),
       )
     }
     this.pos = end + 2
     return {
-      ...InterpolationNode(parseExpressionString(exprSource, this.options)),
+      ...InterpolationNode(
+        this.parseExpr(this.source.slice(start, end), start),
+      ),
       line,
     }
   }
 
   parseIfBlock() {
     const line = this.lineAt(this.pos)
+    const blockStart = this.pos
     this.pos += 2 // "{{"
     this.pos += 3 // "#if"
     this.skipWhitespace()
@@ -348,15 +402,19 @@ class TemplateParser {
     if (end === -1) {
       throw new Error("Unterminated {{#if}} header: missing '}}'")
     }
-    const conditionSource = this.source.slice(this.pos, end).trim()
+    const conditionStart = this.pos
+    const conditionSource = this.source.slice(this.pos, end)
     this.pos = end + 2
-    return this.parseIfRest(conditionSource, line)
+    this.open.push({ pos: blockStart, length: this.pos - blockStart })
+    const node = this.parseIfRest(conditionSource, line, conditionStart)
+    this.open.pop()
+    return node
   }
 
   // Parses the body of an {{#if}} (header already consumed), plus an
   // optional {{#else}} or {{#else if cond}} chain. An else-if is a
   // nested IfNode in elseChildren that shares the single {{/if}}.
-  parseIfRest(conditionSource, line) {
+  parseIfRest(conditionSource, line, conditionStart) {
     const children = this.parseNodes(null, '{{/if}}', ['{{#else'])
 
     let elseChildren = null
@@ -368,6 +426,7 @@ class TemplateParser {
       if (end === -1) {
         throw new Error("Unterminated {{#else}} header: missing '}}'")
       }
+      const headerStart = this.pos
       const header = this.source.slice(this.pos, end).trim()
       this.pos = end + 2
 
@@ -375,7 +434,8 @@ class TemplateParser {
       if (header === '') {
         elseChildren = this.parseNodes(null, '{{/if}}')
       } else if (elseIf) {
-        elseChildren = [this.parseIfRest(elseIf[1].trim(), elseLine)]
+        const condStart = headerStart + elseIf[0].length - elseIf[1].length
+        elseChildren = [this.parseIfRest(elseIf[1], elseLine, condStart)]
       } else {
         throw new Error(
           `Invalid {{#else}} header "${header}" at line ${elseLine}: expected {{#else}} or {{#else if condition}}`,
@@ -385,7 +445,7 @@ class TemplateParser {
 
     return {
       ...IfNode(
-        parseExpressionString(conditionSource, this.options),
+        this.parseExpr(conditionSource, conditionStart),
         children,
         elseChildren,
       ),
@@ -395,6 +455,7 @@ class TemplateParser {
 
   parseEachBlock() {
     const line = this.lineAt(this.pos)
+    const blockStart = this.pos
     this.pos += 2 // "{{"
     this.pos += 5 // "#each"
     this.skipWhitespace()
@@ -402,19 +463,26 @@ class TemplateParser {
     if (end === -1) {
       throw new Error("Unterminated {{#each}} header: missing '}}'")
     }
+    const headerStart = this.pos
     const header = this.source.slice(this.pos, end).trim()
     this.pos = end + 2
 
     const match = EACH_HEADER_RE.exec(header)
     if (!match) {
-      throw new Error(
-        `Invalid {{#each}} header "${header}": expected "item in items", "item, index in items" or "[a, b] in pairs"`,
+      throw markAt(
+        new Error(
+          `Invalid {{#each}} header "${header}": expected "item in items", "item, index in items" or "[a, b] in pairs"`,
+        ),
+        blockStart,
+        this.pos - blockStart,
       )
     }
     const itemName = match[1]
     const indexName = match[2] ?? null
-    const iterableSource = match[3].trim()
+    const iterableSource = match[3]
+    const iterableStart = headerStart + header.length - match[3].length
 
+    this.open.push({ pos: blockStart, length: this.pos - blockStart })
     const children = this.parseNodes(null, '{{/each}}', ['{{#else'])
 
     let elseChildren = null
@@ -434,11 +502,12 @@ class TemplateParser {
       this.pos = elseEnd + 2
       elseChildren = this.parseNodes(null, '{{/each}}')
     }
+    this.open.pop()
 
     return {
       ...EachNode(
         itemName,
-        parseExpressionString(iterableSource, this.options),
+        this.parseExpr(iterableSource, iterableStart),
         children,
         indexName,
         elseChildren,
@@ -449,6 +518,7 @@ class TemplateParser {
 
   parseElement() {
     const line = this.lineAt(this.pos)
+    const elementStart = this.pos
     this.pos++
     const tag = this.readTagName()
     const attributes = this.parseAttributes()
@@ -489,11 +559,14 @@ class TemplateParser {
       }
     }
 
+    this.open.push({ pos: elementStart, length: tag.length + 1 })
     const children = this.parseNodes(tag)
+    this.open.pop()
     return { ...ElementNode(tag, attributes, children), line }
   }
 
   consumeClosingTag(expectedTag) {
+    const closeStart = this.pos
     this.pos += 2
     const name = this.readTagName()
     this.skipWhitespace()
@@ -502,8 +575,12 @@ class TemplateParser {
     }
     this.pos++
     if (name !== expectedTag) {
-      throw new Error(
-        `Mismatched closing tag: expected </${expectedTag}>, got </${name}>`,
+      throw markAt(
+        new Error(
+          `Mismatched closing tag: expected </${expectedTag}>, got </${name}>`,
+        ),
+        closeStart,
+        this.pos - closeStart,
       )
     }
   }
@@ -552,10 +629,11 @@ class TemplateParser {
 
     const quote = this.source[this.pos]
     let rawValue
+    let valueStart
 
     if (quote === '"' || quote === "'") {
       this.pos++
-      const valueStart = this.pos
+      valueStart = this.pos
       while (this.pos < this.source.length && this.source[this.pos] !== quote) {
         this.pos++
       }
@@ -568,7 +646,7 @@ class TemplateParser {
       // Unquoted value (<input type=text>): runs to whitespace or
       // '>'. A {{ ... }} inside it is scanned as a unit, so
       // `value={{ a + b }}` keeps its spaces.
-      const valueStart = this.pos
+      valueStart = this.pos
       while (
         this.pos < this.source.length &&
         !/[\s>]/.test(this.source[this.pos])
@@ -591,7 +669,7 @@ class TemplateParser {
       }
     }
 
-    return { ...this.buildAttribute(name, rawValue, line), line }
+    return { ...this.buildAttribute(name, rawValue, line, valueStart), line }
   }
 
   // Splits an attribute value into literal text and {{ }} parts.
@@ -600,7 +678,7 @@ class TemplateParser {
   //                                   numbers stay numbers, etc.)
   //   "btn {{ a }} x-{{ b }}"      -> a template literal
   // Literal text has HTML entities decoded (title="a &amp; b").
-  buildAttribute(name, rawValue, line) {
+  buildAttribute(name, rawValue, line, valueStart = 0) {
     if (!rawValue.includes('{{')) {
       return AttributeNode(name, decodeHtmlEntities(rawValue), false)
     }
@@ -622,9 +700,9 @@ class TemplateParser {
         }
         parts.push({
           type: 'expr',
-          expression: parseExpressionString(
-            rawValue.slice(i + 2, end).trim(),
-            this.options,
+          expression: this.parseExpr(
+            rawValue.slice(i + 2, end),
+            valueStart + i + 2,
           ),
         })
         i = end + 2

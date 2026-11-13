@@ -252,6 +252,14 @@ function hasExpr(collection, value) {
  * `yield`, `class`, `extends`, `debugger`) are ordinary identifier
  * tokens; the parser recognises them by position.
  */
+// Best-effort width of a token for error underlines.
+function tokenLength(token) {
+  if (token.type === TokenType.EOF) return 0
+  if (token.type === TokenType.STRING) return String(token.value).length + 2
+  if (typeof token.value === 'string') return Math.max(1, token.value.length)
+  return 1
+}
+
 export class Parser {
   constructor(tokens, options = {}) {
     this.tokens = tokens
@@ -273,7 +281,28 @@ export class Parser {
     }
   }
 
+  // Errors leave with `offset` (start of the token the parser stopped
+  // at, as an index into the lexed source) and `length`.
   parse() {
+    return this.withErrorOffset(() => this.parsePage())
+  }
+
+  withErrorOffset(fn) {
+    try {
+      return fn()
+    } catch (err) {
+      if (err && typeof err === 'object' && err.offset === undefined) {
+        const token = this.tokens[Math.min(this.pos, this.tokens.length - 1)]
+        if (token && typeof token.start === 'number') {
+          err.offset = token.start
+          err.length = tokenLength(token)
+        }
+      }
+      throw err
+    }
+  }
+
+  parsePage() {
     const page = {
       props: [],
       state: [],
@@ -709,6 +738,10 @@ export class Parser {
   // lifecycle hook, so sharing parse()'s isSectionKeyword/loop would
   // mean threading capability-only exceptions through page-only logic.
   parseCapability() {
+    return this.withErrorOffset(() => this.parseCapabilityFile())
+  }
+
+  parseCapabilityFile() {
     this.expect(TokenType.CAPABILITY, "Expected 'capability'")
     const name = this.expect(
       TokenType.IDENTIFIER,

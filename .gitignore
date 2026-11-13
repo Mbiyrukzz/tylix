@@ -5,3 +5,10 @@ dist/
 packages/*/src/**/.tmp-test-output/
 .tmp-test-output/
 .tmp-test-output/
+
+# editor extensions: build output
+editors/vscode/node_modules/
+editors/vscode/dist/
+editors/vscode/*.vsix
+devtools/extension/dist/
+devtools/extension/*.zip

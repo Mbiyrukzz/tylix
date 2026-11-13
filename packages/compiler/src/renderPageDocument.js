@@ -45,13 +45,31 @@ const NOT_FOUND_SOURCE = fs
 // Attaches a class's module-level helpers (see withHelpers) to a fresh
 // instance, so templates can call them: a bare `formatPrice(x)` in a
 // template compiles to `instance.formatPrice(x)`.
+//
+// It also reports the instance to the devtools hook when one is
+// installed (see runtime/devtoolsHook.js); __tylixAttach tells it which
+// DOM node the instance rendered.
 const EXPOSE_HELPERS_SOURCE = `
-function __tylixExpose(instance, cls) {
+var __tylixRuntime = { effect: effect, untracked: untracked, toRaw: toRaw };
+function __tylixHook() {
+  return typeof window !== "undefined" ? window.__TYLIX_DEVTOOLS_HOOK__ : undefined;
+}
+function __tylixExpose(instance, cls, meta) {
   var helpers = cls && cls.__helpers;
   if (helpers) {
     for (var key of Object.keys(helpers)) instance[key] = helpers[key];
   }
+  var hook = __tylixHook();
+  if (hook && hook.register) {
+    try { hook.register(instance, meta || { kind: "component", name: cls && cls.name }, __tylixRuntime); } catch (e) {}
+  }
   return instance;
+}
+function __tylixAttach(instance, node) {
+  var hook = __tylixHook();
+  if (hook && hook.attach) {
+    try { hook.attach(instance, node); } catch (e) {}
+  }
 }`
 
 function escapeHtml(text) {
@@ -427,7 +445,7 @@ export async function renderPageDocument(
     loadingClassSource = loadingCompiled.classSource
     loadingMountCode = `
     try {
-      const loadingInstance = __tylixExpose(new ${loadingCompiled.className}({ loading: __tylixLoading }), ${loadingCompiled.className});
+      const loadingInstance = __tylixExpose(new ${loadingCompiled.className}({ loading: __tylixLoading }), ${loadingCompiled.className}, { kind: "loading", name: "Loading" });
       (function (document, instance) {
 ${loadingCompiled.code}
         document.body.appendChild(${loadingCompiled.rootVar});
@@ -469,11 +487,12 @@ ${loadingCompiled.code}
       const { code: childCode, rootVar: childRootVar, className } = compiled
       return `  components[${label}] = {
     mount(document, props = {}) {
-      const instance = __tylixExpose(new ${className}(props), ${className});
+      const instance = __tylixExpose(new ${className}(props), ${className}, { kind: "component", name: ${label} });
       const node = (function (document, instance) {
 ${childCode}
         return ${childRootVar};
       })(document, instance);
+      __tylixAttach(instance, node);
       // needs/prefetch first, then onMount, same order as pages.
       // Runs a microtask later, after the caller has attached the node.
       Promise.resolve()
@@ -500,7 +519,7 @@ ${childCode}
     }
     layoutClassSource = layoutCompiled.classSource
     layoutMountCode = `
-    const layoutInstance = __tylixExpose(new ${layoutCompiled.className}(), ${layoutCompiled.className});
+    const layoutInstance = __tylixExpose(new ${layoutCompiled.className}(), ${layoutCompiled.className}, { kind: "layout", name: "Layout" });
     if (typeof layoutInstance.__ready === "function") {
       try {
         await layoutInstance.__ready();
@@ -516,6 +535,7 @@ ${layoutCompiled.code}
       }
       slot.appendChild(pageRoot);
       document.getElementById("app").appendChild(${layoutCompiled.rootVar});
+      __tylixAttach(instance, ${layoutCompiled.rootVar});
     })(document, layoutInstance, ${rootVar});
     if (typeof layoutInstance.__onMount === "function") {
       try {
@@ -563,7 +583,7 @@ ${layoutClassSource}
 ${loadingClassSource}
 
 document.addEventListener("DOMContentLoaded", () => {
-  const instance = __tylixExpose(new ${pageName}(${JSON.stringify(props)}), ${pageName});
+  const instance = __tylixExpose(new ${pageName}(${JSON.stringify(props)}), ${pageName}, { kind: "page", name: ${JSON.stringify(pageName)} });
   const components = {};
 ${childRegistrations}
   (async function (document, instance, components) {
@@ -576,6 +596,7 @@ ${loadingMountCode}
       }
     }
 ${code}
+    __tylixAttach(instance, ${rootVar});
 ${layoutMountCode}
     if (typeof instance.__onMount === "function") {
       try {

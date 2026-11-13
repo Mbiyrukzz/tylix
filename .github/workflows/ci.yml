@@ -18,6 +18,39 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  editor:
+    name: Editor tooling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            editors/vscode/package-lock.json
+      - run: npm ci
+      - run: npm ci
+        working-directory: editors/vscode
+      # Bundles the extension and the language server, then runs the
+      # grammar tests and the LSP protocol test against the bundle.
+      - run: npm run build && npm test
+        working-directory: editors/vscode
+      - run: node --test packages/language-server/src/server.test.js
+        env:
+          TYLIX_LS_BIN: ${{ github.workspace }}/editors/vscode/dist/server.cjs
+      - run: npx vsce package --no-dependencies --out tylix.vsix
+        working-directory: editors/vscode
+      - run: node scripts/build.mjs
+        working-directory: devtools/extension
+      - uses: actions/upload-artifact@v4
+        with:
+          name: editor-extensions
+          path: |
+            editors/vscode/tylix.vsix
+            devtools/extension/tylix-devtools.zip
+
   compat:
     name: Framework compatibility (${{ matrix.adapter }})
     runs-on: ubuntu-latest
