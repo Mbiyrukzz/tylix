@@ -243,12 +243,13 @@ there are any. In TypeScript projects it typechecks too (`--typecheck` /
 
 # Editor and DevTools
 
-* **VS Code**: the extension in [`editors/vscode`](editors/vscode) adds
-  highlighting, snippets, and a language server with errors as you type,
-  type checking, completion (members, capabilities, imported components),
-  hover, go to definition and an outline. Build it with
-  `npm run build:editor` and install `editors/vscode/tylix.vsix`
-  (Extensions → … → Install from VSIX).
+* **VS Code**: install **Tylix (.tyx)** (`tylix.tyx-language`) from the
+  Extensions view. It adds highlighting, snippets, and a language server
+  with errors as you type, type checking, completion (members,
+  capabilities, imported components), hover, go to definition and an
+  outline, plus the Tylix Dark/Light color themes and a Tylix file and
+  folder icon theme. Source: [`editors/vscode`](editors/vscode)
+  (`npm run build:editor` builds `tylix.vsix`).
 * **Other editors**: [`@tylix/language-server`](packages/language-server)
   runs over stdio (`tylix-language-server --stdio`). Its README has Neovim
   and Helix setup.
@@ -257,8 +258,8 @@ there are any. In TypeScript projects it typechecks too (`--typecheck` /
   used it), line and column underlined, every other problem in that file,
   and an *Open in editor* link. It reloads by itself when you save a fix.
   Uncaught errors in the browser show in a dismissible overlay.
-* **Tylix DevTools**: a Chrome and Firefox extension in
-  [`devtools/extension`](devtools/extension). It adds a *Tylix* panel that
+* **Tylix DevTools**: a Chrome and Firefox extension (Chrome Web Store:
+  *Tylix DevTools*; source in [`devtools/extension`](devtools/extension)). It adds a *Tylix* panel that
   shows the live page, layout, components and capabilities. You can edit
   state, run actions, and highlight a component on the page. Run
   `npm run build` there and load `devtools/extension/dist` unpacked. It

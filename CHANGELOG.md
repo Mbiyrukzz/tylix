@@ -4,6 +4,14 @@ All Tylix packages share one version number and are released together.
 
 ## 1.2.0
 
+- **VS Code extension** ships as `tylix.tyx-language` 1.2.0, the next
+  version of the earlier grammar-only extension. It keeps the Tylix
+  Dark/Light color themes (ported to the new grammar) and adds the Tylix
+  logo as its icon, a `.tyx` file icon that works in any icon theme, and
+  a **Tylix Icons** theme with Tylix folder icons (`pages`, `components`,
+  `capabilities`, `controllers`, `models`, …). The DevTools extension
+  uses the Tylix logo too.
+
 - **Compiler diagnostics**: `diagnoseTyx(source, options)` returns every
   problem in a page, component or capability with its line and column in
   the file, plus an outline of its props, state, computed values and

@@ -32,3 +32,7 @@ __TYLIX_DEVTOOLS_HOOK__.find('Counter')[0].count = 5
 ## Tests
 
 `TYLIX_DEVTOOLS_APP=http://localhost:3000 npm test` drives the built panel against a running native starter app (`e2e/dev-tools.mjs` does this as part of the frontend matrix).
+
+## Privacy
+
+The extension collects and sends nothing. It declares no permissions and no content scripts. The panel reads state only from the page open in DevTools, and only while the panel is open.

@@ -1,7 +1,7 @@
 {
-  "name": "tylix-vscode",
-  "displayName": "Tylix",
-  "description": "Tylix .tyx language support: syntax highlighting, snippets, and a language server with live errors, type checking, completion, hover, go to definition and outline.",
+  "name": "tyx-language",
+  "displayName": "Tylix (.tyx) \u2014 Language, Themes & Icons",
+  "description": "Tylix .tyx support: highlighting, live errors and type checking, completion, hover, go to definition, snippets, Tylix Dark/Light themes and Tylix file and folder icons.",
   "version": "1.2.0",
   "private": true,
   "publisher": "tylix",
@@ -21,11 +21,15 @@
   "categories": [
     "Programming Languages",
     "Snippets",
-    "Linters"
+    "Linters",
+    "Themes"
   ],
   "keywords": [
     "tylix",
-    "tyx"
+    "tyx",
+    "language server",
+    "icons",
+    "full-stack"
   ],
   "main": "./dist/extension.cjs",
   "activationEvents": [
@@ -49,7 +53,11 @@
         "extensions": [
           ".tyx"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/tyx.svg",
+          "dark": "./icons/tyx.svg"
+        }
       }
     ],
     "grammars": [
@@ -111,12 +119,34 @@
         "title": "Show Language Server Output",
         "category": "Tylix"
       }
+    ],
+    "iconThemes": [
+      {
+        "id": "tylix-icons",
+        "label": "Tylix Icons",
+        "path": "./icons/tylix-icon-theme.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "Tylix Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/tylix-dark-color-theme.json"
+      },
+      {
+        "label": "Tylix Light",
+        "uiTheme": "vs",
+        "path": "./themes/tylix-light-color-theme.json"
+      }
     ]
   },
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",
-    "package": "node scripts/build.mjs && vsce package --no-dependencies --out tylix.vsix"
+    "package": "node scripts/build.mjs && vsce package --no-dependencies --out tylix.vsix",
+    "icons": "node scripts/icons.mjs --png",
+    "publish": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish tylix.vsix"
   },
   "devDependencies": {
     "@vscode/vsce": "^4.1.1",
@@ -124,5 +154,12 @@
     "vscode-languageclient": "^10.1.2",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
-  }
+  },
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#17121F",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/editors/vscode#readme",
+  "pricing": "Free"
 }
