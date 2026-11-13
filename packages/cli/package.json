@@ -1,6 +1,6 @@
 {
   "name": "@tylix/cli",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "The Tylix command line: dev server, production server with workers, builds, migrations, generators, queue and channel workers, tinker and doctor.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -51,12 +51,12 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^1.3.0",
-    "@tylix/compiler": "^1.3.0",
-    "@tylix/core": "^1.3.0",
-    "@tylix/generator": "^1.3.0",
-    "@tylix/mail": "^1.3.0",
-    "@tylix/orm": "^1.3.0",
-    "@tylix/shared": "^1.3.0"
+    "@tylix/auth": "^1.4.0",
+    "@tylix/compiler": "^1.4.0",
+    "@tylix/core": "^1.4.0",
+    "@tylix/generator": "^1.4.0",
+    "@tylix/mail": "^1.4.0",
+    "@tylix/orm": "^1.4.0",
+    "@tylix/shared": "^1.4.0"
   }
 }
