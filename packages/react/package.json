@@ -1,13 +1,31 @@
 {
   "name": "@tylix/react",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "React frontend for Tylix: auth hooks and route guards, plus the Vite adapter the Tylix CLI loads.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
     "react",
-    "adapter"
+    "adapter",
+    "hooks",
+    "ssr",
+    "vite"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/react#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "sideEffects": false,
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "exports": {
@@ -24,12 +42,21 @@
       "default": "./src/server.js"
     }
   },
-  "sideEffects": false,
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test src/*.test.js"
   },
   "dependencies": {
-    "@tylix/client": "^0.6.0"
+    "@tylix/client": "^0.7.0"
   },
   "peerDependencies": {
     "react": "^18.2.0 || ^19.0.0",

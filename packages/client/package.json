@@ -1,13 +1,30 @@
 {
   "name": "@tylix/client",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Browser client for Tylix apps: API requests and the auth session, with no framework dependency.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
     "client",
-    "auth"
+    "auth",
+    "fetch",
+    "websocket"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/client#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "sideEffects": false,
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "exports": {
@@ -16,7 +33,16 @@
       "default": "./src/index.js"
     }
   },
-  "sideEffects": false,
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test src/*.test.js"
   }

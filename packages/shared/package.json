@@ -1,12 +1,31 @@
 {
   "name": "@tylix/shared",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "Shared Tylix utilities: validation that runs on the server and in the browser, config and .env loading, and naming helpers.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
+  "keywords": [
+    "tylix",
+    "validation",
+    "config",
+    "dotenv",
+    "utilities"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/shared#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/shared"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
-  "scripts": {
-    "test": "node --test src/**/*.test.js"
-  },
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
@@ -17,5 +36,18 @@
       "default": "./src/validation/index.js"
     },
     "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test src/**/*.test.js"
   }
 }

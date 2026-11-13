@@ -1,19 +1,47 @@
 {
   "name": "@tylix/generator",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "Code generators for Tylix: models, migrations, controllers, validators and full CRUD features from a blueprint.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
     "generator",
     "boilerplate",
-    "scaffold"
+    "scaffold",
+    "crud",
+    "codegen"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/generator#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/generator"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
+  "files": [
+    "src",
+    "templates",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/shared": "^0.6.0"
+    "@tylix/shared": "^0.7.0"
   },
   "devDependencies": {
     "jsdom": "^29.1.1"

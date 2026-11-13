@@ -8,7 +8,9 @@ tokens, cookies, and rate limiting.
 - `hashPassword` — password hashing
 - `signToken` — auth token signing
 - `authCookies` — cookie helpers for session/auth state
-- `loginRateLimiter` — rate limiting for login attempts
+- `loginRateLimiter` — rate limiting for login attempts (the generated
+  controller also uses the shared limiters from `@tylix/core`, so limits
+  hold across workers)
 - `AuthGenerator` — scaffolds auth routes/controllers/views via
   `tylix make:auth`
 

@@ -1,13 +1,34 @@
 {
   "name": "@tylix/cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "The Tylix command line: dev server, production server with workers, builds, migrations, generators, queue and channel workers, tinker and doctor.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
-    "cli"
+    "cli",
+    "dev-server",
+    "ssr",
+    "generator"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
   "types": "./src/testing.d.ts",
+  "bin": {
+    "tylix": "src/index.js"
+  },
   "exports": {
     ".": "./src/index.js",
     "./testing": {
@@ -16,19 +37,26 @@
     },
     "./package.json": "./package.json"
   },
-  "bin": {
-    "tylix": "src/index.js"
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^0.6.0",
-    "@tylix/compiler": "^0.6.0",
-    "@tylix/core": "^0.6.0",
-    "@tylix/generator": "^0.6.0",
-    "@tylix/mail": "^0.6.0",
-    "@tylix/orm": "^0.6.0",
-    "@tylix/shared": "^0.6.0"
+    "@tylix/auth": "^0.7.0",
+    "@tylix/compiler": "^0.7.0",
+    "@tylix/core": "^0.7.0",
+    "@tylix/generator": "^0.7.0",
+    "@tylix/mail": "^0.7.0",
+    "@tylix/orm": "^0.7.0",
+    "@tylix/shared": "^0.7.0"
   }
 }

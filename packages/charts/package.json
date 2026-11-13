@@ -1,8 +1,28 @@
 {
   "name": "@tylix/charts",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Hand-rolled SVG charts for Tylix: sparkline, line, area, bar, pie and donut",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
+  "keywords": [
+    "tylix",
+    "charts",
+    "svg",
+    "components"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/charts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/charts"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "exports": {
@@ -14,13 +34,16 @@
   "files": [
     "src",
     "components",
-    "tylix-components.json"
+    "tylix-components.json",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
   ],
-  "scripts": {
-    "test": "node --test"
-  },
-  "license": "MIT",
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }

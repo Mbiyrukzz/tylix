@@ -1,27 +1,42 @@
 {
   "name": "tylix-monorepo",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "private": true,
-  "description": "Create a new Tylix application",
+  "description": "Tylix: a full-stack JavaScript framework with its own .tyx pages or React, Vue, Svelte and Angular frontends, built-in auth, ORM, queue, channels and observability.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "keywords": [
+    "tylix",
+    "framework",
+    "full-stack",
+    "ssr",
+    "react",
+    "vue",
+    "svelte",
+    "angular",
+    "orm"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "test:e2e": "node e2e/parity.mjs"
+    "test:e2e": "node e2e/parity.mjs",
+    "bench": "cd bench && npm install --no-audit --no-fund && node run.mjs",
+    "release": "node scripts/release.mjs"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Mbiyrukzz/tylix.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/Mbiyrukzz/tylix/issues"
-  },
-  "homepage": "https://github.com/Mbiyrukzz/tylix#readme",
   "devDependencies": {
     "playwright-core": "^1.65.0"
   }

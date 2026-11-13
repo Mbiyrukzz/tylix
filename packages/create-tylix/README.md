@@ -1,21 +1,34 @@
 # create-tylix
 
-Scaffolds a new Tylix application.
+Creates a new Tylix app.
 
-## What's included
+```sh
+npm create tylix@latest
+# or
+npx create-tylix@latest my-app
+```
 
-- Interactive project scaffolder with JS/TS language detection
-  (via `@tylix/shared`'s `detectLanguage`) threaded through
-  `FeatureGenerator`, `PostBoilerplateGenerator`, and `AuthGenerator`
-- Sets up `@tylix/core`, `@tylix/auth`, and `@tylix/generator` wiring
-  in the new project
-- Resolves `file:`-style local dependency references into real
-  published versions for the scaffolded, standalone project
+The installer asks for:
 
-## Usage
+- **Frontend**: native Tylix (`.tyx` pages), React, Vue, Svelte or Angular
+- **Language**: JavaScript or TypeScript (Angular is TypeScript)
+- **Database**: SQLite, PostgreSQL, MySQL or MongoDB
+- **Authentication**: login, registration, email verification and password reset
+- **Styling** and a **starter** (posts, dashboard) or a blank app
 
-`@latest` matters here since this is a scaffolder people run once —
-pinning to a stale cached version would scaffold outdated templates.
+Non-interactive:
+
+```sh
+npx create-tylix@latest my-app --yes --frontend react --language ts --database sqlite --auth yes
+```
+
+Every app gets the same backend layout (`app/controllers`, `models`,
+`routes`, `jobs`, `observers`, `traits`, ...), tests, `tylix-icons`, and a
+`.env` documenting every setting. Hosted frontends keep data in
+`providers/` and API calls in `services/`, so pages only render.
+
+Use `@latest`: a cached older version would create an app from older
+templates.
 
 ## License
 

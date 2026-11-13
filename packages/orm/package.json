@@ -1,22 +1,49 @@
 {
   "name": "@tylix/orm",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "The Tylix ORM: models with observers and traits, a query builder, and adapters for SQLite, PostgreSQL, MySQL and MongoDB.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
-  "main": "./src/index.js",
-  "types": "./src/index.d.ts",
   "keywords": [
     "tylix",
     "orm",
     "database",
     "mongodb",
     "mysql",
-    "postgresql"
+    "postgresql",
+    "sqlite",
+    "postgres"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/orm#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/orm"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test 'src/**/*.test.js'"
   },
   "dependencies": {
-    "@tylix/shared": "^0.6.0",
+    "@tylix/shared": "^0.7.0",
     "mongodb": "^6.5.0",
     "mysql2": "^3.23.1",
     "pg": "^8.11.0"

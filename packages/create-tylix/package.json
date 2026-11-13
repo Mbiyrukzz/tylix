@@ -1,36 +1,62 @@
 {
   "name": "create-tylix",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "Create a new Tylix app: native Tylix, React, Vue, Svelte or Angular frontend, with auth, database and styling wired up.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
     "framework",
-    "ui"
+    "ui",
+    "create",
+    "scaffold",
+    "starter",
+    "react",
+    "vue",
+    "svelte",
+    "angular"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/create-tylix#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/create-tylix"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
   "bin": {
     "create-tylix": "src/index.js"
   },
   "files": [
     "src",
-    "assets"
+    "assets",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build:starter-css": "tailwindcss -c tailwind.starter.config.js -i src/templates/starter-input.css -o src/templates/starter.css --minify",
     "prepublishOnly": "npm run build:starter-css",
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^0.6.0",
-    "@tylix/cli": "^0.6.0",
-    "@tylix/core": "^0.6.0",
-    "@tylix/generator": "^0.6.0",
-    "@tylix/shared": "^0.6.0"
+    "@tylix/auth": "^0.7.0",
+    "@tylix/cli": "^0.7.0",
+    "@tylix/core": "^0.7.0",
+    "@tylix/generator": "^0.7.0",
+    "@tylix/shared": "^0.7.0"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

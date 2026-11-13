@@ -1,7 +1,9 @@
 {
   "name": "@tylix/mail",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Mail system for Tylix: Mailables, SMTP and log drivers, and mail logging",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
@@ -9,6 +11,18 @@
     "email",
     "smtp"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/mail#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/mail"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
@@ -25,15 +39,20 @@
     "Mailable.js",
     "models",
     "drivers",
-    "SmtpClient.js"
+    "SmtpClient.js",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
   ],
-  "dependencies": {
-    "@tylix/shared": "^0.6.0"
-  },
-  "peerDependencies": {
-    "@tylix/orm": "^0.6.0"
-  },
   "publishConfig": {
     "access": "public"
+  },
+  "dependencies": {
+    "@tylix/shared": "^0.7.0",
+    "@tylix/generator": "^0.7.0"
+  },
+  "peerDependencies": {
+    "@tylix/orm": "^0.7.0"
   }
 }

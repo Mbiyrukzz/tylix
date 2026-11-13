@@ -1,20 +1,52 @@
 {
   "name": "@tylix/core",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "The Tylix server core: HTTP server and router, logging, metrics and health checks, a shared store (memory, database, Redis), cache, rate limiting, queue, scheduler and channels.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
-    "core"
+    "core",
+    "http",
+    "server",
+    "router",
+    "observability",
+    "cache",
+    "queue",
+    "websocket"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test 'src/**/*.test.js'"
   },
   "dependencies": {
-    "@tylix/auth": "^0.6.0",
-    "@tylix/orm": "^0.6.0",
-    "@tylix/shared": "^0.6.0",
+    "@tylix/auth": "^0.7.0",
+    "@tylix/orm": "^0.7.0",
+    "@tylix/shared": "^0.7.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

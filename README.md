@@ -1,30 +1,30 @@
 # Tylix
 
-> **Build Full-Stack JavaScript Applications**
+> **Build full-stack JavaScript applications**
 
-Tylix is a batteries-included full-stack JavaScript framework with its own reactive compiler, generator-first CLI, database-agnostic ORM, authentication, routing, and developer tooling.
+Tylix is a batteries-included full-stack JavaScript framework: its own
+reactive `.tyx` pages, or React, Vue, Svelte or Angular on the front; a
+server with authentication, an ORM, queues, channels and observability
+built in; and a generator-first CLI that ties it together.
 
 ---
 
 ## Why Tylix?
 
-Modern web development often means assembling multiple frameworks and libraries before you can build your first feature.
+Modern web development often means assembling a dozen libraries before the
+first feature. With Tylix they already work together.
 
-With Tylix, everything works together out of the box.
-
-* ⚡ Reactive compiler
-* 🚀 Generator-first CLI
-* 🗄️ Database-agnostic ORM
-* 🔐 Built-in Authentication
-* 📄 File-based Pages
-* 🔥 Hot Module Reload
-* 📦 Feature Generator
-* 🩺 Doctor Command
-* 🖥️ Interactive Tinker
-* 🛠️ Built-in Migrations
-* 📧 Mail Support
-* 🧩 Component System
-* 📡 REST API Ready
+* ⚡ Reactive `.tyx` compiler, or React, Vue, Svelte and Angular
+* 🖥️ Server-side rendering for every frontend
+* 🔐 Authentication: sessions, email verification, password reset
+* 🗄️ ORM for SQLite, PostgreSQL, MySQL and MongoDB, with observers and traits
+* ✅ Validation shared by the API and the browser
+* 📬 Queues, scheduled tasks, live channels and mail
+* 📈 Request ids, structured logs, metrics, health checks
+* 🧵 Several workers or servers acting as one (shared store, `--workers`)
+* 🚀 Generators for features, pages, components, jobs and more
+* 🎨 537 icons for every frontend in `tylix-icons`
+* 🩺 `tylix doctor` and 🖥️ `tylix tinker`
 
 ---
 
@@ -34,22 +34,13 @@ With Tylix, everything works together out of the box.
 npm create tylix@latest
 ```
 
-or
+Requires Node.js 22.13 or later. The installer asks for:
 
-```bash
-npx create-tylix@latest
-```
-
-Follow the interactive installer.
-
-Choose:
-
+* Frontend: native Tylix, React, Vue, Svelte or Angular
 * JavaScript or TypeScript
 * SQLite, MySQL, PostgreSQL or MongoDB
 * Authentication
-* Styling
-* Starter Template
-* Package Manager
+* Styling and a starter template
 
 ---
 
@@ -57,21 +48,16 @@ Choose:
 
 ```bash
 cd my-app
-
-npm install
-
-tylix dev
+npm run dev
 ```
 
-Visit
-
-```
-http://localhost:3000
-```
+Visit `http://localhost:3000`.
 
 ---
 
 # Example Page
+
+A native Tylix page:
 
 ```tyx
 page Home
@@ -91,22 +77,23 @@ action
 
 template
   <div>
-
     <h1>Counter</h1>
-
-    <p>
-      Count: {{ count }}
-    </p>
-
-    <p>
-      Doubled: {{ doubled }}
-    </p>
-
-    <button onclick="{{ increment }}">
-      Increment
-    </button>
-
+    <p>Count: {{ count }}, doubled: {{ doubled }}</p>
+    <button onclick="{{ increment }}">Increment</button>
   </div>
+```
+
+With React, Vue, Svelte or Angular, pages are ordinary components. Data
+comes from providers, and API calls live in services, so pages only
+render:
+
+```jsx
+import { usePublicPosts } from '../providers/PostsProvider'
+
+export default function Posts() {
+  const { posts, loading } = usePublicPosts()
+  return loading ? <p>Loading…</p> : posts.map((post) => <p key={post.id}>{post.title}</p>)
+}
 ```
 
 ---
@@ -114,74 +101,49 @@ template
 # Generate a Feature
 
 ```bash
-tylix make:feature Post title:string body:text
+tylix make:feature Post title:string body:text total:number
 ```
 
-Generates
-
-```
-app/
-├── controllers/
-│   └── PostController.js
-│
-├── models/
-│   └── Post.js
-│
-├── validators/
-│   └── PostValidator.js
-│
-└── Features/
-    └── Post/
-        └── feature.json
-
-database/
-└── migrations/
-```
-
-The generated feature is immediately usable.
+Generates a model, a migration, a validator and a CRUD API under
+`/api/posts`, immediately usable.
 
 ---
 
 # ORM
 
 ```javascript
-const posts = await Post.query()
-    .where("published", true)
-    .orderBy("created_at", "DESC")
-    .limit(10)
-    .get();
+const posts = await Post.where('published', true)
+  .orderBy('created_at', 'DESC')
+  .limit(10)
+  .get()
 ```
 
-Supports
+Observers (`created`, `updated`, ...), traits (`use(Model, Searchable({ fields: ['title'] }))`),
+pagination and atomic `updateWhere` are built in.
 
-* SQLite
-* MySQL
-* PostgreSQL
-* MongoDB
+---
+
+# Validation
+
+```javascript
+import { validate, required, isEmail, minLength } from '@tylix/shared/validation'
+
+const result = validate(req.body, {
+  email: [required, isEmail],
+  password: [required, minLength(8)],
+})
+```
+
+The same rules run in the browser: the starters' login and register forms
+import the app's own `AuthValidator`.
 
 ---
 
 # Authentication
 
-Enable authentication during project creation and Tylix automatically generates:
-
-```
-Models
-├── User
-├── RefreshToken
-└── PasswordReset
-
-Controllers
-└── AuthController
-
-Validators
-└── AuthValidator
-
-Mailer
-└── mailer.js
-```
-
-API
+Enable it when creating the project and Tylix generates the models,
+controller, validator and mailer, plus login, register, password reset and
+dashboard pages for your frontend.
 
 ```
 POST   /api/register
@@ -194,62 +156,67 @@ GET    /api/auth/verify-email
 GET    /api/me
 ```
 
-Features included
-
-* JWT Authentication
-* Refresh Tokens
-* Email Verification
-* Password Reset
-* Protected Routes
-* Middleware
+Sessions use httpOnly cookies with refresh tokens, stay in sync across
+tabs, and survive server rendering. Sign-up and password-reset limits are
+shared by every worker.
 
 ---
 
-# File-Based Pages
+# Background Work and Live Updates
 
-```
-app/pages/
+```javascript
+import { dispatch, broadcast, cache } from '@tylix/core'
 
-Home.tyx
-Login.tyx
-Register.tyx
-Dashboard.tyx
-```
-
-Automatically becomes
-
-```
-/
-/home
-/login
-/register
-/dashboard
+await dispatch('SendWelcomeEmail', { userId })      // tylix queue:work
+await broadcast('chat', { text: 'Deploy finished' }) // tylix channels:work
+const stats = await cache.remember('stats', 60, computeStats)
 ```
 
-No route configuration required.
+---
+
+# Running in Production
+
+```bash
+npm run build
+npx tylix migrate
+npx tylix start --workers auto
+```
+
+* One process per CPU core, sharing the port; a crashed worker is replaced.
+* `STORE_DRIVER=database` (default) or `redis` shares the cache, rate limits
+  and channel messages between workers and servers.
+* `/health` and `/ready` for load balancers; `/metrics` for Prometheus
+  with `METRICS=true`.
+* JSON logs carrying each request's `X-Request-Id`; warnings for slow
+  requests and slow queries.
+
+Every setting is documented in the generated `.env`, and `tylix doctor`
+shows each value and where it came from.
 
 ---
 
 # CLI
 
 ```bash
-tylix make:page Dashboard
-
-tylix make:feature User
-
-tylix make:model Product
-
-tylix make:controller Product
-
-tylix make:migration create_products_table
-
+tylix dev
+tylix build
+tylix start --workers auto
 tylix migrate
 
+tylix make:feature Invoice title:string total:number
+tylix make:page Reports --auth
+tylix make:component StatCard
+tylix make:job SendInvoice
+tylix make:observer Audit --model User
+tylix make:trait HasSlug
+tylix make:channel chat
+
+tylix queue:work
+tylix schedule:work
+tylix channels:work
+
 tylix doctor
-
 tylix tinker
-
-tylix dev
 ```
 
 ---
@@ -258,126 +225,73 @@ tylix dev
 
 ```
 app/
-
-├── controllers/
-├── Features/
-├── layouts/
-├── mail/
+├── controllers/      request handlers
+├── models/           one class per table
+├── routes/           API routes (web.js)
+├── services/         business logic
 ├── middleware/
-├── models/
-├── pages/
-├── routes/
-├── validators/
+├── validators/       rules shared with the frontend
+├── jobs/             background work
+├── observers/        code that runs when models change
+├── traits/           reusable model behaviour
+├── mail/
+├── seeders/
+├── pages/            native .tyx pages
+└── frontend/         React, Vue, Svelte or Angular
+    ├── pages/
+    ├── providers/
+    └── services/
 
-database/
-
-├── migrations/
-└── seeders/
-
+database/migrations/
+tests/
 public/
-
-storage/
-
 tylix.config.js
 ```
 
----
-
-# Hot Module Reload
-
-Simply save a file.
-
-The browser updates automatically.
-
-No refresh.
-
-No restart.
+Each folder has a README saying what goes there and which command makes it.
 
 ---
 
-# Built-in Developer Tools
+# Packages
 
-```
-✓ Compiler
-
-✓ ORM
-
-✓ Routing
-
-✓ Authentication
-
-✓ Migrations
-
-✓ Feature Generator
-
-✓ Doctor
-
-✓ Tinker
-
-✓ Scheduler
-
-✓ Mail
-
-✓ Hot Reload
-```
-
----
-
-# Philosophy
-
-### Convention over Configuration
-
-Focus on building features instead of configuring tooling.
-
-### Batteries Included
-
-Everything needed for modern full-stack development ships with the framework.
-
-### Developer Experience
-
-Fast feedback, helpful tooling, and minimal boilerplate.
-
-### Performance
-
-Compile first.
-
-Run fast.
-
-Ship less JavaScript.
+| Package | |
+| --- | --- |
+| [`create-tylix`](packages/create-tylix) | creates an app |
+| [`@tylix/cli`](packages/cli) | the `tylix` command |
+| [`@tylix/core`](packages/core) | server, router, store, cache, queue, channels, observability |
+| [`@tylix/orm`](packages/orm) | models and database adapters |
+| [`@tylix/shared`](packages/shared) | validation, settings, naming helpers |
+| [`@tylix/auth`](packages/auth) | authentication |
+| [`@tylix/mail`](packages/mail) | email |
+| [`@tylix/compiler`](packages/compiler) | the `.tyx` compiler |
+| [`@tylix/generator`](packages/generator) | code generators |
+| [`@tylix/client`](packages/client) | browser client: API, session, channels |
+| [`@tylix/react`](packages/react), [`@tylix/vue`](packages/vue), [`@tylix/svelte`](packages/svelte), [`@tylix/angular`](packages/angular) | frontend bindings and SSR |
+| [`tylix-icons`](packages/tylix-icons) | icons for every frontend |
+| [`@tylix/charts`](packages/charts) | SVG charts for `.tyx` pages |
 
 ---
 
 # Roadmap
 
-## Completed
+## Done
 
-* Reactive Compiler
-* Template Compiler
-* Reactive Runtime
-* ORM
-* Authentication
-* Feature Generator
-* File-Based Routing
-* Hot Module Reload
-* Doctor Command
-* Interactive Tinker
-* SQLite Support
-* MySQL Support
-* PostgreSQL Support
-* MongoDB Support
+* Reactive compiler and runtime, file-based pages, hot reload
+* React, Vue, Svelte and Angular frontends with server-side rendering
+* ORM for SQLite, MySQL, PostgreSQL and MongoDB; observers and traits
+* Authentication, validation shared with the browser
+* Queues, scheduler, channels, mail
+* Logs, metrics, health checks; workers and a shared store
+* Feature generator, doctor, tinker, benchmarks (`bench/`)
 
 ## Planned
 
-* Server Side Rendering (SSR)
-* Static Site Generation (SSG)
-* Official Component Library
-* Plugin System
-* DevTools
-* Testing Framework
-* VS Code Extension
-* Deployment Adapters
-* Cloud Platform
-* Package Registry
+* Typed API client generated from the routes
+* Job retries with backoff
+* Static site generation
+* Plugin system
+* DevTools and a VS Code extension
+* Deployment adapters
 
 ---
 
@@ -385,49 +299,20 @@ Ship less JavaScript.
 
 ```bash
 git clone https://github.com/Mbiyrukzz/tylix.git
-
 cd tylix
-
 npm install
-
 npm test
 ```
 
-Contributions, ideas, and bug reports are welcome.
+* `npm run test:e2e -- <url>` runs the browser checks against a running app.
+* `npm run bench` compares the server with Node, Fastify, Hono and Express.
+* `npm run release -- <version> bump|dry|publish` versions and publishes
+  every package together.
+
+Contributions, ideas and bug reports are welcome.
 
 ---
 
 # License
 
-MIT License
-
----
-
-## Why Choose Tylix?
-
-| Feature              | Tylix |
-| -------------------- | ----- |
-| Reactive Compiler    | ✅     |
-| Full-Stack Framework | ✅     |
-| Built-in ORM         | ✅     |
-| Authentication       | ✅     |
-| Feature Generator    | ✅     |
-| File-Based Pages     | ✅     |
-| Hot Reload           | ✅     |
-| CLI                  | ✅     |
-| Migrations           | ✅     |
-| Doctor Command       | ✅     |
-| Interactive Tinker   | ✅     |
-| Multiple Databases   | ✅     |
-
----
-
-## Current Status
-
-Tylix is under active development and is already capable of building real-world full-stack applications.
-
-The goal of the project is to provide a single, cohesive framework that eliminates the need to combine multiple libraries while maintaining excellent developer experience and high performance.
-
----
-
-⭐ **If you like the project, consider giving it a star on GitHub. It helps others discover Tylix and supports its development.**
+[MIT](LICENSE)

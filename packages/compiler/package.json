@@ -1,13 +1,41 @@
 {
   "name": "@tylix/compiler",
-  "version": "0.6.0",
+  "version": "0.7.0",
+  "description": "Compiler for Tylix .tyx pages and components: parses, type-checks and compiles them to server-rendered HTML and client JavaScript.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
     "tylix",
     "compiler",
-    "ui"
+    "ui",
+    "templates",
+    "ssr",
+    "components"
   ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/compiler#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/compiler"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
   "main": "./src/index.js",
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "!**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test src/*.test.js src/**/*.test.js"
   },
