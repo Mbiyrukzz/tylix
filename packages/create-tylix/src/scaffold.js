@@ -301,7 +301,9 @@ async function runBuildSteps(config) {
   if (config.installNow) {
     steps.push({
       label: 'Installing packages',
-      fn: () => installPackages(config),
+      fn: ({ update }) => installPackages(config, { onProgress: update }),
+      // Takes most of the time, so it gets most of the bar (set below).
+      heavy: true,
     })
   }
   // Connection details and mail settings live in .env (written by
@@ -419,12 +421,19 @@ async function runBuildSteps(config) {
   }
 
   const warnings = []
-  const progress = createProgressBar(steps.length)
+  // A heavy step gets 60% of the bar; the rest share 40% evenly.
+  const heavy = steps.filter((s) => s.heavy).length
+  const light = steps.length - heavy
+  const heavyWeight = heavy && light ? (light * 1.5) / heavy : 1
+  const progress = createProgressBar(steps.map((s) => (s.heavy ? heavyWeight : 1)))
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]
     progress.render(step.label, i)
+    // Long steps (installing packages) report progress within the step.
+    const update = (fraction, detail) =>
+      progress.update(step.label, i, fraction, detail)
     try {
-      await step.fn()
+      await step.fn({ update })
     } catch (err) {
       if (!step.optional) {
         // Start on a fresh line so the message isn't glued to the progress bar.
