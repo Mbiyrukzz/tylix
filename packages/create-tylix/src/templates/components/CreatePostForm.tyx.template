@@ -104,46 +104,46 @@ action
   }
 
 template
-  <button onclick="{{ open() }}" class="inline-flex items-center gap-1.5 text-sm font-semibold rounded-md px-4 py-2 bg-emerald-500 text-white dark:text-zinc-950 hover:bg-emerald-400 transition-colors">
+  <button onclick="{{ open() }}" class="inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2 bg-brand text-white hover:bg-brand-hover transition-colors">
     <IconPlus class="w-4 h-4" /> New Post
   </button>
 
 {{#if showModal}}
-  <div role="dialog" aria-modal="true" aria-labelledby="create-post-title" class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 backdrop-blur-sm px-6">
-    <div class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl p-6">
+  <div role="dialog" aria-modal="true" aria-labelledby="create-post-title" class="fixed inset-0 z-50 flex items-center justify-center bg-well/60 backdrop-blur-sm px-6">
+    <div class="w-full max-w-md max-h-[90vh] overflow-y-auto tx-panel shadow-xl p-6">
       <div class="flex items-center justify-between mb-5">
         <h3 id="create-post-title" class="font-semibold tracking-tight">New Post</h3>
-        <button onclick="{{ close() }}" aria-label="Close" class="w-8 h-8 flex items-center justify-center rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+        <button onclick="{{ close() }}" aria-label="Close" class="w-8 h-8 flex items-center justify-center rounded-lg text-muted hover:text-ink hover:bg-raised transition-colors">
           <IconX class="w-4 h-4" />
         </button>
       </div>
 
-      <label for="new-post-title" class="block text-zinc-500 text-xs font-medium mb-1.5">Title</label>
+      <label for="new-post-title" class="tx-label">Title</label>
       <input
         id="new-post-title"
         type="text"
         autofocus
         value="{{ title }}"
         oninput="{{ title = $event.target.value }}"
-        class="w-full mb-4 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
+        class="w-full mb-4 rounded-lg border border-line bg-canvas text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-aqua/30 focus:border-aqua transition"
         placeholder="e.g. Launch week recap"
       />
 
-      <label for="new-post-body" class="block text-zinc-500 text-xs font-medium mb-1.5">Body</label>
+      <label for="new-post-body" class="tx-label">Body</label>
       <textarea
         id="new-post-body"
         rows="4"
         value="{{ body }}"
         oninput="{{ body = $event.target.value }}"
-        class="w-full mb-4 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 resize-none transition"
+        class="w-full mb-4 rounded-lg border border-line bg-canvas text-sm px-3 py-2.5 outline-none focus:ring-2 focus:ring-aqua/30 focus:border-aqua resize-none transition"
         placeholder="Write something…"
       ></textarea>
 
-      <p class="block text-zinc-500 text-xs font-medium mb-1.5">Cover image <span class="text-zinc-400">(optional, up to 2 MB)</span></p>
+      <p class="tx-label">Cover image <span class="text-muted">(optional, up to 2 MB)</span></p>
 {{#if coverImage}}
       <div class="relative mb-4">
-        <img src="{{ coverImage }}" alt="Cover preview" class="w-full aspect-video object-cover rounded-md border border-zinc-200 dark:border-zinc-800" />
-        <button onclick="{{ removeImage() }}" class="absolute top-2 right-2 text-xs font-medium px-2.5 py-1 rounded-md bg-white/90 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-900 transition-colors">Remove</button>
+        <img src="{{ coverImage }}" alt="Cover preview" class="w-full aspect-video object-cover rounded-lg border border-line" />
+        <button onclick="{{ removeImage() }}" class="absolute top-2 right-2 text-xs font-medium px-2.5 py-1 rounded-lg bg-panel/90 border border-line hover:bg-white transition-colors">Remove</button>
       </div>
 {{#else}}
       <input
@@ -151,21 +151,21 @@ template
         accept="image/png,image/jpeg,image/webp,image/gif"
         onchange="{{ pickImage($event) }}"
         disabled="{{ uploading }}"
-        class="block w-full mb-1 text-sm text-zinc-500 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 dark:file:bg-zinc-800 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-700 dark:file:text-zinc-200 hover:file:bg-zinc-200 dark:hover:file:bg-zinc-700"
+        class="block w-full mb-1 text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-raised file:px-3 file:py-2 file:text-sm file:font-medium file:text-soft hover:file:bg-line"
       />
-      <p class="text-xs text-zinc-500 mb-4 h-4">{{ uploading ? 'Uploading…' : '' }}</p>
+      <p class="text-xs text-muted mb-4 h-4">{{ uploading ? 'Uploading…' : '' }}</p>
 {{/if}}
 
 {{#if error}}
-      <p role="alert" class="text-rose-600 dark:text-rose-400 text-sm mb-4">{{ error }}</p>
+      <p role="alert" class="text-coral text-sm mb-4">{{ error }}</p>
 {{/if}}
 
       <div class="flex items-center justify-end gap-3">
-        <button onclick="{{ close() }}" class="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-white px-3 py-2 transition-colors">Cancel</button>
+        <button onclick="{{ close() }}" class="text-sm text-muted hover:text-ink px-3 py-2 transition-colors">Cancel</button>
         <button
           onclick="{{ submit() }}"
           disabled="{{ creating or uploading }}"
-          class="text-sm font-semibold rounded-md px-4 py-2 bg-emerald-500 text-white dark:text-zinc-950 hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          class="text-sm font-semibold rounded-lg px-4 py-2 bg-brand text-white hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ creating ? 'Creating…' : 'Create Post' }}
         </button>

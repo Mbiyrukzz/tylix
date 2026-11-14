@@ -8,32 +8,32 @@ import { useMyPosts } from '../providers/PostsProvider'
 import { useAuth } from '@tylix/react'
 // @endif
 
-const cardClass = 'rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5'
+const cardClass = 'tx-panel p-5'
 
 export default function Dashboard() {
   const { user } = useAuth()
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
-      <p className="text-sm text-zinc-500 mb-1">Signed in as</p>
+      <p className="text-sm text-muted mb-1">Signed in as</p>
       <h1 className="text-3xl font-semibold tracking-tight mb-8" data-testid="dashboard-name">
         {user?.name}
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
         <div className={cardClass}>
-          <IconMail className="w-4 h-4 text-emerald-500 mb-3" />
-          <p className="text-xs text-zinc-500 mb-1">Email</p>
+          <IconMail className="w-4 h-4 text-mint mb-3" />
+          <p className="text-xs text-muted mb-1">Email</p>
           <p className="text-sm font-semibold truncate">{user?.email}</p>
         </div>
         <div className={cardClass}>
-          <IconShieldCheck className="w-4 h-4 text-emerald-500 mb-3" />
-          <p className="text-xs text-zinc-500 mb-1">Session</p>
+          <IconShieldCheck className="w-4 h-4 text-mint mb-3" />
+          <p className="text-xs text-muted mb-1">Session</p>
           <p className="text-sm font-semibold">httpOnly cookie, refreshed automatically</p>
         </div>
         <div className={cardClass}>
-          <IconServer className="w-4 h-4 text-emerald-500 mb-3" />
-          <p className="text-xs text-zinc-500 mb-1">Protected API</p>
+          <IconServer className="w-4 h-4 text-mint mb-3" />
+          <p className="text-xs text-muted mb-1">Protected API</p>
           <p className="text-sm font-semibold">GET /api/me</p>
         </div>
       </div>
@@ -87,7 +87,7 @@ function Posts() {
         }}
       >
         {error && (
-          <p role="alert" className="text-rose-600 dark:text-rose-400 text-sm mb-3">
+          <p role="alert" className="text-coral text-sm mb-3">
             {error}
           </p>
         )}
@@ -96,7 +96,7 @@ function Posts() {
           placeholder="Title"
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          className="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+          className="tx-input mb-3"
         />
         <textarea
           name="body"
@@ -104,28 +104,28 @@ function Posts() {
           rows={3}
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          className="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-3 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40"
+          className="tx-input mb-3"
         />
         <button
           type="submit"
           disabled={saving || !hydrated}
-          className="px-4 py-2 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50"
+          className="px-4 py-2 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Publish post'}
         </button>
       </form>
 
       {loading && posts.length === 0 ? (
-        <p className="text-sm text-zinc-500">Loading posts…</p>
+        <p className="text-sm text-muted">Loading posts…</p>
       ) : loadError ? (
-        <p className="text-sm text-rose-600">{loadError}</p>
+        <p className="text-sm text-coral">{loadError}</p>
       ) : posts.length > 0 ? (
         <ul className="space-y-3" data-testid="posts">
           {posts.map((post) => (
             <li key={post.id} className={`${cardClass} flex items-start justify-between gap-4`}>
               <div>
                 <p className="font-semibold">{post.title}</p>
-                <p className="text-sm text-zinc-500 mt-1 whitespace-pre-line">{post.body}</p>
+                <p className="text-sm text-muted mt-1 whitespace-pre-line">{post.body}</p>
               </div>
               <button
                 type="button"
@@ -133,7 +133,7 @@ function Posts() {
                   const problem = await removePost(post.id)
                   if (problem) setError(problem)
                 }}
-                className="text-sm text-zinc-500 hover:text-rose-600 transition-colors"
+                className="text-sm text-muted hover:text-coral transition-colors"
               >
                 Delete
               </button>
@@ -141,7 +141,7 @@ function Posts() {
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-zinc-500">No posts yet. Publish your first one above.</p>
+        <p className="text-sm text-muted">No posts yet. Publish your first one above.</p>
       )}
     </section>
   )

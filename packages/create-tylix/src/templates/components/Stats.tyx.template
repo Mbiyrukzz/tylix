@@ -3,27 +3,27 @@ component Stats
 import { IconBolt, IconDatabase, IconTerminal, IconCheckCircle } from "tylix-icons"
 
 template
-  <section class="px-6 py-14 border-y border-slate-800">
-    <div class="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-      <div>
-        <IconBolt class="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-        <p class="text-3xl font-semibold text-emerald-400 mb-1">0ms</p>
-        <p class="text-slate-500 text-sm">Virtual DOM diffing</p>
+  <section class="px-6 py-14">
+    <div class="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="tx-panel tx-stat">
+        <IconBolt class="w-5 h-5 text-mint mb-3" />
+        <p class="tx-stat-value">0ms</p>
+        <p class="tx-stat-label mt-1">Virtual DOM diffing</p>
       </div>
-      <div>
-        <IconDatabase class="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-        <p class="text-3xl font-semibold text-emerald-400 mb-1">4</p>
-        <p class="text-slate-500 text-sm">Database drivers</p>
+      <div class="tx-panel tx-stat">
+        <IconDatabase class="w-5 h-5 text-mint mb-3" />
+        <p class="tx-stat-value">4</p>
+        <p class="tx-stat-label mt-1">Database drivers</p>
       </div>
-      <div>
-        <IconTerminal class="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-        <p class="text-3xl font-semibold text-emerald-400 mb-1">1</p>
-        <p class="text-slate-500 text-sm">Command to scaffold</p>
+      <div class="tx-panel tx-stat">
+        <IconTerminal class="w-5 h-5 text-mint mb-3" />
+        <p class="tx-stat-value">1</p>
+        <p class="tx-stat-label mt-1">Command to scaffold</p>
       </div>
-      <div>
-        <IconCheckCircle class="w-5 h-5 text-emerald-400 mx-auto mb-2" />
-        <p class="text-3xl font-semibold text-emerald-400 mb-1">100%</p>
-        <p class="text-slate-500 text-sm">Readable output</p>
+      <div class="tx-panel tx-stat">
+        <IconCheckCircle class="w-5 h-5 text-mint mb-3" />
+        <p class="tx-stat-value">100%</p>
+        <p class="tx-stat-label mt-1">Readable output</p>
       </div>
     </div>
   </section>

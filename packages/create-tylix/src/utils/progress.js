@@ -1,5 +1,5 @@
 import readline from 'node:readline'
-import { cyan, gray, bold } from '@tylix/shared'
+import { gray, bold, hex, BRAND } from '@tylix/shared'
 
 export function createProgressBar(totalSteps, { width = 20 } = {}) {
   let drawn = false
@@ -16,7 +16,7 @@ export function createProgressBar(totalSteps, { width = 20 } = {}) {
       width,
       Math.round((completedCount / totalSteps) * width),
     )
-    const bar = cyan('█'.repeat(filled)) + gray('░'.repeat(width - filled))
+    const bar = hex(BRAND.blue, 'blue')('▰'.repeat(filled)) + gray('▱'.repeat(width - filled))
 
     console.log(bold(label))
     console.log()

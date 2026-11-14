@@ -10,17 +10,17 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZ
 
 <template>
   <article class="max-w-3xl mx-auto px-6 py-12">
-    <RouterLink to="/posts" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">← All posts</RouterLink>
-    <p v-if="loading && !post" class="text-sm text-zinc-500 mt-8">Loading…</p>
+    <RouterLink to="/posts" class="text-sm tx-link">← All posts</RouterLink>
+    <p v-if="loading && !post" class="text-sm text-muted mt-8">Loading…</p>
     <div v-else-if="notFound" class="mt-8">
       <h1 class="text-2xl font-semibold">Post not found</h1>
-      <p class="text-sm text-zinc-500 mt-2">It may have been deleted.</p>
+      <p class="text-sm text-muted mt-2">It may have been deleted.</p>
     </div>
-    <p v-else-if="error" class="text-sm text-rose-600 mt-8">{{ error }}</p>
+    <p v-else-if="error" class="text-sm text-coral mt-8">{{ error }}</p>
     <template v-else-if="post">
       <h1 class="text-4xl font-semibold tracking-tight mt-6 mb-3" data-testid="post-title">{{ post.title }}</h1>
-      <p class="text-sm text-zinc-500 mb-8">{{ post.author }} · {{ dateFormat.format(new Date(post.created_at)) }}</p>
-      <div class="text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-line">{{ post.body }}</div>
+      <p class="text-sm text-muted mb-8">{{ post.author }} · {{ dateFormat.format(new Date(post.created_at)) }}</p>
+      <div class="text-soft leading-relaxed whitespace-pre-line">{{ post.body }}</div>
     </template>
   </article>
 </template>

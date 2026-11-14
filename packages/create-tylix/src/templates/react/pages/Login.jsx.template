@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useAuth, useHydrated } from '@tylix/react'
 import { useNextPath } from '../components/Redirects'
+import OAuthButtons from '../components/OAuthButtons'
 import { firstError } from '@tylix/shared/validation'
 import { validateLogin } from '../../validators/AuthValidator'
 
 const inputClass =
-  'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
+  'tx-input'
 
 const perks = [
   'Manage your posts from one dashboard',
@@ -53,14 +54,15 @@ export default function Login() {
 
   return (
     <div className="flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-        <div className="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+      <div className="tx-auth tx-glow">
+        <div className="tx-auth-aside">
+          <p className="tx-eyebrow mb-5">Signed-in session</p>
           <h2 className="text-2xl font-semibold tracking-tight mb-3">Welcome back</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">Log in to pick up where you left off.</p>
+          <p className="text-sm text-muted mb-8 leading-relaxed">Log in to pick up where you left off.</p>
           <ul className="space-y-3">
             {perks.map((perk) => (
-              <li key={perk} className="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
-                <span className="text-emerald-500">✓</span>
+              <li key={perk} className="flex items-start gap-2.5 text-sm text-soft">
+                <span className="text-mint">✓</span>
                 {perk}
               </li>
             ))}
@@ -68,7 +70,7 @@ export default function Login() {
         </div>
 
         <form
-          className="flex items-center justify-center px-6 py-12"
+          className="tx-auth-form"
           noValidate
           onSubmit={(event) => {
             event.preventDefault()
@@ -77,15 +79,17 @@ export default function Login() {
         >
           <div className="w-full max-w-sm">
             <h1 className="text-2xl font-semibold tracking-tight mb-1">Log in</h1>
-            <p className="text-sm text-zinc-500 mb-8">Continue to your dashboard.</p>
+            <p className="text-sm text-muted mb-8">Continue to your dashboard.</p>
 
             {error && (
-              <div role="alert" aria-live="polite" className="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
-                <p className="text-rose-700 dark:text-rose-400 text-sm">{error}</p>
+              <div role="alert" aria-live="polite" className="tx-alert tx-alert-error mb-6">
+                <p className="text-sm">{error}</p>
               </div>
             )}
 
-            <label htmlFor="email" className="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+            <OAuthButtons returnTo={next} />
+
+            <label htmlFor="email" className="tx-label">Email</label>
             <input
               id="email"
               name="email"
@@ -98,7 +102,7 @@ export default function Login() {
               className={inputClass}
             />
 
-            <label htmlFor="password" className="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+            <label htmlFor="password" className="tx-label">Password</label>
             <input
               id="password"
               name="password"
@@ -111,7 +115,7 @@ export default function Login() {
             />
 
             <div className="flex justify-end -mt-1 mb-4">
-              <Link to="/forgot-password" className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">
+              <Link to="/forgot-password" className="text-sm tx-link">
                 Forgot password?
               </Link>
             </div>
@@ -119,14 +123,14 @@ export default function Login() {
             <button
               type="submit"
               disabled={submitting || !hydrated}
-              className="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="tx-btn tx-btn-primary tx-btn-block"
             >
               {submitting ? 'Logging in…' : 'Log in'}
             </button>
 
-            <p className="text-sm text-zinc-500 text-center mt-6">
+            <p className="text-sm text-muted text-center mt-6">
               Need an account?{' '}
-              <Link to="/register" className="text-emerald-600 dark:text-emerald-400 hover:underline">
+              <Link to="/register" className="tx-link">
                 Sign up
               </Link>
             </p>

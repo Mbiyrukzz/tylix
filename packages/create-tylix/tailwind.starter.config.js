@@ -1,23 +1,41 @@
 /** @type {import('tailwindcss').Config} */
+// Builds src/templates/starter.css: the utilities the starter templates use,
+// precompiled for projects that don't run Tailwind. Keep `colors` in step
+// with src/templates/tailwind.config.js.template.
+const token = (name) => `rgb(var(--tx-${name}) / <alpha-value>)`
+
 export default {
   darkMode: 'class',
   content: [
     './src/templates/**/*',
     '!./src/templates/starter.css',
     '!./src/templates/starter-input.css',
+    '!./src/templates/tylix-ui.css',
     './src/steps/**/*.js',
   ],
   blocklist: ['[-:.TZ]'],
   theme: {
     extend: {
       colors: {
-        tylix: { blue: '#8b5cf6', orange: '#e879f9' },
-        emerald: {
-          400: 'rgb(var(--brand-400, 52 211 153) / <alpha-value>)',
-          500: 'rgb(var(--brand-500, 16 185 129) / <alpha-value>)',
-          600: 'rgb(var(--brand-600, 5 150 105) / <alpha-value>)',
-          700: 'rgb(var(--brand-700, 4 120 87) / <alpha-value>)',
-        },
+        canvas: token('canvas'),
+        panel: token('panel'),
+        raised: token('raised'),
+        well: token('well'),
+        line: { DEFAULT: token('line'), strong: token('line-strong') },
+        ink: token('ink'),
+        soft: token('soft'),
+        muted: token('muted'),
+        brand: { DEFAULT: token('brand'), hover: token('brand-hover'), deep: '#0034CA' },
+        link: token('link'),
+        mint: token('mint'),
+        coral: token('coral'),
+        peach: token('peach'),
+        signal: token('signal'),
+        aqua: token('aqua'),
+      },
+      fontFamily: {
+        sans: 'var(--tx-font)',
+        mono: 'var(--tx-mono)',
       },
     },
   },

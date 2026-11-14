@@ -3,5 +3,5 @@
 </script>
 
 <div class="flex items-center justify-center py-32" role="status" aria-label="Loading">
-  <div class="w-6 h-6 rounded-full border-2 border-zinc-300 dark:border-zinc-700 border-t-emerald-500 animate-spin"></div>
+  <div class="w-6 h-6 rounded-full border-2 border-line-strong border-t-brand animate-spin"></div>
 </div>

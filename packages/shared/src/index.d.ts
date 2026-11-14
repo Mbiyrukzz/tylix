@@ -34,5 +34,6 @@ export {
     printBox,
     printChecklist,
     printLinkSection,
+    leds,
 } from './utils/banner.js';
 export { detectLanguage } from './config/detectLanguage.js';export * from './utils/colors.js';

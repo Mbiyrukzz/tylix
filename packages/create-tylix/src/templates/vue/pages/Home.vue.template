@@ -7,49 +7,68 @@ const { isAuthenticated } = useAuth()
 </script>
 
 <template>
-  <section class="max-w-6xl mx-auto px-6 py-24 text-center">
-    <p class="text-sm font-semibold tracking-widest text-emerald-500 uppercase mb-4">Tylix + Vue</p>
-    <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight mb-5">Your full-stack app is ready.</h1>
-    <p class="max-w-2xl mx-auto text-lg text-zinc-500 dark:text-zinc-400 mb-10">
-      Vue renders the pages. Tylix runs the API, database, authentication and mail, all from one server.
-    </p>
-    <!-- @if auth -->
-    <div class="flex items-center justify-center gap-3">
-      <RouterLink
-        v-if="isAuthenticated"
-        to="/dashboard"
-        class="px-5 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors"
-      >
-        Go to dashboard
-      </RouterLink>
-      <template v-else>
-        <RouterLink
-          to="/register"
-          class="px-5 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors"
-        >
-          Create an account
-        </RouterLink>
-        <RouterLink
-          to="/login"
-          class="px-5 py-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-        >
-          Log in
-        </RouterLink>
-      </template>
+  <section class="max-w-6xl mx-auto px-6 pt-20 pb-24">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+      <div>
+        <p class="tx-eyebrow mb-6">Tylix + Vue</p>
+        <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05] mb-5 tx-gradient-text">Your full-stack app is ready.</h1>
+        <p class="max-w-xl text-lg text-muted mb-10 leading-relaxed">
+          Vue renders the pages. Tylix runs the API, database, authentication and mail, all from one server.
+        </p>
+        <!-- @if auth -->
+        <div class="flex flex-wrap items-center gap-3">
+          <RouterLink
+            v-if="isAuthenticated"
+            to="/dashboard"
+            class="tx-btn tx-btn-primary"
+          >
+            Go to dashboard
+          </RouterLink>
+          <template v-else>
+            <RouterLink
+              to="/register"
+              class="tx-btn tx-btn-primary"
+            >
+              Create an account
+            </RouterLink>
+            <RouterLink
+              to="/login"
+              class="tx-btn tx-btn-outline"
+            >
+              Log in
+            </RouterLink>
+          </template>
+        </div>
+        <!-- @endif -->
+      </div>
+      <div class="flex justify-center lg:justify-end">
+        <div class="tx-console" aria-hidden="true">
+          <div class="tx-console-mosaic"></div>
+          <div class="tx-console-screen">
+            <span><span class="dim">$</span> npx create-tylix my-app</span>
+            <span><span class="ok">✓</span> Vue pages, Tylix API</span>
+            <span><span class="ok">✓</span> auth, database, mail</span>
+            <span><span class="dim">➜</span> <span class="url">localhost:3000</span></span>
+          </div>
+          <div class="tx-console-chevrons"></div>
+          <div class="tx-console-leds"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="tx-console-signal"></div>
+          <div class="tx-console-meter"><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
     </div>
-    <!-- @endif -->
     <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+      <div class="tx-panel p-6">
         <h2 class="font-semibold mb-2">app/frontend</h2>
-        <p class="text-sm text-zinc-500">Your Vue code. Edits hot-reload without restarting the server.</p>
+        <p class="text-sm text-muted">Your Vue code. Edits hot-reload without restarting the server.</p>
       </div>
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+      <div class="tx-panel p-6">
         <h2 class="font-semibold mb-2">app/controllers, models</h2>
-        <p class="text-sm text-zinc-500">The backend. Generate more with tylix make:feature.</p>
+        <p class="text-sm text-muted">The backend. Generate more with tylix make:feature.</p>
       </div>
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 p-6">
+      <div class="tx-panel p-6">
         <h2 class="font-semibold mb-2">@tylix/vue</h2>
-        <p class="text-sm text-zinc-500">useAuth and data providers, wired to the same session as the API.</p>
+        <p class="text-sm text-muted">useAuth and data providers, wired to the same session as the API.</p>
       </div>
     </div>
   </section>

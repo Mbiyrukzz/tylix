@@ -40,13 +40,14 @@ action
 
 template
   <section class="max-w-3xl mx-auto px-6 py-20">
-    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-3 border-b border-zinc-200 dark:border-zinc-800">
-        <code class="text-sm font-mono text-zinc-700 dark:text-zinc-300"><span class="text-zinc-400 select-none">$ </span>npx create-tylix my-app</code>
+    <div class="tx-glow overflow-hidden">
+      <div class="flex items-center justify-between gap-4 px-5 py-3 border-b border-line bg-raised">
+        <span class="tx-leds"><i></i><i></i><i></i></span>
+        <code class="flex-1 truncate text-sm font-mono text-soft"><span class="text-muted select-none">$ </span>npx create-tylix my-app</code>
         <button
           onclick="{{ copyInstallCommand() }}"
           aria-label="Copy install command"
-          class="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-emerald-500 px-2 py-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+          class="inline-flex items-center gap-1.5 text-xs text-muted hover:text-ink px-2 py-1 rounded-lg hover:bg-panel transition-colors"
         >
 {{#if copied}}
           <IconCheck class="w-3.5 h-3.5" /> Copied
@@ -55,6 +56,6 @@ template
 {{/if}}
         </button>
       </div>
-      <div class="whitespace-pre overflow-x-auto p-6 text-[13px] leading-relaxed font-mono text-zinc-600 dark:text-zinc-300">{{ codeSample }}</div>
+      <div class="whitespace-pre overflow-x-auto p-6 text-[13px] leading-relaxed font-mono text-soft bg-well">{{ codeSample }}</div>
     </div>
   </section>

@@ -6,10 +6,12 @@ import {
   printDivider,
   printHeavyDivider,
   printSection,
+  leds,
+  hex,
+  BRAND,
   bold,
   dim,
   cyan,
-  cyanBright,
   green,
   yellow,
   red,
@@ -43,6 +45,10 @@ import { writeCapabilities } from './steps/writeCapabilities.js'
 import { writeFrontend } from './steps/writeFrontend.js'
 import { writeBackendStructure } from './steps/writeBackendStructure.js'
 import { initGit } from './steps/initGit.js'
+
+// Values and links in the brand blue; commands keep cyan so they read as
+// "type this".
+const accent = (text) => hex(BRAND.sky, 'blue')(text)
 
 const FRONTEND_LABELS = { tylix: 'Tylix', react: 'React', svelte: 'Svelte', vue: 'Vue', angular: 'Angular' }
 
@@ -234,25 +240,25 @@ async function runWizard(initialProjectName, options = {}) {
   )
 
   console.log(bold('Configuration'))
-  console.log(`Project Name      ${cyanBright(projectName)}`)
+  console.log(`Project Name      ${accent(projectName)}`)
   console.log(
-    `Frontend          ${cyanBright(FRONTEND_LABELS[frontend] ?? frontend)}`,
+    `Frontend          ${accent(FRONTEND_LABELS[frontend] ?? frontend)}`,
   )
   console.log(
-    `Language          ${cyanBright(language === 'javascript' ? 'JavaScript' : 'TypeScript')}`,
+    `Language          ${accent(language === 'javascript' ? 'JavaScript' : 'TypeScript')}`,
   )
-  console.log(`Database          ${cyanBright(database)}`)
+  console.log(`Database          ${accent(database)}`)
   if (databaseUser) {
-    console.log(`Database User     ${cyanBright(databaseUser)}`)
+    console.log(`Database User     ${accent(databaseUser)}`)
   }
   console.log(
     `Authentication    ${authEnabled ? green('Enabled') : dim('Disabled')}`,
   )
-  console.log(`Styling           ${cyanBright(styling)}`)
+  console.log(`Styling           ${accent(styling)}`)
   console.log(
-    `Starter           ${cyanBright(starter === 'starter' ? 'Starter App' : 'Blank')}`,
+    `Starter           ${accent(starter === 'starter' ? 'Starter App' : 'Blank')}`,
   )
-  console.log(`Package Manager   ${cyanBright(packageManager)}`)
+  console.log(`Package Manager   ${accent(packageManager)}`)
   console.log(`Git               ${gitInit ? green('Yes') : dim('No')}`)
   printDivider(54)
 
@@ -455,11 +461,10 @@ function printSuccessScreen(config) {
   const pm = getPackageManager(config)
 
   printHeavyDivider()
-  console.log(bold(green('🎉  Success!')))
-  console.log('Your application has been created.\n')
+  console.log(`${leds()}  ${bold('Success!')} Your application has been created.\n`)
 
   console.log(bold('Project'))
-  console.log(`📁 ${cyanBright(config.projectName)}\n`)
+  console.log(`📁 ${accent(config.projectName)}\n`)
 
   printSection(
     'Pages',
@@ -473,6 +478,7 @@ function printSuccessScreen(config) {
     printSection('Authentication', [
       'Login',
       'Register',
+      'Continue with Google / GitHub',
       'Password Reset',
       'Email Verification',
     ])
@@ -496,6 +502,9 @@ function printSuccessScreen(config) {
     console.log('GET    /api/auth/sessions')
     console.log('POST   /api/auth/logout-all')
     console.log('GET    /api/me')
+    console.log('GET    /api/auth/providers')
+    console.log('GET    /api/auth/oauth/:provider')
+    console.log('GET    /api/auth/oauth/:provider/callback')
     if (config.starter === 'starter') {
       console.log('GET    /api/posts')
       console.log('POST   /api/posts')
@@ -516,19 +525,27 @@ function printSuccessScreen(config) {
     console.log(cyan(installCommand(pm)))
   }
   console.log(cyan(runScriptCommand(pm, 'dev')))
+  if (config.authEnabled) {
+    console.log(
+      dim('\nSocial sign-in: add GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET and'),
+    )
+    console.log(
+      dim('GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET to .env (callback URLs are listed there).'),
+    )
+  }
   printHeavyDivider()
 
   console.log(bold('Development Server'))
-  console.log(cyanBright('http://localhost:3000\n'))
+  console.log(accent('http://localhost:3000\n'))
   console.log(bold('Documentation'))
-  console.log(cyanBright('https://tylix.dev/docs\n'))
+  console.log(accent('https://tylix.dev/docs\n'))
   console.log(bold('Discord'))
-  console.log(cyanBright('https://discord.gg/tylix\n'))
+  console.log(accent('https://discord.gg/tylix\n'))
   console.log(bold('GitHub'))
-  console.log(cyanBright('https://github.com/tylixjs'))
+  console.log(accent('https://github.com/tylixjs'))
   printHeavyDivider()
 
-  console.log(bold(green('Happy building with Tylix ')))
+  console.log(`${hex(BRAND.blue, 'blue')('▰▰▰')} ${bold('Happy building with Tylix')}`)
 }
 
 export async function scaffold({

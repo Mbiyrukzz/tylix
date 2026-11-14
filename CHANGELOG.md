@@ -4,6 +4,38 @@ All Tylix packages share one version number and are released together.
 
 ## Unreleased
 
+### Social sign-in in every starter
+- **Continue with Google / GitHub** on the login and register pages of all
+  five frontends (Tylix, React, Vue, Svelte, Angular), through a new
+  `OAuthButtons` component. Add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+  and `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` to `.env`; the callback
+  URLs to register are written next to them.
+- `make:auth` adds `oauthStart`, `oauthCallback` and `oauthProviders` to
+  `AuthController`, an `OAuthAccount` model and a `create_oauth_accounts_table`
+  migration. The server registers `GET /api/auth/oauth/:provider`,
+  `GET /api/auth/oauth/:provider/callback` and `GET /api/auth/providers`.
+- Built on `createOAuth` (PKCE, sealed state cookie, same-site return
+  paths). Accounts are matched by provider id first, then by email only
+  when the provider has verified it. Linking to an unverified local
+  account resets its password and ends its sessions, so an account opened
+  in someone else's name can't be kept. Failures return to
+  `/login?error=<code>` with a fixed message, never URL text.
+
+### New look for the starters and the CLI
+- New Tylix logo (`logo-mark.svg`, `favicon.svg`, a real multi-size
+  `favicon.ico`) in every navbar, footer and status page.
+- A design system, `tylix-ui.css`: colour tokens for light and dark
+  (`bg-panel`, `text-muted`, `border-line`, `text-brand`, ...) and
+  components (`tx-btn`, `tx-input`, `tx-panel`, `tx-glow`, `tx-alert`,
+  `tx-auth`, `tx-console`, ...). It ships with Tailwind and plain-CSS
+  projects alike, between Tailwind's base and utilities.
+- Every starter page is restyled on it: graphite panels, a glowing frame,
+  status lights and a console hero, in light and dark.
+- `create-tylix` and `tylix dev` print the new logo in the brand blue
+  (true colour, with 256-colour and no-colour fallbacks).
+- Branded verification and password-reset emails, and the server's status
+  pages use the Tylix palette.
+
 ### @tylix/auth: works with any framework, hardened
 - **Any framework.** A new `createAuth()` engine is built on Web Crypto and
   Web `Request`/`Response`, so it runs on Node, Bun, Deno, Workers and the

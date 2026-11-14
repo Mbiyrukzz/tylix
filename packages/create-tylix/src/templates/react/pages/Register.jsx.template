@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth, useHydrated } from '@tylix/react'
+import OAuthButtons from '../components/OAuthButtons'
 import { firstError } from '@tylix/shared/validation'
 import { MIN_PASSWORD_LENGTH, validateRegister } from '../../validators/AuthValidator'
 
 const inputClass =
-  'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
+  'tx-input'
 
 const perks = [
   'Auth, database and styling already wired',
@@ -63,39 +64,40 @@ export default function Register() {
 
   return (
     <div className="flex items-center justify-center px-6 py-16">
-      <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-        <div className="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+      <div className="tx-auth tx-glow">
+        <div className="tx-auth-aside">
+          <p className="tx-eyebrow mb-5">New account</p>
           <h2 className="text-2xl font-semibold tracking-tight mb-3">Create your account</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">It takes less than a minute.</p>
+          <p className="text-sm text-muted mb-8 leading-relaxed">It takes less than a minute.</p>
           <ul className="space-y-3">
             {perks.map((perk) => (
-              <li key={perk} className="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
-                <span className="text-emerald-500">✓</span>
+              <li key={perk} className="flex items-start gap-2.5 text-sm text-soft">
+                <span className="text-mint">✓</span>
                 {perk}
               </li>
             ))}
           </ul>
         </div>
 
-        <div className="flex items-center justify-center px-6 py-12">
+        <div className="tx-auth-form">
           {registered ? (
             <div className="w-full max-w-sm" data-testid="registered">
-              <div className="w-11 h-11 rounded-md bg-emerald-500/10 flex items-center justify-center mb-5 text-emerald-600">✓</div>
+              <div className="w-11 h-11 rounded-lg bg-brand/10 flex items-center justify-center mb-5 text-link">✓</div>
               <h1 className="text-2xl font-semibold tracking-tight mb-2">Check your email</h1>
-              <p className="text-sm text-zinc-500 mb-8">
-                We sent a verification link to <span className="text-zinc-900 dark:text-zinc-200">{email}</span>. Click it,
+              <p className="text-sm text-muted mb-8">
+                We sent a verification link to <span className="text-ink">{email}</span>. Click it,
                 then log in.
               </p>
               <Link
                 to="/login"
-                className="inline-block w-full text-center bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+                className="tx-btn tx-btn-primary tx-btn-block"
               >
                 Go to login
               </Link>
               {import.meta.env.DEV && (
-                <p className="text-xs text-zinc-500 text-center mt-4">
+                <p className="text-xs text-muted text-center mt-4">
                   No mail server yet?{' '}
-                  <Link to="/dev/mail" className="text-emerald-600 dark:text-emerald-400 hover:underline">
+                  <Link to="/dev/mail" className="tx-link">
                     Open the dev mail log
                   </Link>
                 </p>
@@ -111,43 +113,45 @@ export default function Register() {
               }}
             >
               <h1 className="text-2xl font-semibold tracking-tight mb-1">Create account</h1>
-              <p className="text-sm text-zinc-500 mb-8">Start building with Tylix.</p>
+              <p className="text-sm text-muted mb-8">Start building with Tylix.</p>
 
               {error && (
-                <div role="alert" aria-live="polite" className="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
-                  <p className="text-rose-700 dark:text-rose-400 text-sm">{error}</p>
+                <div role="alert" aria-live="polite" className="tx-alert tx-alert-error mb-6">
+                  <p className="text-sm">{error}</p>
                 </div>
               )}
 
-              <label htmlFor="name" className="block text-zinc-500 text-xs font-medium mb-1.5">Name</label>
+              <OAuthButtons />
+
+              <label htmlFor="name" className="tx-label">Name</label>
               <input id="name" name="name" autoComplete="name" autoFocus value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
 
-              <label htmlFor="email" className="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+              <label htmlFor="email" className="tx-label">Email</label>
               <input id="email" name="email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} />
 
-              <label htmlFor="password" className="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+              <label htmlFor="password" className="tx-label">Password</label>
               <input id="password" name="password" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} />
-              {password && <p className="-mt-3 mb-4 text-xs text-zinc-500">Strength: {strengthLabels[score]}</p>}
+              {password && <p className="-mt-3 mb-4 text-xs text-muted">Strength: {strengthLabels[score]}</p>}
 
-              <label htmlFor="confirmPassword" className="block text-zinc-500 text-xs font-medium mb-1.5">Confirm password</label>
+              <label htmlFor="confirmPassword" className="tx-label">Confirm password</label>
               <input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className={inputClass} />
 
-              <label className="flex items-center gap-2 text-sm text-zinc-500 mb-6">
-                <input type="checkbox" name="terms" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="rounded border-zinc-300 dark:border-zinc-700" />
+              <label className="flex items-center gap-2 text-sm text-muted mb-6">
+                <input type="checkbox" name="terms" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} className="rounded border-line-strong" />
                 I agree to the Terms of Service
               </label>
 
               <button
                 type="submit"
                 disabled={submitting || !hydrated}
-                className="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="tx-btn tx-btn-primary tx-btn-block"
               >
                 {submitting ? 'Creating account…' : 'Create account'}
               </button>
 
-              <p className="text-sm text-zinc-500 text-center mt-6">
+              <p className="text-sm text-muted text-center mt-6">
                 Already have an account?{' '}
-                <Link to="/login" className="text-emerald-600 dark:text-emerald-400 hover:underline">
+                <Link to="/login" className="tx-link">
                   Log in
                 </Link>
               </p>

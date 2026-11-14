@@ -7,26 +7,26 @@ props
   hasAuth: boolean
 
 template
-  <section class="border-t border-zinc-200 dark:border-zinc-800">
-    <div class="max-w-3xl mx-auto px-6 py-24 text-center">
+  <section class="px-6 py-24">
+    <div class="tx-glow max-w-3xl mx-auto px-6 py-16 text-center">
 {{#if loggedIn}}
       <h2 class="text-4xl font-semibold tracking-tight mb-4">Keep building</h2>
-      <p class="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">Jump back into your dashboard to manage your posts and features.</p>
-      <a href="/dashboard" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">
+      <p class="text-muted mb-8 max-w-md mx-auto">Jump back into your dashboard to manage your posts and features.</p>
+      <a href="/dashboard" class="tx-btn tx-btn-primary">
         Go to Dashboard
         <IconArrowRight class="w-4 h-4" />
       </a>
 {{#else if hasAuth}}
       <h2 class="text-4xl font-semibold tracking-tight mb-4">Ready to build something real?</h2>
-      <p class="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">Auth, database and styling included, in under a minute.</p>
-      <a href="/register" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">
+      <p class="text-muted mb-8 max-w-md mx-auto">Auth, database and styling included, in under a minute.</p>
+      <a href="/register" class="tx-btn tx-btn-primary">
         Get started for free
         <IconArrowRight class="w-4 h-4" />
       </a>
 {{#else}}
       <h2 class="text-4xl font-semibold tracking-tight mb-4">Ready to build something real?</h2>
-      <p class="text-zinc-500 dark:text-zinc-400 mb-8 max-w-md mx-auto">Open the docs and add your first page.</p>
-      <a href="https://tylix.dev/docs" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-md bg-emerald-500 text-white dark:text-zinc-950 text-sm font-semibold hover:bg-emerald-400 transition-colors">
+      <p class="text-muted mb-8 max-w-md mx-auto">Open the docs and add your first page.</p>
+      <a href="https://tylix.dev/docs" class="tx-btn tx-btn-primary">
         Read the docs
         <IconArrowRight class="w-4 h-4" />
       </a>

@@ -304,6 +304,26 @@ function buildAppEnvLines(config, env) {
   ]
 }
 
+// "Continue with Google / GitHub". Empty = that button shows a "not
+// available yet" message. Only written when the app has authentication.
+function buildOAuthEnvLines(config, env) {
+  if (!config.authEnabled) return []
+  const base = env === 'local' ? 'http://localhost:3000' : '<APP_URL>'
+  return [
+    ``,
+    `# Social sign-in. Create an OAuth app with each provider and paste its`,
+    `# credentials here. The callback URL to register is shown per provider.`,
+    `# Google (https://console.cloud.google.com/apis/credentials)`,
+    `#   callback: ${base}/api/auth/oauth/google/callback`,
+    `GOOGLE_CLIENT_ID=`,
+    `GOOGLE_CLIENT_SECRET=`,
+    `# GitHub (https://github.com/settings/developers)`,
+    `#   callback: ${base}/api/auth/oauth/github/callback`,
+    `GITHUB_CLIENT_ID=`,
+    `GITHUB_CLIENT_SECRET=`,
+  ]
+}
+
 // Settings the Server in @tylix/core reads. AUTO_PORT moves to the next free
 // port when PORT is taken: handy in development, wrong in production where a
 // reverse proxy expects a fixed port.
@@ -605,6 +625,7 @@ export async function createProjectStructure(config) {
         ...buildServerEnvLines('local'),
         ``,
         `AUTH_SECRET=${crypto.randomBytes(32).toString('hex')}`,
+        ...buildOAuthEnvLines(config, 'local'),
         ``,
         ...buildDebugEnvLines('true'),
         ``,
@@ -631,6 +652,7 @@ export async function createProjectStructure(config) {
         ...buildServerEnvLines('production'),
         ``,
         `AUTH_SECRET=`,
+        ...buildOAuthEnvLines(config, 'production'),
         ``,
         ...buildDebugEnvLines('false'),
         ``,
@@ -857,25 +879,23 @@ export async function createProjectStructure(config) {
     )
     await fs.writeFile(path.join(targetDir, '.gitignore'), gitignoreTemplate)
 
-    await fs.copyFile(
-      path.join(PACKAGE_ROOT, 'assets', 'logo-mark.png'),
-      path.join(targetDir, 'public', 'logo-mark.png'),
-    )
-    await fs.copyFile(
-      path.join(PACKAGE_ROOT, 'assets', 'logo-full.png'),
-      path.join(targetDir, 'public', 'logo-full.png'),
-    )
-
-    // Favicon: browsers request /favicon.ico on their own even without a
-    // <link> tag, so ship both names. Both are copies of the logo mark.
-    await fs.copyFile(
-      path.join(PACKAGE_ROOT, 'assets', 'logo-mark.png'),
-      path.join(targetDir, 'public', 'favicon.png'),
-    )
-    await fs.copyFile(
-      path.join(PACKAGE_ROOT, 'assets', 'logo-mark.png'),
-      path.join(targetDir, 'public', 'favicon.ico'),
-    )
+    // The Tylix logo. The SVG mark is what the navbar uses; the PNGs are
+    // for places that need a bitmap (emails, social cards). favicon.ico is
+    // a real multi-size icon, since browsers request it even without a
+    // <link> tag.
+    for (const [from, to] of [
+      ['logo-mark.svg', 'logo-mark.svg'],
+      ['logo-mark.png', 'logo-mark.png'],
+      ['logo-full.png', 'logo-full.png'],
+      ['favicon.svg', 'favicon.svg'],
+      ['logo-mark.png', 'favicon.png'],
+      ['favicon.ico', 'favicon.ico'],
+    ]) {
+      await fs.copyFile(
+        path.join(PACKAGE_ROOT, 'assets', from),
+        path.join(targetDir, 'public', to),
+      )
+    }
 
     return targetDir
   } catch (err) {

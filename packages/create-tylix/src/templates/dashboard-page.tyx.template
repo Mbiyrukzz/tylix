@@ -98,33 +98,33 @@ template
 {{#if checkedAuth}}
   <div class="max-w-6xl mx-auto px-6 py-12">
     <div class="mb-10">
-      <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">{{ greeting }}</p>
+      <p class="tx-eyebrow mb-3">{{ greeting }}</p>
       <h1 class="text-3xl font-semibold tracking-tight">{{ Auth.user.name }}</h1>
     </div>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-        <IconUser class="w-4 h-4 text-emerald-500 mb-3" />
-        <p class="text-xs text-zinc-500 mb-1">Signed in as</p>
+      <div class="tx-panel p-5">
+        <IconUser class="w-4 h-4 text-mint mb-3" />
+        <p class="text-xs text-muted mb-1">Signed in as</p>
         <p class="text-sm font-semibold truncate">{{ Auth.user.email }}</p>
       </div>
 
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-        <IconDatabase class="w-4 h-4 text-emerald-500 mb-3" />
-        <p class="text-xs text-zinc-500 mb-1">Visitors today</p>
+      <div class="tx-panel p-5">
+        <IconDatabase class="w-4 h-4 text-mint mb-3" />
+        <p class="text-xs text-muted mb-1">Visitors today</p>
         <p class="text-2xl font-semibold">{{ Analytics.visitorsToday }}</p>
       </div>
 
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-        <IconDocument class="w-4 h-4 text-emerald-500 mb-3" />
-        <p class="text-xs text-zinc-500 mb-1">Your posts</p>
+      <div class="tx-panel p-5">
+        <IconDocument class="w-4 h-4 text-mint mb-3" />
+        <p class="text-xs text-muted mb-1">Your posts</p>
         <p class="text-2xl font-semibold">{{ posts.length }}</p>
       </div>
 
 {{#if Mail.available}}
-      <a href="/dashboard/mail" class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
-        <IconFolder class="w-4 h-4 text-emerald-500 mb-3" />
-        <p class="text-xs text-zinc-500 mb-1">Mail</p>
+      <a href="/dashboard/mail" class="tx-panel p-5 hover:border-line-strong transition-colors">
+        <IconFolder class="w-4 h-4 text-mint mb-3" />
+        <p class="text-xs text-muted mb-1">Mail</p>
         <p class="text-2xl font-semibold">{{ Mail.unread }}</p>
       </a>
 {{/if}}
@@ -133,36 +133,36 @@ template
     <div class="flex items-center justify-between mb-5">
       <div>
         <h2 class="text-lg font-semibold tracking-tight">Your posts</h2>
-        <p class="text-sm text-zinc-500">{{ postCountLabel }}</p>
+        <p class="text-sm text-muted">{{ postCountLabel }}</p>
       </div>
       <CreatePostForm onCreated="{{ addPost }}" />
     </div>
 
 {{#if postError}}
-    <p role="alert" class="text-sm text-rose-600 dark:text-rose-400 mb-4">{{ postError }}</p>
+    <p role="alert" class="text-sm text-coral mb-4">{{ postError }}</p>
 {{/if}}
 
 {{#if loadingPosts}}
-    <p class="text-sm text-zinc-500 mb-12">Loading posts…</p>
+    <p class="text-sm text-muted mb-12">Loading posts…</p>
 {{#else if posts.length is 0}}
-    <div class="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-800 p-10 text-center mb-12">
+    <div class="rounded-lg border border-dashed border-line-strong p-10 text-center mb-12">
       <h3 class="font-medium mb-1.5">No posts yet</h3>
-      <p class="text-sm text-zinc-500">Click “New Post” to publish your first one.</p>
+      <p class="text-sm text-muted">Click “New Post” to publish your first one.</p>
     </div>
 {{#else}}
-    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-800 mb-12">
+    <div class="tx-panel divide-y divide-line mb-12">
 {{#each p in posts}}
       <div class="flex items-center gap-4 p-4">
 {{#if p.cover_image}}
-        <img src="{{ p.cover_image }}" alt="" class="w-16 h-12 rounded-md object-cover border border-zinc-200 dark:border-zinc-800 shrink-0" />
+        <img src="{{ p.cover_image }}" alt="" class="w-16 h-12 rounded-lg object-cover border border-line shrink-0" />
 {{#else}}
-        <div class="w-16 h-12 rounded-md bg-zinc-100 dark:bg-zinc-800 shrink-0"></div>
+        <div class="w-16 h-12 rounded-lg bg-raised shrink-0"></div>
 {{/if}}
         <div class="min-w-0 flex-1">
-          <a href="{{ `/posts/${p.id}` }}" class="block font-medium truncate hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">{{ p.title }}</a>
-          <p class="text-xs text-zinc-500">{{ formatDate(p.created_at) }}</p>
+          <a href="{{ `/posts/${p.id}` }}" class="block font-medium truncate hover:text-link transition-colors">{{ p.title }}</a>
+          <p class="text-xs text-muted">{{ formatDate(p.created_at) }}</p>
         </div>
-        <button onclick="{{ removePost(p) }}" class="text-sm text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 px-2 py-1 transition-colors">Delete</button>
+        <button onclick="{{ removePost(p) }}" class="text-sm text-muted hover:text-coral px-2 py-1 transition-colors">Delete</button>
       </div>
 {{/each}}
     </div>
@@ -171,13 +171,13 @@ template
 {{#if features.length > 0}}
     <div class="mb-5">
       <h2 class="text-lg font-semibold tracking-tight">Scaffolded features</h2>
-      <p class="text-sm text-zinc-500">Generated with tylix make:feature</p>
+      <p class="text-sm text-muted">Generated with tylix make:feature</p>
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 {{#each f in features}}
-      <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+      <div class="tx-panel p-5">
         <h3 class="font-medium mb-1">{{ f.name }}</h3>
-        <code class="text-xs font-mono text-zinc-500">/api/{{ f.table }}</code>
+        <code class="text-xs font-mono text-muted">/api/{{ f.table }}</code>
       </div>
 {{/each}}
     </div>

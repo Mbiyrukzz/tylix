@@ -242,6 +242,15 @@ const { profile, returnTo, cookies: clear } = await oauth.callback(provider, req
 // Link to an existing account by email ONLY if profile.emailVerified.
 ```
 
+In a Tylix app this is already wired up: `make:auth` (and `create-tylix`
+with authentication) generates `oauthStart` / `oauthCallback` on
+`AuthController`, an `OAuthAccount` model, and "Continue with Google /
+GitHub" buttons on the login and register pages. Set
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and `GITHUB_CLIENT_ID` /
+`GITHUB_CLIENT_SECRET` in `.env`, and register
+`<APP_URL>/api/auth/oauth/<provider>/callback` with each provider. Other
+providers are one row in the controller's `OAUTH_PROVIDERS` table.
+
 ## Other building blocks
 
 - `createTokenSigner({ secret })` signs and verifies typed tokens such as

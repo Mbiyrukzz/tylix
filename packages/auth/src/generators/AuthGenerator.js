@@ -69,6 +69,13 @@ export class AuthGenerator {
       { overwrite: true },
     )
 
+    // Social sign-in: which provider accounts belong to which user.
+    results.oauthAccountModel = await writeFile(
+      path.join(baseDir, 'app', 'models', `OAuthAccount.${ext}`),
+      await read('oauth-account-model'),
+      { overwrite: true },
+    )
+
     results.passwordResetModel = await writeFile(
       path.join(baseDir, 'app', 'models', `PasswordReset.${ext}`),
       await read('password-reset-model'),
@@ -143,6 +150,8 @@ export class AuthGenerator {
     results.sessionMigration = await writeMigration('create_auth_sessions_table', 1000, 'auth-session-migration')
 
     results.passwordResetMigration = await writeMigration('create_password_resets_table', 2000, 'password-reset-migration')
+
+    results.oauthAccountMigration = await writeMigration('create_oauth_accounts_table', 3000, 'oauth-account-migration')
 
     return results
   }

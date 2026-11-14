@@ -3,26 +3,66 @@ import {
   dim,
   cyan,
   cyanBright,
-  magenta,
   green,
   gray,
   yellow,
   blue,
   red,
+  hex,
+  BRAND,
 } from './colors.js'
 
-const LOGO = `████████╗██╗   ██╗██╗     ██╗██╗  ██╗
-╚══██╔══╝╚██╗ ██╔╝██║     ██║╚██╗██╔╝
-   ██║    ╚████╔╝ ██║     ██║ ╚███╔╝
-   ██║     ╚██╔╝  ██║     ██║ ██╔██╗
-   ██║      ██║   ███████╗██║██╔╝ ██╗
-   ╚═╝      ╚═╝   ╚══════╝╚═╝╚═╝  ╚═╝`
+// The Tylix mark (three slanted bars) and wordmark, drawn with quadrant
+// block characters so they keep the logo's angles at terminal size.
+const MARK = [
+  '  ▄████████████████▛▘',
+  '▗████████████████▀▘  ',
+  '      ▄▄▄▄▖          ',
+  '     ▟███▛ ▄▄▄▄▄     ',
+  '    ▟███▛ ▟████▘     ',
+  '  ▗████▛ ▟█▛▀▀       ',
+  ' ▗████▛ ▀▘           ',
+]
+
+const WORDMARK = [
+  '▄▄▄▄▄▄▄        ▗▄▖▗▄▖',
+  '███████        ▐█▌▝▀▘',
+  '  ▐█▌   ▜█  ▗█▌▐█▌▐█▌▝█▄  ▟▛',
+  '  ▐█▌    ▜▙▗█▛ ▐█▌▐█▌  ▜▙█▀',
+  '  ▐█▌    ▝██▛  ▐█▌▐█▌  ▟▛█▄',
+  '  ▐█▌    ▗█▛▘  ▐█▌▐█▌▗█▀  ▜▙',
+  '        ▗█▛',
+]
+
+const BANNER_WIDTH = 2 + MARK[0].length + 3 + Math.max(...WORDMARK.map((row) => row.length))
+
+// Three status lights, the accent of the Tylix UI.
+export function leds() {
+  return [BRAND.coral, BRAND.peach, BRAND.mint]
+    .map((color, i) => hex(color, ['red', 'yellow', 'green'][i])('●'))
+    .join(' ')
+}
 
 export function printLogo({ version } = {}) {
-  console.log(cyanBright(LOGO))
   const v = version ? `  ${dim('v' + version)}` : ''
-  console.log(`${bold(magenta('Tylix Framework'))}${v}`)
-  console.log(dim('Build Full-Stack JavaScript Applications'))
+  const columns = process.stdout.columns ?? 80
+
+  // Too narrow for the drawing: a one-line version instead.
+  if (columns < BANNER_WIDTH) {
+    console.log(`\n${hex(BRAND.blue, 'blue')('▰▰▰')} ${bold('Tylix')}${v}`)
+    console.log(dim('Build full-stack JavaScript applications\n'))
+    return
+  }
+
+  const markColor = hex(BRAND.blue, 'blue')
+  console.log()
+  for (let i = 0; i < MARK.length; i++) {
+    console.log(`  ${markColor(MARK[i])}   ${bold(WORDMARK[i] ?? '')}`)
+  }
+  console.log()
+  console.log(`  ${leds()}  ${bold('Tylix Framework')}${v}`)
+  console.log(`         ${dim('Build full-stack JavaScript applications')}`)
+  console.log()
 }
 
 export function printDivider(width = 60) {
@@ -30,7 +70,7 @@ export function printDivider(width = 60) {
 }
 
 export function printHeavyDivider(width = 54) {
-  console.log(cyan('━'.repeat(width)))
+  console.log(hex(BRAND.blue, 'blue')('━'.repeat(width)))
 }
 
 export function printSection(title, items) {

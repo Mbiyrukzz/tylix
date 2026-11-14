@@ -18,29 +18,29 @@ export default function DevMail() {
         <button
           type="button"
           onClick={() => reload()}
-          className="text-sm px-3.5 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+          className="text-sm px-3.5 py-1.5 rounded-lg border border-line hover:bg-raised transition-colors"
         >
           Refresh
         </button>
       </div>
-      <p className="text-sm text-zinc-500 mb-8">The last 50 mails, newest first. Only available in development.</p>
+      <p className="text-sm text-muted mb-8">The last 50 mails, newest first. Only available in development.</p>
 
       {loading && mails.length === 0 ? (
-        <p className="text-sm text-zinc-500">Loading…</p>
+        <p className="text-sm text-muted">Loading…</p>
       ) : error ? (
-        <p className="text-sm text-rose-600">{error}</p>
+        <p className="text-sm text-coral">{error}</p>
       ) : mails.length === 0 ? (
-        <p className="text-sm text-zinc-500">No mails yet.</p>
+        <p className="text-sm text-muted">No mails yet.</p>
       ) : (
         <ul className="space-y-3" data-testid="mail-log">
           {mails.map((mail) => (
-            <li key={mail.id} className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+            <li key={mail.id} className="tx-panel p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold">{mail.subject}</p>
-                  <p className="text-sm text-zinc-500">To {mail.recipient}</p>
+                  <p className="text-sm text-muted">To {mail.recipient}</p>
                 </div>
-                <p className="text-xs text-zinc-400 shrink-0">{dateFormat.format(new Date(mail.created_at))}</p>
+                <p className="text-xs text-muted shrink-0">{dateFormat.format(new Date(mail.created_at))}</p>
               </div>
               <div className="mt-3 flex flex-col gap-1">
                 {/* A mail usually holds each link twice (href and text). */}
@@ -50,7 +50,7 @@ export default function DevMail() {
                   <a
                     key={link}
                     href={link.replace(/^https?:\/\/[^/]+/, '')}
-                    className="text-sm text-emerald-600 dark:text-emerald-400 hover:underline break-all"
+                    className="text-sm tx-link break-all"
                   >
                     {link}
                   </a>

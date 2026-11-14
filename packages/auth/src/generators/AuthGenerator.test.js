@@ -30,6 +30,8 @@ test('generates auth models, validator, controller, mail files and migrations', 
       'userMigration',
       'sessionMigration',
       'passwordResetMigration',
+      'oauthAccountModel',
+      'oauthAccountMigration',
       'userObserver',
       'welcomeJob',
     ]
@@ -58,6 +60,10 @@ test('generates auth models, validator, controller, mail files and migrations', 
     assert.match(await read('welcomeJob'), /export const SendWelcomeEmail/)
     assert.match(await read('sessionMigration'), /createTable\("auth_sessions"/)
     assert.match(await read('passwordResetMigration'), /createTable\("password_resets"/)
+    assert.match(await read('oauthAccountModel'), /export class OAuthAccount extends Model/)
+    assert.match(await read('oauthAccountMigration'), /createTable\("oauth_accounts"/)
+    assert.match(controller, /async oauthStart\(req, res\)/)
+    assert.match(controller, /async oauthCallback\(req, res\)/)
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true })
   }
@@ -76,10 +82,11 @@ test('running make:auth again keeps the existing migrations instead of adding co
     const second = await new AuthGenerator().generate(outputDir)
 
     const migrations = (await fs.readdir(path.join(outputDir, 'database', 'migrations'))).sort()
-    assert.equal(migrations.length, 3, `expected 3 migrations, found: ${migrations.join(', ')}`)
+    assert.equal(migrations.length, 4, `expected 4 migrations, found: ${migrations.join(', ')}`)
     assert.equal(second.userMigration, first.userMigration)
     assert.equal(second.sessionMigration, first.sessionMigration)
     assert.equal(second.passwordResetMigration, first.passwordResetMigration)
+    assert.equal(second.oauthAccountMigration, first.oauthAccountMigration)
     assert.match(await fs.readFile(second.userMigration, 'utf-8'), /already applied/, 'existing file left untouched')
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true })

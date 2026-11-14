@@ -31,6 +31,7 @@ export const FRONTENDS = {
     ],
     auth: [
       'components/Redirects.jsx',
+      'components/OAuthButtons.jsx',
       'pages/Login.jsx',
       'pages/Register.jsx',
       'pages/ForgotPassword.jsx',
@@ -59,6 +60,7 @@ export const FRONTENDS = {
     ],
     auth: [
       'lib/next.js',
+      'components/OAuthButtons.svelte',
       'pages/Login.svelte',
       'pages/Register.svelte',
       'pages/ForgotPassword.svelte',
@@ -87,6 +89,7 @@ export const FRONTENDS = {
     ],
     auth: [
       'lib/next.js',
+      'components/OAuthButtons.vue',
       'pages/Login.vue',
       'pages/Register.vue',
       'pages/ForgotPassword.vue',
@@ -115,6 +118,7 @@ export const FRONTENDS = {
       'pages/error-page.ts',
     ],
     auth: [
+      'components/oauth-buttons.ts',
       'pages/login.ts',
       'pages/register.ts',
       'pages/forgot-password.ts',

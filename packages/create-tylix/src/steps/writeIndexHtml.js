@@ -10,6 +10,7 @@ const INDEX_HTML = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>%tylix.title%</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
 
   <!-- Fonts, extra meta tags and scripts go here, before %tylix.head% -->
@@ -39,7 +40,7 @@ props
   <div
     style="{{
       'position:fixed;top:0;left:0;height:3px;z-index:99999;pointer-events:none;' +
-      'background:#10b981;transition:width 0.2s ease, opacity 0.3s ease;' +
+      'background:linear-gradient(90deg,#3563ff,#6fe0ea);transition:width 0.2s ease, opacity 0.3s ease;' +
       'width:' + loading.progress + '%;' +
       'opacity:' + (loading.visible ? 1 : 0)
     }}"

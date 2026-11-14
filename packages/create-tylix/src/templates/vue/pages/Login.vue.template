@@ -3,11 +3,12 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth, useHydrated } from '@tylix/vue'
 import { nextPath } from '../lib/next'
+import OAuthButtons from '../components/OAuthButtons.vue'
 import { firstError } from '@tylix/shared/validation'
 import { validateLogin } from '../../validators/AuthValidator'
 
 const inputClass =
-  'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
+  'tx-input'
 
 const perks = [
   'Manage your posts from one dashboard',
@@ -55,47 +56,50 @@ const hydrated = useHydrated()
 
 <template>
   <div class="flex items-center justify-center px-6 py-16">
-    <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-      <div class="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+    <div class="tx-auth tx-glow">
+      <div class="tx-auth-aside">
+        <p class="tx-eyebrow mb-5">Signed-in session</p>
         <h2 class="text-2xl font-semibold tracking-tight mb-3">Welcome back</h2>
-        <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">Log in to pick up where you left off.</p>
+        <p class="text-sm text-muted mb-8 leading-relaxed">Log in to pick up where you left off.</p>
         <ul class="space-y-3">
-          <li v-for="perk in perks" :key="perk" class="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
-            <span class="text-emerald-500">✓</span>
+          <li v-for="perk in perks" :key="perk" class="flex items-start gap-2.5 text-sm text-soft">
+            <span class="text-mint">✓</span>
             {{ perk }}
           </li>
         </ul>
       </div>
 
-      <form class="flex items-center justify-center px-6 py-12" novalidate @submit.prevent="submit">
+      <form class="tx-auth-form" novalidate @submit.prevent="submit">
         <div class="w-full max-w-sm">
           <h1 class="text-2xl font-semibold tracking-tight mb-1">Log in</h1>
-          <p class="text-sm text-zinc-500 mb-8">Continue to your dashboard.</p>
+          <p class="text-sm text-muted mb-8">Continue to your dashboard.</p>
 
-          <div v-if="error" role="alert" aria-live="polite" class="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
-            <p class="text-rose-700 dark:text-rose-400 text-sm">{{ error }}</p>
+          <div v-if="error" role="alert" aria-live="polite" class="tx-alert tx-alert-error mb-6">
+            <p class="text-sm">{{ error }}</p>
           </div>
 
-          <label for="email" class="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+          <OAuthButtons :return-to="nextPath(route.query.next)" />
+
+          <label for="email" class="tx-label">Email</label>
           <input id="email" v-model="email" name="email" type="email" autocomplete="email" autofocus placeholder="you@example.com" :class="inputClass" />
 
-          <label for="password" class="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+          <label for="password" class="tx-label">Password</label>
           <input id="password" v-model="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" :class="inputClass" />
 
           <div class="flex justify-end -mt-1 mb-4">
-            <RouterLink to="/forgot-password" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">Forgot password?</RouterLink>
+            <RouterLink to="/forgot-password" class="text-sm tx-link">Forgot password?</RouterLink>
           </div>
 
           <button
             type="submit"
             :disabled="submitting || !hydrated"
-            class="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="tx-btn tx-btn-primary tx-btn-block"
           >
             {{ submitting ? 'Logging in…' : 'Log in' }}
           </button>
 
-          <p class="text-sm text-zinc-500 text-center mt-6">
-            Need an account? <RouterLink to="/register" class="text-emerald-600 dark:text-emerald-400 hover:underline">Sign up</RouterLink>
+          <p class="text-sm text-muted text-center mt-6">
+            Need an account? <RouterLink to="/register" class="tx-link">Sign up</RouterLink>
           </p>
         </div>
       </form>

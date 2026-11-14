@@ -56,18 +56,18 @@ export function renderStatusPage({
 <style>
   * { box-sizing: border-box; }
   :root {
-    --bg:#f8fafc; --card:#ffffff; --border:#e2e8f0; --border-strong:#cbd5e1;
-    --text:#0f172a; --muted:#64748b;
-    --success:#059669; --success-soft:rgba(16,185,129,.12);
-    --error:#e11d48; --error-soft:rgba(225,29,72,.10);
-    --notfound:#d97706; --notfound-soft:rgba(245,158,11,.14);
+    --bg:#f3f2f6; --card:#ffffff; --border:#dedbe6; --border-strong:#c9c5d4;
+    --text:#17151c; --muted:#6b6878; --brand:#0034ca; --brand-hover:#1a4be0;
+    --success:#0d8c67; --success-soft:rgba(13,140,103,.12);
+    --error:#cd3c3c; --error-soft:rgba(205,60,60,.10);
+    --notfound:#bd6226; --notfound-soft:rgba(189,98,38,.12);
   }
   html.dark {
-    --bg:#020617; --card:#0f172a; --border:#1e293b; --border-strong:#334155;
-    --text:#e2e8f0; --muted:#94a3b8;
-    --success:#34d399; --success-soft:rgba(52,211,153,.12);
-    --error:#fb7185; --error-soft:rgba(251,113,133,.12);
-    --notfound:#fbbf24; --notfound-soft:rgba(251,191,36,.12);
+    --bg:#17161c; --card:#211f27; --border:#34313d; --border-strong:#46424f;
+    --text:#ecebf1; --muted:#9592a3; --brand:#3563ff; --brand-hover:#547cff;
+    --success:#5fe3b5; --success-soft:rgba(95,227,181,.12);
+    --error:#ff7b7b; --error-soft:rgba(255,123,123,.12);
+    --notfound:#ffb38a; --notfound-soft:rgba(255,179,138,.12);
   }
   html { color-scheme: light; } html.dark { color-scheme: dark; }
   body {
@@ -77,12 +77,13 @@ export function renderStatusPage({
   }
   .card {
     width:100%; max-width:440px; text-align:center; padding:36px 32px 32px;
-    background:var(--card); border:1px solid var(--border); border-radius:20px;
-    box-shadow:0 1px 2px rgba(15,23,42,.05), 0 12px 32px rgba(15,23,42,.06);
+    border:1px solid transparent; border-radius:20px;
+    background:linear-gradient(var(--card),var(--card)) padding-box, linear-gradient(135deg,#6fe0ea,#c8f07a) border-box;
+    box-shadow:0 0 32px -8px rgba(111,224,234,.35), 0 12px 32px -16px rgba(0,0,0,.25);
   }
-  html.dark .card { box-shadow:none; }
   .brand { display:inline-flex; align-items:center; gap:8px; margin-bottom:24px; font-weight:600; color:var(--text); text-decoration:none; }
-  .brand img { width:26px; height:26px; }
+  .brand img { height:20px; width:auto; }
+  html.dark .brand img { filter:brightness(1.7) saturate(1.1); }
   .icon { width:60px; height:60px; margin:0 auto 18px; border-radius:50%; display:grid; place-items:center;
     color:var(--tone); background:var(--tone-soft); }
   .tone-success { --tone:var(--success); --tone-soft:var(--success-soft); }
@@ -93,12 +94,12 @@ export function renderStatusPage({
   p.msg { margin:0 0 24px; color:var(--muted); font-size:14px; line-height:1.6; }
   .actions { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
   .btn {
-    font-size:14px; font-weight:600; text-decoration:none; padding:9px 18px; border-radius:999px;
+    font-size:14px; font-weight:600; text-decoration:none; padding:9px 18px; border-radius:9px;
     color:var(--text); border:1px solid var(--border-strong); background:transparent; transition:all .15s;
   }
-  .btn:hover { border-color:var(--success); color:var(--success); }
-  .btn-primary { color:#fff; border-color:transparent; background:linear-gradient(90deg,#34d399,#059669); }
-  .btn-primary:hover { color:#fff; transform:translateY(-1px); box-shadow:0 6px 16px rgba(5,150,105,.3); }
+  .btn:hover { border-color:var(--brand); color:var(--brand); }
+  .btn-primary { color:#fff; border-color:transparent; background:var(--brand); }
+  .btn-primary:hover { color:#fff; background:var(--brand-hover); box-shadow:0 6px 18px -8px var(--brand); }
   .ref { margin:22px 0 0; font-size:12px; color:var(--muted); }
   .ref code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px; padding:2px 6px;
     border-radius:6px; background:var(--bg); border:1px solid var(--border); user-select:all; }
@@ -106,7 +107,7 @@ export function renderStatusPage({
 </head>
 <body>
   <div class="card tone-${esc(tone)}">
-    <a class="brand" href="/"><img src="/logo-mark.png" alt="" onerror="this.remove()">Tylix</a>
+    <a class="brand" href="/"><img src="/logo-mark.svg" alt="" onerror="if(!this.dataset.png){this.dataset.png=1;this.src='/logo-mark.png'}else{this.remove()}">Tylix</a>
     <div class="icon">${ICONS[tone] ?? ICONS.error}</div>
     ${code ? `<p class="code">${esc(code)}</p>` : ''}
     <h1>${esc(title)}</h1>

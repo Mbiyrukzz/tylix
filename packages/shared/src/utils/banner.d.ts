@@ -1,4 +1,5 @@
-export declare function printLogo(): void;
+export declare function printLogo(options?: { version?: string }): void;
+export declare function leds(): string;
 export declare function printDivider(width?: number): void;
 export declare function printHeavyDivider(width?: number): void;
 export declare function printSection(title: string, items: string[]): void;

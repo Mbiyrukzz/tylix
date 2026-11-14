@@ -8,10 +8,12 @@
  * Do not edit this section.
  */
 
+import { randomBytes } from "node:crypto";
 import { createRateLimiter, getStore } from "@tylix/core";
 import { User } from "../models/User.js";
 import { AuthSession } from "../models/AuthSession.js";
 import { PasswordReset } from "../models/PasswordReset.js";
+import { OAuthAccount } from "../models/OAuthAccount.js";
 import {
     createAuth,
     modelAdapter,
@@ -24,6 +26,10 @@ import {
     setSessionGuard,
     ACCESS_TOKEN_COOKIE,
     REFRESH_TOKEN_COOKIE,
+    createOAuth,
+    google,
+    github,
+    OAuthError,
 } from "@tylix/auth";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../mail/mailer.js";
 import {
@@ -56,6 +62,20 @@ const forgotEmailLimiter = createRateLimiter({ name: "forgot-password-email", ma
 const resendIpLimiter = createRateLimiter({ name: "resend-verification-ip", max: 10, windowMs: 15 * 60 * 1000, store: "shared" });
 const resendEmailLimiter = createRateLimiter({ name: "resend-verification-email", max: 3, windowMs: 60 * 60 * 1000, store: "shared" });
 const changePasswordLimiter = createRateLimiter({ name: "change-password", max: 10, windowMs: 15 * 60 * 1000, store: "shared" });
+const oauthLimiter = createRateLimiter({ name: "oauth-callback", max: 30, windowMs: 15 * 60 * 1000, store: "shared" });
+
+// Social sign-in ("Continue with Google / GitHub"). A provider is on once
+// its client id and secret are in .env. Register this callback URL with
+// the provider: <APP_URL>/api/auth/oauth/<provider>/callback
+//   Google: https://console.cloud.google.com/apis/credentials
+//   GitHub: https://github.com/settings/developers
+// Add another provider (discord, gitlab, microsoft from @tylix/auth, or
+// your own oauthProvider()) by adding a row here and a button on the
+// login and register pages.
+const OAUTH_PROVIDERS = {
+    google: { name: "Google", env: "GOOGLE", create: google },
+    github: { name: "GitHub", env: "GITHUB", create: github },
+};
 
 // Emails are case-insensitive: always compare and store them trimmed and lowercased.
 function normalizeEmail(value) {
@@ -77,9 +97,30 @@ function tooMany(res, retryAfterSeconds, message = "Too many requests.") {
     return res.status(429).json({ error: `${message} Try again in ${retryAfterSeconds} seconds.` });
 }
 
+function redirect(res, location, cookies = []) {
+    applyCookies(res, cookies);
+    res.statusCode = 302;
+    res.setHeader("Location", location);
+    res.setHeader("Cache-Control", "no-store");
+    res.end();
+}
+
+// Social sign-in problems go back to the login page as a short code
+// (never free text, so the URL can't be used to show a crafted message).
+function backToLogin(res, code, cookies = []) {
+    redirect(res, `/login?error=${encodeURIComponent(code)}`, cookies);
+}
+
+// Accounts created through a provider get a random password nobody
+// knows. "Forgot password" sets a real one if the user wants it.
+function unusablePassword() {
+    return randomBytes(32).toString("base64url");
+}
+
 export class AuthController {
-    constructor({ secret, tokenExpiresInSeconds, mailConfig, checkBreachedPasswords = false } = {}) {
+    constructor({ secret, tokenExpiresInSeconds, mailConfig, checkBreachedPasswords = false, appUrl } = {}) {
         this.mailConfig = mailConfig;
+        this.appUrl = appUrl ?? process.env.APP_URL;
         this.checkBreachedPasswords = checkBreachedPasswords;
         this.auth = createAuth({
             secret,
@@ -113,6 +154,10 @@ export class AuthController {
         // requireAuth (every .auth() route) now also checks that the token's
         // session still exists: logout and password resets apply at once.
         setSessionGuard((claims) => this.auth.isSessionActive(claims.sid, claims.uid));
+
+        // PKCE, a sealed state cookie and same-site return paths; see
+        // createOAuth in @tylix/auth.
+        this.oauth = createOAuth({ sealer: this.auth.sealer, trustProxy: this.auth.options.trustProxy });
     }
 
     async passwordProblems(password, user) {
@@ -396,5 +441,118 @@ export class AuthController {
         await User.updatePassword(user.id, req.body.password);
         await this.auth.revokeAllSessions(user.id, { exceptSessionId: req.user.sid });
         return res.json({ ok: true, message: "Password changed. You have been signed out on other devices." });
+    }
+
+    // --- Social sign-in -------------------------------------------------
+
+    // Which providers this app offers, for pages that want to hide the
+    // buttons of providers that aren't configured yet.
+    async oauthProviders(req, res) {
+        return res.json({
+            providers: Object.entries(OAUTH_PROVIDERS).map(([id, p]) => ({
+                id,
+                name: p.name,
+                enabled: Boolean(process.env[`${p.env}_CLIENT_ID`] && process.env[`${p.env}_CLIENT_SECRET`]),
+            })),
+        });
+    }
+
+    oauthProviderFor(req, id) {
+        const entry = Object.hasOwn(OAUTH_PROVIDERS, id) ? OAUTH_PROVIDERS[id] : null;
+        if (!entry) return { error: "oauth_unknown" };
+        const clientId = process.env[`${entry.env}_CLIENT_ID`];
+        const clientSecret = process.env[`${entry.env}_CLIENT_SECRET`];
+        const base = (this.appUrl || `http://${req.headers.host ?? "localhost:3000"}`).replace(/\/$/, "");
+        const redirectUri = `${base}/api/auth/oauth/${id}/callback`;
+        if (!clientId || !clientSecret) {
+            console.warn(
+                `[auth] ${entry.name} sign-in isn't configured. Set ${entry.env}_CLIENT_ID and ${entry.env}_CLIENT_SECRET in .env, ` +
+                    `and register ${redirectUri} as the callback URL with ${entry.name}.`,
+            );
+            return { error: "oauth_unavailable" };
+        }
+        return { provider: entry.create({ clientId, clientSecret, redirectUri }), name: entry.name };
+    }
+
+    // GET /api/auth/oauth/:provider -> the provider's consent screen.
+    async oauthStart(req, res) {
+        const { provider, error } = this.oauthProviderFor(req, String(req.params.provider ?? ""));
+        if (!provider) return backToLogin(res, error);
+        const returnTo = typeof req.query.returnTo === "string" ? req.query.returnTo : "/dashboard";
+        const { url, cookies } = await this.oauth.start(provider, req, { returnTo });
+        return redirect(res, url, cookies);
+    }
+
+    // GET /api/auth/oauth/:provider/callback: the provider sends the user
+    // back here. Signs them in (creating or linking the account) and
+    // returns them to where they started.
+    async oauthCallback(req, res) {
+        const limit = await oauthLimiter(clientIp(req));
+        if (!limit.allowed) return backToLogin(res, "oauth_rate_limited");
+
+        const { provider, name, error } = this.oauthProviderFor(req, String(req.params.provider ?? ""));
+        if (!provider) return backToLogin(res, error);
+
+        let result;
+        try {
+            result = await this.oauth.callback(provider, req);
+        } catch (err) {
+            if (!(err instanceof OAuthError)) throw err;
+            if (err.code === "provider_error") return backToLogin(res, "oauth_cancelled", err.cookies);
+            console.warn(`[auth] ${name} sign-in failed (${err.code}): ${err.message}`);
+            return backToLogin(res, "oauth_failed", err.cookies);
+        }
+
+        const { user, error: problem } = await this.userForOAuthProfile(result.profile);
+        if (!user) return backToLogin(res, problem, result.cookies);
+
+        const { cookies } = await this.auth.signIn(req, user.id, { persistent: true });
+        return redirect(res, result.returnTo, [...result.cookies, ...cookies]);
+    }
+
+    // The user a provider profile belongs to: the linked account, else the
+    // account with the same (provider-verified) email, else a new one.
+    async userForOAuthProfile(profile) {
+        const linked = await OAuthAccount.findFor(profile.provider, profile.id);
+        if (linked) {
+            const user = await User.find(linked.user_id);
+            if (user) return { user };
+            await OAuthAccount.delete(linked.id); // its user was deleted
+        }
+
+        // Only an address the provider has verified may be matched or used:
+        // otherwise anyone could take over an account by putting its email
+        // on their own GitHub profile.
+        const email = normalizeEmail(profile.email);
+        if (!email) return { error: "oauth_no_email" };
+        if (!profile.emailVerified) return { error: "oauth_email_unverified" };
+
+        let user = await User.findByEmail(email);
+        if (user && !User.isEmailVerified(user)) {
+            // An unverified account with this address may have been opened
+            // by someone else, waiting for the real owner to link it. The
+            // owner, now proven, takes it over: that password and every
+            // session of the account stop working.
+            await User.updatePassword(user.id, unusablePassword());
+            await this.auth.revokeAllSessions(user.id);
+            await User.markEmailVerified(user.id);
+        }
+        if (!user) {
+            user = await User.create({
+                name: profile.name || email.split("@")[0],
+                email,
+                password: unusablePassword(),
+            });
+            if (!user) return { error: "oauth_failed" };
+            await User.markEmailVerified(user.id);
+        }
+
+        try {
+            await OAuthAccount.link(user.id, profile);
+        } catch (err) {
+            // Two callbacks raced and the other one linked it first.
+            if (!(await OAuthAccount.findFor(profile.provider, profile.id))) throw err;
+        }
+        return { user };
     }
 }

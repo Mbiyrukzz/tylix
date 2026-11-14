@@ -4,90 +4,94 @@ import { RouterLink } from '@angular/router'
 import { injectAuth, injectHydrated } from '@tylix/angular'
 import { firstError } from '@tylix/shared/validation'
 import { MIN_PASSWORD_LENGTH, validateRegister } from '../../validators/AuthValidator'
+import { OAuthButtons } from '../components/oauth-buttons'
 
 const inputClass =
-  'w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition'
+  'tx-input'
 
 @Component({
   selector: 'app-register',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, OAuthButtons],
   template: `
     <div class="flex items-center justify-center px-6 py-16">
-      <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-        <div class="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+      <div class="tx-auth tx-glow">
+        <div class="tx-auth-aside">
+          <p class="tx-eyebrow mb-5">New account</p>
           <h2 class="text-2xl font-semibold tracking-tight mb-3">Create your account</h2>
-          <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">It takes less than a minute.</p>
+          <p class="text-sm text-muted mb-8 leading-relaxed">It takes less than a minute.</p>
           <ul class="space-y-3">
             @for (perk of perks; track perk) {
-              <li class="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
-                <span class="text-emerald-500">✓</span>
+              <li class="flex items-start gap-2.5 text-sm text-soft">
+                <span class="text-mint">✓</span>
                 {{ perk }}
               </li>
             }
           </ul>
         </div>
 
-        <div class="flex items-center justify-center px-6 py-12">
+        <div class="tx-auth-form">
           @if (registered()) {
             <div class="w-full max-w-sm" data-testid="registered">
-              <div class="w-11 h-11 rounded-md bg-emerald-500/10 flex items-center justify-center mb-5 text-emerald-600">✓</div>
+              <div class="w-11 h-11 rounded-lg bg-brand/10 flex items-center justify-center mb-5 text-link">✓</div>
               <h1 class="text-2xl font-semibold tracking-tight mb-2">Check your email</h1>
-              <p class="text-sm text-zinc-500 mb-8">
-                We sent a verification link to <span class="text-zinc-900 dark:text-zinc-200">{{ email() }}</span>. Click it, then log in.
+              <p class="text-sm text-muted mb-8">
+                We sent a verification link to <span class="text-ink">{{ email() }}</span>. Click it, then log in.
               </p>
               <a
                 routerLink="/login"
-                class="inline-block w-full text-center bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors"
+                class="tx-btn tx-btn-primary tx-btn-block"
               >
                 Go to login
               </a>
               @if (isDev) {
-                <p class="text-xs text-zinc-500 text-center mt-4">
-                  No mail server yet? <a routerLink="/dev/mail" class="text-emerald-600 dark:text-emerald-400 hover:underline">Open the dev mail log</a>
+                <p class="text-xs text-muted text-center mt-4">
+                  No mail server yet? <a routerLink="/dev/mail" class="tx-link">Open the dev mail log</a>
                 </p>
               }
             </div>
           } @else {
             <form class="w-full max-w-sm" (ngSubmit)="submit()">
               <h1 class="text-2xl font-semibold tracking-tight mb-1">Create account</h1>
-              <p class="text-sm text-zinc-500 mb-8">Start building with Tylix.</p>
+              <p class="text-sm text-muted mb-8">Start building with Tylix.</p>
 
               @if (error()) {
-                <div role="alert" aria-live="polite" class="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
-                  <p class="text-rose-700 dark:text-rose-400 text-sm">{{ error() }}</p>
+                <div role="alert" aria-live="polite" class="tx-alert tx-alert-error mb-6">
+                  <p class="text-sm">{{ error() }}</p>
                 </div>
               }
 
-              <label for="name" class="block text-zinc-500 text-xs font-medium mb-1.5">Name</label>
+              <app-oauth-buttons />
+
+              <label for="name" class="tx-label">Name</label>
               <input id="name" name="name" autocomplete="name" autofocus [(ngModel)]="name" [class]="inputClass" />
 
-              <label for="email" class="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+              <label for="email" class="tx-label">Email</label>
               <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" [(ngModel)]="email" [class]="inputClass" />
 
-              <label for="password" class="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+              <label for="password" class="tx-label">Password</label>
               <input id="password" name="password" type="password" autocomplete="new-password" [(ngModel)]="password" [class]="inputClass" />
               @if (password()) {
-                <p class="-mt-3 mb-4 text-xs text-zinc-500">Strength: {{ strengthLabels[score()] }}</p>
+                <p class="-mt-3 mb-4 text-xs text-muted">Strength: {{ strengthLabels[score()] }}</p>
               }
 
-              <label for="confirmPassword" class="block text-zinc-500 text-xs font-medium mb-1.5">Confirm password</label>
+              <label for="confirmPassword" class="tx-label">Confirm password</label>
               <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" [(ngModel)]="confirmPassword" [class]="inputClass" />
 
-              <label class="flex items-center gap-2 text-sm text-zinc-500 mb-6">
-                <input type="checkbox" name="terms" [(ngModel)]="agreed" class="rounded border-zinc-300 dark:border-zinc-700" />
+              <label class="flex items-center gap-2 text-sm text-muted mb-6">
+                <input type="checkbox" name="terms" [(ngModel)]="agreed" class="rounded border-line-strong" />
                 I agree to the Terms of Service
               </label>
 
               <button
                 type="submit"
                 [disabled]="submitting() || !hydrated()"
-                class="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                class="tx-btn tx-btn-primary tx-btn-block"
               >
                 {{ submitting() ? 'Creating account…' : 'Create account' }}
               </button>
 
-              <p class="text-sm text-zinc-500 text-center mt-6">
-                Already have an account? <a routerLink="/login" class="text-emerald-600 dark:text-emerald-400 hover:underline">Log in</a>
+              <p class="text-sm text-muted text-center mt-6">
+                Already have an account? <a routerLink="/login" class="tx-link">Log in</a>
               </p>
             </form>
           }

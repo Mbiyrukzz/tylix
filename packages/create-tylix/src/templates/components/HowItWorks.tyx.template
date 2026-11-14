@@ -8,16 +8,17 @@ state
   ]
 
 template
-  <section class="border-t border-zinc-200 dark:border-zinc-800">
+  <section class="border-t border-line">
     <div class="max-w-6xl mx-auto px-6 py-20">
+      <p class="tx-eyebrow mb-4">How it works</p>
       <h2 class="text-3xl font-semibold tracking-tight mb-12">From zero to deployed in three commands</h2>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
 {{#each s in steps}}
-        <div>
-          <div class="w-8 h-8 rounded-full border border-zinc-200 dark:border-zinc-800 flex items-center justify-center text-sm font-semibold text-emerald-500 mb-4">{{ s.number }}</div>
+        <div class="tx-panel p-6">
+          <div class="w-8 h-8 rounded-lg bg-brand text-white flex items-center justify-center text-sm font-semibold font-mono mb-4">{{ s.number }}</div>
           <h3 class="font-semibold tracking-tight mb-2">{{ s.name }}</h3>
-          <p class="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed mb-4">{{ s.body }}</p>
-          <code class="block rounded-md bg-zinc-100 dark:bg-zinc-900 px-3 py-2 text-xs font-mono text-zinc-700 dark:text-zinc-300 overflow-x-auto whitespace-nowrap">{{ s.command }}</code>
+          <p class="text-sm text-muted leading-relaxed mb-4">{{ s.body }}</p>
+          <code class="tx-code text-xs whitespace-nowrap">{{ s.command }}</code>
         </div>
 {{/each}}
       </div>

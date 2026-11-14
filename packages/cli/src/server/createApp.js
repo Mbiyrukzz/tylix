@@ -182,7 +182,7 @@ async function serveStaticAsset(req, res, baseDir, { production }) {
 // calls precisely when the access token is missing/expired, so gating
 // them behind a valid access token would make them unreachable exactly
 // when they're needed. Only `me` needs an active session.
-async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
+async function registerAuthRoutes(router, baseDir, authConfig, mailConfig, appUrl) {
   const language = await detectLanguage(baseDir)
   const ext = language === 'typescript' ? 'ts' : 'js'
 
@@ -201,6 +201,7 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
     tokenExpiresInSeconds: authConfig.tokenExpiresInSeconds,
     checkBreachedPasswords: authConfig.checkBreachedPasswords,
     mailConfig,
+    appUrl,
   })
   // Controllers generated before 1.5 lack the newer endpoints; only what
   // the app's controller implements is registered.
@@ -261,6 +262,15 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
   if (has('logoutAll')) router.post('/api/auth/logout-all', guarded('logoutAll'))
   if (has('changePassword')) {
     router.post('/api/auth/change-password', guarded('changePassword'))
+  }
+  // Social sign-in (Google, GitHub, ...). Plain GET navigations: the
+  // browser goes to the provider and comes back to the callback.
+  if (has('oauthStart') && has('oauthCallback')) {
+    router.get('/api/auth/providers', (req, res) => controller.oauthProviders(req, res))
+    router.get('/api/auth/oauth/:provider', (req, res) => controller.oauthStart(req, res))
+    router.get('/api/auth/oauth/:provider/callback', (req, res) =>
+      controller.oauthCallback(req, res),
+    )
   }
 
   return true
@@ -954,6 +964,7 @@ export async function createApp(
     baseDir,
     config.auth,
     config.mail,
+    config.app?.url,
   )
 
   // frontend.driver in tylix.config picks who renders pages. "tylix" (the

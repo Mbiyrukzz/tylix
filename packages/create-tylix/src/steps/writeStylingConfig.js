@@ -8,6 +8,16 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 const templatePath = (name) =>
   path.join(PACKAGE_ROOT, 'src', 'templates', name)
 
+// The Tylix UI tokens and components, placed between Tailwind's base and
+// utilities so a utility class can still override a component.
+const UI_MARKER = /\/\*!? tylix-ui \*\//
+
+async function withUi(css) {
+  const ui = await fs.readFile(templatePath('tylix-ui.css'), 'utf-8')
+  if (!UI_MARKER.test(css)) throw new Error('styling template is missing the tylix-ui marker')
+  return css.replace(UI_MARKER, () => ui.trim())
+}
+
 const USER_STYLES_HEADER = `/* Your own styles. This file is linked after the framework styles,
    so rules here can override them. */\n`
 
@@ -33,9 +43,8 @@ export async function writeStylingConfig(config) {
       await fs.writeFile(path.join(targetDir, filename), content)
     }
 
-    const inputCss = await fs.readFile(
-      templatePath('tailwind-input.css.template'),
-      'utf-8',
+    const inputCss = await withUi(
+      await fs.readFile(templatePath('tailwind-input.css.template'), 'utf-8'),
     )
     await fs.writeFile(
       path.join(targetDir, 'app', 'tailwind-input.css'),
@@ -51,7 +60,9 @@ export async function writeStylingConfig(config) {
   // Plain CSS, Sass and CSS Modules: the starter templates use Tailwind
   // classes, so ship the precompiled stylesheet and let the user append
   // their own rules below it.
-  const starterCss = await fs.readFile(templatePath('starter.css'), 'utf-8')
+  const starterCss = await withUi(
+    await fs.readFile(templatePath('starter.css'), 'utf-8'),
+  )
   await fs.writeFile(
     stylesPath,
     `/* Precompiled styles for the starter templates. Add your own rules below. */\n${starterCss}\n`,

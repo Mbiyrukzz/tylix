@@ -1,6 +1,7 @@
 page Login
 
 import { IconCheck } from "tylix-icons"
+import OAuthButtons from "./components/OAuthButtons"
 
 title "Log in"
 
@@ -100,33 +101,36 @@ onMount
 
 template
   <div class="flex items-center justify-center px-6 py-16">
-    <div class="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+    <div class="tx-auth tx-glow">
 
-      <div class="hidden lg:flex flex-col justify-center border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/60 p-10">
+      <div class="tx-auth-aside">
+        <p class="tx-eyebrow mb-5">Signed-in session</p>
         <h2 class="text-2xl font-semibold tracking-tight mb-3">Welcome back</h2>
-        <p class="text-sm text-zinc-500 dark:text-zinc-400 mb-8 leading-relaxed">Log in to pick up where you left off.</p>
+        <p class="text-sm text-muted mb-8 leading-relaxed">Log in to pick up where you left off.</p>
         <ul class="space-y-3">
 {{#each perk in perks}}
-          <li class="flex items-start gap-2.5 text-sm text-zinc-600 dark:text-zinc-300">
-            <IconCheck class="w-4 h-4 mt-0.5 text-emerald-500 shrink-0" />
+          <li class="flex items-start gap-2.5 text-sm text-soft">
+            <IconCheck class="w-4 h-4 mt-0.5 text-mint shrink-0" />
             {{ perk }}
           </li>
 {{/each}}
         </ul>
       </div>
 
-      <div class="flex items-center justify-center px-6 py-12">
+      <div class="tx-auth-form">
         <div class="w-full max-w-sm">
           <h1 class="text-2xl font-semibold tracking-tight mb-1">Log in</h1>
-          <p class="text-sm text-zinc-500 mb-8">Continue to your dashboard.</p>
+          <p class="text-sm text-muted mb-8">Continue to your dashboard.</p>
 
 {{#if error}}
-          <div role="alert" aria-live="polite" class="rounded-md border border-rose-300 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 px-4 py-3 mb-6">
-            <p class="text-rose-700 dark:text-rose-400 text-sm">{{ error }}</p>
+          <div role="alert" aria-live="polite" class="tx-alert tx-alert-error mb-6">
+            <p class="text-sm">{{ error }}</p>
           </div>
 {{/if}}
 
-          <label for="email" class="block text-zinc-500 text-xs font-medium mb-1.5">Email</label>
+          <OAuthButtons returnTo="{{ '/dashboard' }}" />
+
+          <label for="email" class="tx-label">Email</label>
           <input
             id="email"
             name="email"
@@ -137,10 +141,10 @@ template
             value="{{ email }}"
             oninput="{{ setField('email', event.target.value) }}"
             onkeydown="{{ event.key is 'Enter' and submit() }}"
-            class="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
+            class="tx-input"
           />
 
-          <label for="password" class="block text-zinc-500 text-xs font-medium mb-1.5">Password</label>
+          <label for="password" class="tx-label">Password</label>
           <input
             id="password"
             name="password"
@@ -150,32 +154,32 @@ template
             value="{{ password }}"
             oninput="{{ setField('password', event.target.value) }}"
             onkeydown="{{ event.key is 'Enter' and submit() }}"
-            class="w-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 rounded-md px-3.5 py-2.5 mb-4 text-sm outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition"
+            class="tx-input"
           />
 
           <div class="flex items-center justify-between mb-6">
-            <label class="flex items-center gap-2 text-sm text-zinc-500">
+            <label class="flex items-center gap-2 text-sm text-muted">
               <input
                 type="checkbox"
                 checked="{{ remember }}"
                 onclick="{{ toggleRemember() }}"
-                class="rounded border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-emerald-500 focus:ring-emerald-500"
+                class="rounded border-line-strong bg-canvas text-mint focus:ring-aqua"
               />
               Remember me
             </label>
-            <a href="/forgot-password" class="text-sm text-emerald-600 dark:text-emerald-400 hover:underline">Forgot password?</a>
+            <a href="/forgot-password" class="text-sm tx-link">Forgot password?</a>
           </div>
 
           <button
             onclick="{{ submit() }}"
             disabled="{{ submitting }}"
-            class="w-full bg-emerald-500 text-white dark:text-zinc-950 rounded-md py-2.5 text-sm font-semibold hover:bg-emerald-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            class="tx-btn tx-btn-primary tx-btn-block"
           >
             {{ submitting ? 'Logging in…' : 'Log in' }}
           </button>
 
-          <p class="text-sm text-zinc-500 text-center mt-6">
-            Need an account? <a href="/register" class="text-emerald-600 dark:text-emerald-400 hover:underline">Sign up</a>
+          <p class="text-sm text-muted text-center mt-6">
+            Need an account? <a href="/register" class="tx-link">Sign up</a>
           </p>
         </div>
       </div>

@@ -7,8 +7,9 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 
 // Imported by the layout, so they are written for every project,
 // including the Blank starter. No-auth projects get a navbar that
-// doesn't depend on the Auth capability.
-const LAYOUT_COMPONENTS_AUTH = ['SiteNavbar', 'SiteFooter']
+// doesn't depend on the Auth capability. OAuthButtons is used by the
+// login and register pages, which exist whenever auth does.
+const LAYOUT_COMPONENTS_AUTH = ['SiteNavbar', 'SiteFooter', 'OAuthButtons']
 const LAYOUT_COMPONENTS_PUBLIC = ['SiteNavbarPublic', 'SiteFooter']
 
 // Landing page sections, written for the Starter template.

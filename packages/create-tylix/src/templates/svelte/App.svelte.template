@@ -92,7 +92,7 @@
   // @endif
 </script>
 
-<div class="min-h-screen flex flex-col bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+<div class="tx-shell">
   <Navbar />
   <main class="flex-1">
     <!-- A page that throws shows ErrorPage instead of a blank screen. Keyed
@@ -112,7 +112,7 @@
       </svelte:boundary>
     {/key}
   </main>
-  <footer class="border-t border-zinc-200 dark:border-zinc-800">
-    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-zinc-500">Built with Tylix and Svelte.</div>
+  <footer class="border-t border-line">
+    <div class="max-w-6xl mx-auto px-6 py-8 text-sm text-muted">Built with Tylix and Svelte.</div>
   </footer>
 </div>
