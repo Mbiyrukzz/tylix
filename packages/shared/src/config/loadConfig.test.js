@@ -39,7 +39,7 @@ test("includes default auth config when no tylix.config.js exists", async () => 
   const config = await loadConfig(tmpDir);
 
   assert.equal(config.auth.secret, "tylix-dev-secret-change-me");
-  assert.equal(config.auth.tokenExpiresInSeconds, 60 * 60 * 24 * 7);
+  assert.equal(config.auth.tokenExpiresInSeconds, 15 * 60);
 
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
@@ -58,7 +58,7 @@ test("merges user-provided auth config over defaults", async () => {
 
   const config = await loadConfig(tmpDir);
   assert.equal(config.auth.secret, "my-custom-secret");
-  assert.equal(config.auth.tokenExpiresInSeconds, 60 * 60 * 24 * 7);
+  assert.equal(config.auth.tokenExpiresInSeconds, 15 * 60);
 
   await fs.rm(tmpDir, { recursive: true, force: true });
 });

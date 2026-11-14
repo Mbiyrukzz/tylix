@@ -8,7 +8,7 @@ import { parseCookies, parseQuery } from '@tylix/core'
 // server send guests away from protected pages before any HTML is sent.
 //
 // Only the access-token cookie reaches page requests: the refresh-token
-// cookie is scoped to /api/auth/refresh. So "no valid access token" means
+// cookie is scoped to /api/auth. So "no valid access token" means
 // "maybe logged out", never "certainly logged out", and both features are
 // written with that in mind:
 //   - a user is injected only when the access token is valid; otherwise

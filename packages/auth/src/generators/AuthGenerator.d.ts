@@ -1,13 +1,19 @@
 export interface AuthGeneratorResults {
   userModel: string
-  refreshTokenModel: string
+  sessionModel: string
   passwordResetModel: string
   validator: string
   controller: string
   mailer: string
+  verifyEmailMail: string
+  resetPasswordMail: string
+  verifyEmailView: string
+  resetPasswordView: string
   userMigration: string
-  refreshTokenMigration: string
+  sessionMigration: string
   passwordResetMigration: string
+  userObserver: string
+  welcomeJob: string
 }
 
 export declare class AuthGenerator {

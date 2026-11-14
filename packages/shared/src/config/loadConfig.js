@@ -12,7 +12,12 @@ const DEFAULT_CONFIG = {
   },
   auth: {
     secret: 'tylix-dev-secret-change-me',
-    tokenExpiresInSeconds: 60 * 60 * 24 * 7,
+    // Lifetime of an access token. Short on purpose: the rotating refresh
+    // session (30 days) keeps people signed in. Capped at 1 hour.
+    tokenExpiresInSeconds: 15 * 60,
+    // Also refuse passwords found in public breaches (Have I Been Pwned,
+    // k-anonymity: only 5 characters of a hash leave the server).
+    checkBreachedPasswords: false,
   },
   mail: {
     driver: 'log',
@@ -185,7 +190,10 @@ export async function loadConfig(cwd = process.cwd(), language = 'javascript') {
     auth: {
       ...DEFAULT_CONFIG.auth,
       ...defined(userConfig.auth),
-      ...defined({ secret: env('AUTH_SECRET') }),
+      ...defined({
+        secret: env('AUTH_SECRET'),
+        checkBreachedPasswords: env('AUTH_CHECK_BREACHED_PASSWORDS') === undefined ? undefined : env('AUTH_CHECK_BREACHED_PASSWORDS') === 'true',
+      }),
     },
     mail: {
       ...DEFAULT_CONFIG.mail,

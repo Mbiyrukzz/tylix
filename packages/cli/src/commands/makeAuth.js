@@ -10,7 +10,7 @@ export async function makeAuth() {
   console.log(`\n✔ Auth scaffolding created:\n`)
   console.log(`  Models`)
   console.log(`    User:           ${rel(results.userModel)}`)
-  console.log(`    RefreshToken:   ${rel(results.refreshTokenModel)}`)
+  console.log(`    AuthSession:    ${rel(results.sessionModel)}`)
   console.log(`    PasswordReset:  ${rel(results.passwordResetModel)}`)
   console.log(`  Validator:        ${rel(results.validator)}`)
   console.log(`  Controller:       ${rel(results.controller)}`)
@@ -19,7 +19,7 @@ export async function makeAuth() {
   )
   console.log(`  Migrations`)
   console.log(`    users:            ${rel(results.userMigration)}`)
-  console.log(`    refresh_tokens:   ${rel(results.refreshTokenMigration)}`)
+  console.log(`    auth_sessions:    ${rel(results.sessionMigration)}`)
   console.log(`    password_resets:  ${rel(results.passwordResetMigration)}`)
   console.log(
     `\nRun "tylix migrate" then "tylix dev" to get:\n` +
@@ -30,6 +30,11 @@ export async function makeAuth() {
       `  GET  /api/auth/verify-email\n` +
       `  POST /api/auth/forgot-password\n` +
       `  POST /api/auth/reset-password\n` +
+      `  POST /api/auth/resend-verification\n` +
+      `  POST /api/auth/change-password\n` +
+      `  GET  /api/auth/sessions          (your signed-in devices)\n` +
+      `  DEL  /api/auth/sessions/:id\n` +
+      `  POST /api/auth/logout-all\n` +
       `  GET  /api/me\n`,
   )
 }

@@ -12,7 +12,10 @@ export interface DatabaseConfig {
 
 export interface AuthConfig {
     secret: string;
+    /** Access-token lifetime in seconds (default 15 minutes, capped at 1 hour). */
     tokenExpiresInSeconds: number;
+    /** Refuse passwords found in public breaches (env AUTH_CHECK_BREACHED_PASSWORDS). */
+    checkBreachedPasswords?: boolean;
 }
 
 export interface MailConfig {

@@ -492,6 +492,9 @@ function printSuccessScreen(config) {
     console.log('GET    /api/auth/verify-email')
     console.log('POST   /api/auth/forgot-password')
     console.log('POST   /api/auth/reset-password')
+    console.log('POST   /api/auth/change-password')
+    console.log('GET    /api/auth/sessions')
+    console.log('POST   /api/auth/logout-all')
     console.log('GET    /api/me')
     if (config.starter === 'starter') {
       console.log('GET    /api/posts')

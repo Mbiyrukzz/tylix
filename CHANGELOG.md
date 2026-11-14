@@ -2,6 +2,83 @@
 
 All Tylix packages share one version number and are released together.
 
+## Unreleased
+
+### @tylix/auth: works with any framework, hardened
+- **Any framework.** A new `createAuth()` engine is built on Web Crypto and
+  Web `Request`/`Response`, so it runs on Node, Bun, Deno, Workers and the
+  edge. Adapters: `@tylix/auth/next`, `/nuxt` (h3), `/sveltekit`, `/hono`,
+  `/express`, `/fastify`, `/koa` and `/web` (Remix, Astro, SolidStart,
+  Bun, Deno). There is also a browser client at `/client`.
+- **Sessions.** Access tokens are short-lived JWTs. Refresh tokens rotate
+  on every use and are stored as HMACs. Replaying an old refresh token
+  ends the session (theft detection), with a grace period for parallel
+  tabs. Sessions have idle and absolute timeouts, a device list, single
+  and all-device revocation, and "remember me". Signing in always ends
+  the browser's previous session (no session fixation).
+- **Storage adapters:** SQL (`pg`, `mysql2`, SQLite, with a real
+  compare-and-swap), Prisma, any key-value store (Redis, Upstash, KV),
+  Tylix models, and memory.
+- **Tokens.** HS256 JWTs with the algorithm pinned, per-purpose
+  HKDF-derived keys, mandatory expiry, canonical base64url decoding, and
+  key rotation through key ids. AES-GCM sealing (`createSealer`) covers
+  secrets at rest and in cookies.
+- **Security checks.** Fetch-Metadata/Origin CSRF checks (sibling
+  subdomains are untrusted by default), `__Host-`/`__Secure-` cookie
+  prefixes, and a safe-redirect helper.
+- **Passwords.** `needsRehash()`, NFC normalization, a 1 KiB input cap,
+  and dummy scrypt work for unknown accounts. `checkPasswordStrength()`
+  rejects common and contextual passwords and can check Have I Been
+  Pwned (k-anonymity).
+- **Limits and 2FA.** `createLoginThrottle()` limits per account+IP, per
+  account and per IP, so nobody can lock out a victim. TOTP (RFC 6238)
+  comes with replay protection and hashed recovery codes.
+- **OAuth** with PKCE, encrypted state cookies and verified-email
+  semantics. Presets: GitHub, Google, Discord, GitLab, Microsoft.
+
+### Security fixes (Tylix auth flow)
+- Email-verification links were valid login tokens for 24 hours. They had
+  the same signature as access tokens, and `requireAuth` ignored the
+  `purpose` claim. Purpose tokens and never-expiring tokens are now
+  refused.
+- Logout never revoked the refresh token. The cookie was scoped to
+  `/api/auth/refresh`, so `/api/auth/logout` never received it. It is now
+  scoped to `/api/auth`.
+- Refresh tokens were not rotated, so a stolen one stayed valid for 30
+  days.
+- Logout, password resets and the new "sign out everywhere" now end
+  access immediately: `requireAuth` checks that the token's session still
+  exists. Before, access tokens stayed valid until they expired, which in
+  scaffolded apps meant up to 7 days.
+- The access-token default is now 15 minutes (capped at an hour) instead
+  of 7 days.
+- Refresh and reset lookups loaded the whole table on every request. They
+  are now indexed lookups.
+- Login response time revealed which emails were registered. Unknown
+  accounts now do the same scrypt work, and forgot-password no longer
+  waits on the database for real accounts.
+- The login limiter was per-process and keyed by email only. It is now
+  shared across workers and keyed per account+IP, per account and per IP.
+- Older reset links stayed valid after a new one was issued, and single
+  use could be raced. Issuing a link now retires older ones, and claiming
+  one is atomic.
+- Legacy password hashes were never upgraded. They are now rehashed at
+  login.
+- The legacy `verifyToken` accepted extra token segments, non-canonical
+  signatures and non-object payloads. It now refuses them.
+
+### Tylix apps
+- New routes: `POST /api/auth/change-password` (ends other sessions),
+  `GET /api/auth/sessions`, `DELETE /api/auth/sessions/:id`,
+  `POST /api/auth/logout-all` and `POST /api/auth/resend-verification`.
+- `make:auth` writes an `AuthSession` model and a `create_auth_sessions_table`
+  migration (it no longer writes `RefreshToken`).
+- New passwords are checked for strength. `auth.checkBreachedPasswords`
+  (or `AUTH_CHECK_BREACHED_PASSWORDS=true`) also checks breaches.
+- **Upgrading:** run `tylix make:auth`, then `tylix migrate`. Everyone
+  signs in once more. `AUTH_SECRET` must be at least 32 characters in
+  production.
+
 ## 1.4.0
 
 ### @tylix/pdf (new)

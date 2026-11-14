@@ -1,7 +1,6 @@
-import type { TylixRequest, TylixResponse } from '@tylix/core'
-
 export declare const ACCESS_TOKEN_COOKIE: string
 export declare const REFRESH_TOKEN_COOKIE: string
+export declare const REFRESH_TOKEN_PATH: string
 
 export interface SetAuthCookiesOptions {
   accessToken?: string
@@ -10,7 +9,10 @@ export interface SetAuthCookiesOptions {
   refreshTtlSeconds?: number
 }
 
-export declare function setAuthCookies(res: TylixResponse, options?: SetAuthCookiesOptions): void
-export declare function clearAuthCookies(res: TylixResponse): void
-export declare function readAccessToken(req: TylixRequest): string | null
-export declare function readRefreshToken(req: TylixRequest): string | null
+type Res = { setHeader(name: string, value: string | string[]): unknown; getHeader?(name: string): unknown }
+type Req = { headers?: Record<string, unknown>; cookies?: Record<string, string> }
+
+export declare function setAuthCookies(res: Res, options?: SetAuthCookiesOptions): void
+export declare function clearAuthCookies(res: Res): void
+export declare function readAccessToken(req: Req): string | null
+export declare function readRefreshToken(req: Req): string | null

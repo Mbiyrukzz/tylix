@@ -36,8 +36,12 @@ const TYLIX_CONFIG = `import { defineConfig } from "@tylix/shared";
 
 export default defineConfig({
 __FRONTEND__  auth: {
-    // How long a login stays valid, in seconds (7 days).
-    tokenExpiresInSeconds: 60 * 60 * 24 * 7,
+    // Lifetime of an access token, in seconds. Kept short on purpose: the
+    // refresh session (rotated on every use, 30 days) keeps people signed
+    // in, and ending it (logout, password reset) applies at once.
+    tokenExpiresInSeconds: 15 * 60,
+    // Refuse passwords found in public data breaches (Have I Been Pwned).
+    checkBreachedPasswords: false,
   },
 });
 `

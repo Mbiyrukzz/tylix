@@ -55,6 +55,15 @@ export const forgotPasswordSchema = {
     email,
 };
 
+export const changePasswordSchema = {
+    currentPassword: [withMessage(required, "Enter your current password."), isString],
+    password: newPassword,
+};
+
+export const resendVerificationSchema = {
+    email,
+};
+
 export const resetPasswordSchema = {
     email,
     token: [withMessage(required, "This reset link is incomplete."), isString],
@@ -75,4 +84,12 @@ export function validateForgotPassword(data) {
 
 export function validateResetPassword(data) {
     return validate(data, resetPasswordSchema);
+}
+
+export function validateChangePassword(data) {
+    return validate(data, changePasswordSchema);
+}
+
+export function validateResendVerification(data) {
+    return validate(data, resendVerificationSchema);
 }

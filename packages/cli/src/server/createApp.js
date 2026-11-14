@@ -199,8 +199,14 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
   const controller = new AuthController({
     secret: authConfig.secret,
     tokenExpiresInSeconds: authConfig.tokenExpiresInSeconds,
+    checkBreachedPasswords: authConfig.checkBreachedPasswords,
     mailConfig,
   })
+  // Controllers generated before 1.5 lack the newer endpoints; only what
+  // the app's controller implements is registered.
+  const has = (name) => typeof controller[name] === 'function'
+  const guarded = (name) =>
+    requireAuth((req, res) => controller[name](req, res), authConfig.secret)
 
   router.post('/api/register', (req, res) => controller.register(req, res))
   router.post('/api/login', (req, res) => controller.login(req, res))
@@ -243,6 +249,19 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig) {
     '/api/me',
     requireAuth((req, res) => controller.me(req, res), authConfig.secret),
   )
+  if (has('resendVerification')) {
+    router.post('/api/auth/resend-verification', (req, res) =>
+      controller.resendVerification(req, res),
+    )
+  }
+  if (has('sessions')) router.get('/api/auth/sessions', guarded('sessions'))
+  if (has('revokeSession')) {
+    router.delete('/api/auth/sessions/:id', guarded('revokeSession'))
+  }
+  if (has('logoutAll')) router.post('/api/auth/logout-all', guarded('logoutAll'))
+  if (has('changePassword')) {
+    router.post('/api/auth/change-password', guarded('changePassword'))
+  }
 
   return true
 }
@@ -987,6 +1006,10 @@ export async function createApp(
               '/api/auth/verify-email',
               '/api/auth/forgot-password',
               '/api/auth/reset-password',
+              '/api/auth/resend-verification',
+              '/api/auth/sessions',
+              '/api/auth/logout-all',
+              '/api/auth/change-password',
               '/api/me',
             ]
           : [],

@@ -1,4 +1,4 @@
-import { verifyToken, ACCESS_TOKEN_COOKIE } from "@tylix/auth";
+import { verifyTylixAccessToken, ACCESS_TOKEN_COOKIE } from "@tylix/auth";
 
 // Shared across packages (Symbol.for), so `tylix dev` can print a lock next
 // to every guarded route without importing anything from here.
@@ -10,8 +10,13 @@ const AUTH_MARK = Symbol.for("tylix.requireAuth");
  * browser app now uses), then falls back to an
  * "Authorization: Bearer <token>" header (for non-browser API clients
  * that can't rely on cookies). On success, req.user is set to the
- * token's payload (e.g. { userId }); on failure, responds 401 and
+ * token's payload (e.g. { userId, sid }); on failure, responds 401 and
  * never calls the wrapped handler.
+ *
+ * Only real access tokens pass: email-verification links and other
+ * purpose tokens are refused, and when the app's AuthController manages
+ * sessions, a token whose session was ended (logout, "sign out
+ * everywhere", password reset) is refused immediately.
  *
  * options.hydrate(payload, req) is optional. It runs after the token is
  * verified and can add fields to req.user (for example a team id):
@@ -27,7 +32,7 @@ export function requireAuth(handler, secret, options = {}) {
 
         const authHeader = req.headers?.authorization || "";
         const [scheme, headerToken] = authHeader.split(" ");
-        const bearerToken = scheme === "Bearer" ? headerToken : null;
+        const bearerToken = /^bearer$/i.test(scheme ?? "") ? headerToken : null;
 
         const token = cookieToken || bearerToken;
 
@@ -35,7 +40,13 @@ export function requireAuth(handler, secret, options = {}) {
             return res.status(401).json({ error: "Not authenticated." });
         }
 
-        const result = verifyToken(token, secret);
+        let result;
+        try {
+            result = await verifyTylixAccessToken(token, secret);
+        } catch (error) {
+            console.error("[auth] token check failed:", error);
+            return res.status(500).json({ error: "Couldn't check your session." });
+        }
         if (!result.valid) {
             return res.status(401).json({ error: result.error || "Invalid token." });
         }

@@ -60,9 +60,12 @@ export class AuthGenerator {
       'welcome-job',
     )
 
-    results.refreshTokenModel = await writeFile(
-      path.join(baseDir, 'app', 'models', `RefreshToken.${ext}`),
-      await read('refresh-token-model'),
+    // Server-side sessions (rotating refresh tokens, revocation, device
+    // list). Replaces the RefreshToken model of apps generated before 1.5;
+    // an existing RefreshToken file is left alone (nothing reads it now).
+    results.sessionModel = await writeFile(
+      path.join(baseDir, 'app', 'models', `AuthSession.${ext}`),
+      await read('auth-session-model'),
       { overwrite: true },
     )
 
@@ -137,7 +140,7 @@ export class AuthGenerator {
 
     results.userMigration = await writeMigration('create_users_table', 0, 'user-migration')
 
-    results.refreshTokenMigration = await writeMigration('create_refresh_tokens_table', 1000, 'refresh-token-migration')
+    results.sessionMigration = await writeMigration('create_auth_sessions_table', 1000, 'auth-session-migration')
 
     results.passwordResetMigration = await writeMigration('create_password_resets_table', 2000, 'password-reset-migration')
 

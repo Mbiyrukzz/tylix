@@ -18,7 +18,7 @@ test('generates auth models, validator, controller, mail files and migrations', 
     // Every key the generator reports must point at a real file.
     const expected = [
       'userModel',
-      'refreshTokenModel',
+      'sessionModel',
       'passwordResetModel',
       'validator',
       'controller',
@@ -28,7 +28,7 @@ test('generates auth models, validator, controller, mail files and migrations', 
       'verifyEmailView',
       'resetPasswordView',
       'userMigration',
-      'refreshTokenMigration',
+      'sessionMigration',
       'passwordResetMigration',
       'userObserver',
       'welcomeJob',
@@ -41,7 +41,7 @@ test('generates auth models, validator, controller, mail files and migrations', 
     const read = (key) => fs.readFile(results[key], 'utf-8')
 
     assert.match(await read('userModel'), /export class User extends Model/)
-    assert.match(await read('refreshTokenModel'), /export class RefreshToken/)
+    assert.match(await read('sessionModel'), /export class AuthSession/)
     assert.match(await read('passwordResetModel'), /export class PasswordReset/)
     assert.match(await read('validator'), /export function validateRegister/)
     assert.match(await read('validator'), /export function validateLogin/)
@@ -56,7 +56,7 @@ test('generates auth models, validator, controller, mail files and migrations', 
     assert.match(await read('userModel'), /static observers = \[UserObserver\]/)
     assert.match(await read('userObserver'), /dispatch\("SendWelcomeEmail", \{ userId: user\.id \}\)/)
     assert.match(await read('welcomeJob'), /export const SendWelcomeEmail/)
-    assert.match(await read('refreshTokenMigration'), /createTable\("refresh_tokens"/)
+    assert.match(await read('sessionMigration'), /createTable\("auth_sessions"/)
     assert.match(await read('passwordResetMigration'), /createTable\("password_resets"/)
   } finally {
     await fs.rm(outputDir, { recursive: true, force: true })
@@ -78,7 +78,7 @@ test('running make:auth again keeps the existing migrations instead of adding co
     const migrations = (await fs.readdir(path.join(outputDir, 'database', 'migrations'))).sort()
     assert.equal(migrations.length, 3, `expected 3 migrations, found: ${migrations.join(', ')}`)
     assert.equal(second.userMigration, first.userMigration)
-    assert.equal(second.refreshTokenMigration, first.refreshTokenMigration)
+    assert.equal(second.sessionMigration, first.sessionMigration)
     assert.equal(second.passwordResetMigration, first.passwordResetMigration)
     assert.match(await fs.readFile(second.userMigration, 'utf-8'), /already applied/, 'existing file left untouched')
   } finally {

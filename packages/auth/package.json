@@ -1,16 +1,35 @@
 {
   "name": "@tylix/auth",
   "version": "1.4.0",
-  "description": "Authentication for Tylix apps: password hashing, signed tokens, httpOnly cookie sessions with refresh, and the make:auth generator.",
+  "description": "Secure authentication for any JavaScript framework (Next.js, Nuxt, SvelteKit, Remix, Astro, Hono, Express, Fastify, Koa, Tylix): rotating sessions with theft detection, JWTs, scrypt passwords, TOTP 2FA, OAuth with PKCE, CSRF and rate limiting. Edge-ready.",
   "license": "MIT",
   "author": "Mbiyrukzz",
   "type": "module",
   "keywords": [
-    "tylix",
     "auth",
     "authentication",
+    "session",
     "jwt",
-    "session"
+    "oauth",
+    "pkce",
+    "totp",
+    "2fa",
+    "mfa",
+    "password",
+    "scrypt",
+    "csrf",
+    "rate-limit",
+    "nextjs",
+    "nuxt",
+    "sveltekit",
+    "remix",
+    "astro",
+    "hono",
+    "express",
+    "fastify",
+    "koa",
+    "edge",
+    "tylix"
   ],
   "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/auth#readme",
   "repository": {
@@ -37,14 +56,81 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node --test src/**/*.test.js"
+    "test": "node --test \"src/**/*.test.js\""
   },
   "dependencies": {
-    "@tylix/generator": "^1.4.0",
-    "@tylix/orm": "^1.4.0",
     "@tylix/shared": "^1.4.0"
   },
   "peerDependencies": {
     "@tylix/core": "^1.4.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    },
+    "./web": {
+      "types": "./src/web.d.ts",
+      "import": "./src/web.js",
+      "default": "./src/web.js"
+    },
+    "./password": {
+      "types": "./src/password/index.d.ts",
+      "import": "./src/password/index.js",
+      "default": "./src/password/index.js"
+    },
+    "./next": {
+      "types": "./src/integrations/next.d.ts",
+      "import": "./src/integrations/next.js",
+      "default": "./src/integrations/next.js"
+    },
+    "./nuxt": {
+      "types": "./src/integrations/h3.d.ts",
+      "import": "./src/integrations/h3.js",
+      "default": "./src/integrations/h3.js"
+    },
+    "./h3": {
+      "types": "./src/integrations/h3.d.ts",
+      "import": "./src/integrations/h3.js",
+      "default": "./src/integrations/h3.js"
+    },
+    "./sveltekit": {
+      "types": "./src/integrations/sveltekit.d.ts",
+      "import": "./src/integrations/sveltekit.js",
+      "default": "./src/integrations/sveltekit.js"
+    },
+    "./hono": {
+      "types": "./src/integrations/hono.d.ts",
+      "import": "./src/integrations/hono.js",
+      "default": "./src/integrations/hono.js"
+    },
+    "./express": {
+      "types": "./src/integrations/node.d.ts",
+      "import": "./src/integrations/node.js",
+      "default": "./src/integrations/node.js"
+    },
+    "./fastify": {
+      "types": "./src/integrations/node.d.ts",
+      "import": "./src/integrations/node.js",
+      "default": "./src/integrations/node.js"
+    },
+    "./koa": {
+      "types": "./src/integrations/node.d.ts",
+      "import": "./src/integrations/node.js",
+      "default": "./src/integrations/node.js"
+    },
+    "./client": {
+      "types": "./src/client/client.d.ts",
+      "import": "./src/client/client.js",
+      "default": "./src/client/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "peerDependenciesMeta": {
+    "@tylix/core": {
+      "optional": true
+    }
   }
 }
