@@ -2,7 +2,7 @@
 
 All Tylix packages share one version number and are released together.
 
-## Unreleased
+## 1.5.0
 
 ### Social sign-in in every starter
 - **Continue with Google / GitHub** on the login and register pages of all

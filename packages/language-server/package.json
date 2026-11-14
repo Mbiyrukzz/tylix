@@ -1,6 +1,6 @@
 {
   "name": "@tylix/language-server",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Language server for Tylix .tyx files: diagnostics, completion, hover, go to definition and outline for any LSP editor.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -44,7 +44,7 @@
     "test": "node --test src/*.test.js"
   },
   "dependencies": {
-    "@tylix/compiler": "^1.4.0",
+    "@tylix/compiler": "^1.5.0",
     "vscode-languageserver": "^10.1.2",
     "vscode-languageserver-textdocument": "^1.0.16"
   }

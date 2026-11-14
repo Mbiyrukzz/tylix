@@ -1,6 +1,6 @@
 {
   "name": "@tylix/auth",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Secure authentication for any JavaScript framework (Next.js, Nuxt, SvelteKit, Remix, Astro, Hono, Express, Fastify, Koa, Tylix): rotating sessions with theft detection, JWTs, scrypt passwords, TOTP 2FA, OAuth with PKCE, CSRF and rate limiting. Edge-ready.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -59,10 +59,10 @@
     "test": "node --test \"src/**/*.test.js\""
   },
   "dependencies": {
-    "@tylix/shared": "^1.4.0"
+    "@tylix/shared": "^1.5.0"
   },
   "peerDependencies": {
-    "@tylix/core": "^1.4.0"
+    "@tylix/core": "^1.5.0"
   },
   "exports": {
     ".": {
