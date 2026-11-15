@@ -43,7 +43,7 @@ export function queueDefaults(config = {}, env = process.env) {
   return queue
 }
 
-// Jobs tables made before 1.6 have no available_at column. The worker
+// Jobs tables made before 2.0 have no available_at column. The worker
 // still retries there, just without waiting between attempts.
 async function supportsDelays() {
   try {

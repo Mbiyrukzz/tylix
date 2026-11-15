@@ -2,7 +2,12 @@
 
 All Tylix packages share one version number and are released together.
 
-## Unreleased
+## 2.0.0
+
+Tylix 2 is stable. Apps made with 1.x keep running: see
+[Upgrading from 1.x](README.md#upgrading-from-1x) for the few things to
+check (the new `app/views` folder name, log files in `storage/logs`, and
+the one migration job delays need).
 
 ### MariaDB and CockroachDB
 - `DATABASE_DRIVER=mariadb` (MySQL protocol, through `mysql2`) and

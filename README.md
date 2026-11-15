@@ -17,10 +17,13 @@ first feature. With Tylix they already work together.
 * ⚡ Reactive `.tyx` compiler, or React, Vue, Svelte and Angular
 * 🖥️ Server-side rendering for every frontend
 * 🔐 Authentication: sessions, email verification, password reset
-* 🗄️ ORM for SQLite, PostgreSQL, MySQL and MongoDB, with observers and traits
+* 🗄️ ORM for SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB and MongoDB, with observers and traits
+* 🧱 Migrations with indexes, foreign keys, column changes and rollbacks
 * ✅ Validation shared by the API and the browser
-* 📬 Queues, scheduled tasks, live channels and mail
-* 📈 Request ids, structured logs, metrics, health checks
+* 🔗 A typed API client generated from your routes
+* 📬 Queues with retries and backoff, scheduled tasks, live channels and mail
+* 📈 Laravel-style log channels, request ids, metrics, health checks
+* 🧩 Plugins, static site export and deployment adapters
 * 🧵 Several workers or servers acting as one (shared store, `--workers`)
 * 🚀 Generators for features, pages, components, jobs and more
 * 🎨 537 icons for every frontend in `tylix-icons`
@@ -28,9 +31,10 @@ first feature. With Tylix they already work together.
 
 ---
 
-**Status: stable (1.0).** Tylix follows [semantic versioning](https://semver.org):
-1.x releases add features and fix bugs without breaking your app; anything
-that would break it waits for 2.0. See the [changelog](CHANGELOG.md).
+**Status: stable (2.0).** Tylix follows [semantic versioning](https://semver.org):
+2.x releases add features and fix bugs without breaking your app; anything
+that would break it waits for 3.0. See the [changelog](CHANGELOG.md), and
+[Upgrading from 1.x](#upgrading-from-1x).
 
 ---
 
@@ -46,7 +50,7 @@ Requires Node.js 22.13 or later. The installer asks for:
 * JavaScript or TypeScript
 * SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB or MongoDB
 * Authentication
-* Styling and a starter template
+* Styling (every project starts from the Starter App)
 
 ---
 
@@ -268,7 +272,7 @@ await dispatch('SendInvoice', { invoiceId }, { delay: 60 })  // run in a minute
 `QUEUE_BACKOFF`, `QUEUE_TIMEOUT`) sets the defaults. Throw a
 `PermanentJobError` to fail without retrying. `tylix queue:failed` lists
 failed jobs, `tylix queue:retry <id|all>` queues them again, and
-`tylix queue:flush` deletes them. Apps made before 1.6 run
+`tylix queue:flush` deletes them. Apps made before 2.0 run
 `tylix make:queue-retries && tylix migrate` once to add the `available_at`
 column that delays need.
 
@@ -511,7 +515,7 @@ app/
 ├── seeders/
 ├── plugins/          plugins loaded at start
 ├── pages/            native .tyx pages
-└── views/            React, Vue, Svelte or Angular (app/frontend before 1.6)
+└── views/            React, Vue, Svelte or Angular (app/frontend before 2.0)
     ├── pages/
     ├── providers/
     ├── services/
@@ -570,6 +574,35 @@ Each folder has a README saying what goes there and which command makes it.
 * Static site generation
 * Plugin system
 * Deployment adapters
+
+---
+
+# Upgrading from 1.x
+
+```bash
+npm install @tylix/cli@^2 @tylix/core@^2 @tylix/orm@^2 @tylix/shared@^2   # and any other @tylix/* you use
+npx tylix make:queue-retries && npx tylix migrate                     # once: the column job delays need
+```
+
+* **`app/frontend` is now `app/views`** for React, Vue, Svelte and Angular.
+  Nothing has to move: when only `app/frontend` exists, every command uses
+  it. To rename it, also change `app/frontend` in your `package.json`
+  scripts and Tailwind `content` globs.
+* **Logs also go to files.** The default `stack` channel writes to the
+  console and to `storage/logs/tylix-<date>.log`. Add `storage/logs/*.log`
+  to `.gitignore`, or set `LOG_STACK=console` where files aren't wanted
+  (containers, read-only disks).
+* **Jobs** keep running once each, as before, unless a job or `queue` in
+  `tylix.config` sets `tries`. Until the `available_at` migration runs,
+  retries happen at once and `dispatch(..., { delay })` throws.
+* **Migrations** you already have run unchanged, and columns are still
+  nullable unless you say `notNullable()`. The `migrations` table gets a
+  `batch` column the first time `tylix migrate` runs.
+* **`tylix dev` writes a typed API client** (`app/views/api.generated.ts`,
+  or `app/types/api.d.ts` for native pages). Set `typedRoutes: false` in
+  `tylix.config` to turn that off.
+* **create-tylix** has no Blank template; `--template blank` creates the
+  Starter App.
 
 ---
 

@@ -220,7 +220,7 @@ async function linkedPackageDirs(baseDir) {
 async function baseViteConfig(baseDir, { adapter, importFromProject, userVite }) {
   await assertRequiredPackages(baseDir, adapter)
   const vite = await importFromProject('vite')
-  // adapter.root is app/views; a project made before 1.6 keeps app/frontend.
+  // adapter.root is app/views; a project made before 2.0 keeps app/frontend.
   const root = adapter.root === 'app/views' ? resolveViewsDir(baseDir) : path.join(baseDir, adapter.root)
   const plugins = await adapter.vitePlugins({ importFromProject, root, baseDir })
   const config = {

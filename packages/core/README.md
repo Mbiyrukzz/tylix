@@ -1,8 +1,8 @@
 # @tylix/core
 
-The Tylix server runtime: HTTP server and router, logging, metrics and
-health checks, a shared store, cache, rate limiting, queue, scheduler and
-channels. `tylix dev` and `tylix start` set all of it up from your
+The Tylix server runtime: HTTP server and router, log channels, metrics
+and health checks, a shared store, cache, rate limiting, a queue with
+retries, scheduler, channels and plugins. `tylix dev` and `tylix start` set all of it up from your
 settings; import the pieces you use in app code.
 
 ```sh
@@ -43,6 +43,26 @@ addReadinessCheck('payments', () => paymentsApi.ping())
 - `/health` and `/ready` are always on; `/metrics` (Prometheus format) with
   `METRICS=true`, guarded by `METRICS_TOKEN`.
 
+## Log channels
+
+```js
+import { Log } from '@tylix/core'
+
+Log.info('Invoice sent', { invoiceId: 12 })
+Log.channel('payments').error('Charge failed', { error })
+Log.stack(['daily', 'slack']).critical('Payments are down')
+Log.withContext({ tenant: 3 })
+Log.extend('slack', (config) => ({ write(entry) { /* send it */ } }))
+```
+
+The levels are Laravel's eight: `debug`, `info`, `notice`, `warning`,
+`error`, `critical`, `alert` and `emergency`. The drivers are `stack`,
+`single`, `daily` (rotated, keeping `days`), `console`, `stderr`, `null`
+and `custom`, and each channel has its own minimum `level`. They are set
+in `logging` in `tylix.config` or with `LOG_CHANNEL`, `LOG_STACK` and
+`LOG_DAILY_DAYS`. Files go in `storage/logs/`, one line per entry:
+`[2026-11-15 10:22:01] production.ERROR: Charge failed {"orderId":7} {"requestId":"..."}`.
+
 ## Store, cache and rate limits
 
 One store holds the cache, shared rate limits and channel messages, so
@@ -75,6 +95,42 @@ await broadcast('chat', { text: 'Deploy finished' }) // to clients of tylix chan
 
 Queue workers claim each job atomically, so several workers never run the
 same job.
+
+Jobs retry with backoff:
+
+```js
+export const SendInvoice = {
+  tries: 3,
+  backoff: [10, 60, 300],   // or 30, 'exponential', (attempt) => seconds
+  timeout: 120,
+  async handle(payload, { attempt }) {},
+  async failed(payload, error) {},
+}
+
+await dispatch('SendInvoice', { invoiceId: 12 }, { delay: 60 })
+```
+
+Throw a `PermanentJobError` to fail without retrying. `jobOptions`,
+`backoffSeconds` and `afterFailure` are the rules the worker uses.
+
+## Plugins
+
+```js
+import { definePlugin } from '@tylix/core'
+
+export default definePlugin({
+  name: 'audit',
+  register({ use, logger }) { use((req, res, next) => next()) },
+  routes(router, { auth }) { router.get('/api/audit', auth(handler)) },
+  logDrivers: { slack: (config) => ({ write(entry) {} }) },
+  commands: { 'audit:prune': { run(args) {} } },
+})
+```
+
+The hooks are `config`, `register`, `routes`, `boot` and `close`. Plugins
+can also add `logDrivers`, `commands` and `deployAdapters`.
+`loadPlugins(baseDir, config)` and `createPluginHost(plugins)` are what the
+CLI uses.
 
 ## License
 

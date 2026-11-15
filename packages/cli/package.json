@@ -1,7 +1,7 @@
 {
   "name": "@tylix/cli",
-  "version": "1.5.0",
-  "description": "The Tylix command line: dev server, production server with workers, builds, migrations, generators, queue and channel workers, tinker and doctor.",
+  "version": "2.0.0",
+  "description": "The Tylix command line: dev server, production server with workers, builds, migrations with rollbacks, generators, queue and channel workers, typed API client, static export, deployment adapters, plugins, logs, tinker and doctor.",
   "license": "MIT",
   "author": "Mbiyrukzz",
   "type": "module",
@@ -10,7 +10,13 @@
     "cli",
     "dev-server",
     "ssr",
-    "generator"
+    "generator",
+    "migrations",
+    "static-site-generation",
+    "ssg",
+    "deploy",
+    "typed-api",
+    "plugins"
   ],
   "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/cli#readme",
   "repository": {
@@ -51,12 +57,12 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^1.5.0",
-    "@tylix/compiler": "^1.5.0",
-    "@tylix/core": "^1.5.0",
-    "@tylix/generator": "^1.5.0",
-    "@tylix/mail": "^1.5.0",
-    "@tylix/orm": "^1.5.0",
-    "@tylix/shared": "^1.5.0"
+    "@tylix/auth": "^2.0.0",
+    "@tylix/compiler": "^2.0.0",
+    "@tylix/core": "^2.0.0",
+    "@tylix/generator": "^2.0.0",
+    "@tylix/mail": "^2.0.0",
+    "@tylix/orm": "^2.0.0",
+    "@tylix/shared": "^2.0.0"
   }
 }

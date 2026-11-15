@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 // A hosted frontend (React, Vue, Svelte, Angular) lives in app/views.
-// Projects made before 1.6 have it in app/views; that folder keeps
+// Projects made before 2.0 have it in app/frontend; that folder keeps
 // working, so nothing has to move.
 export const VIEWS_DIR = 'views'
 export const LEGACY_VIEWS_DIR = 'frontend'

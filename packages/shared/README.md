@@ -47,6 +47,16 @@ it. `.env` files layer: `.env.<mode>.local`, `.env.local`, `.env.<mode>`,
 `.env`; the shell wins over all of them. They support inline comments,
 escapes, values over several lines, and `${VAR}` / `${VAR:-default}`.
 
+## Migrations and fields
+
+- `Schema`, `CreateTableBuilder`, `AlterTableBuilder` and `ColumnDef` are
+  the types migrations use (`import type { Schema } from '@tylix/shared'`).
+- `parseFieldArg('status:string:index:default=draft')` reads a
+  command-line field, and `columnModifiers(field)` turns it into the
+  builder chain (`.default("draft").index()`).
+- `resolveViewsDir(baseDir)` returns where a hosted frontend lives:
+  `app/views`, or `app/frontend` in apps made before 2.0.
+
 ## Names
 
 `pascalCase`, `camelCase`, `snakeCase`, `kebabCase`, `titleCase`,

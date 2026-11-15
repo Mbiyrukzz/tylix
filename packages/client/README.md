@@ -26,6 +26,22 @@ throws for HTTP errors. Session cookies are sent automatically. When the
 access token has expired, the client renews the session once (shared by
 all requests in flight) and retries.
 
+## Typed routes
+
+`tylix routes:types` (and `tylix dev`) writes `api.generated.ts` from the
+app's routes. It runs on `createRouteClient`:
+
+```ts
+import { routes } from './api.generated'
+
+const post = await routes.posts.show({ id: 7 })       // ApiResult<{ data: Post }>
+await routes.posts.update({ id: 7 }, { title: 'New' })
+await routes.$request('DELETE /api/posts/:id', { params: { id: 7 } })
+```
+
+`buildPath('/api/posts/:id', { id: 7 }, { page: 2 })` gives
+`/api/posts/7?page=2`, and throws when a parameter is missing.
+
 ## The session
 
 ```js

@@ -1,6 +1,6 @@
 # Tylix for VS Code
 
-Marketplace ID: `tylix.tyx-language`. Version 1.2 replaces the earlier 0.x grammar-only extension and keeps its Tylix Dark and Light color themes.
+Marketplace ID: `tylix.tyx-language`. It replaces the earlier 0.x grammar-only extension (since 1.2) and keeps its Tylix Dark and Light color themes. Versions follow Tylix: 2.0 goes with Tylix 2.
 
 Language support for Tylix `.tyx` pages, components and capabilities.
 
@@ -14,7 +14,7 @@ Language support for Tylix `.tyx` pages, components and capabilities.
 - **Snippets**: `page`, `component`, `capability`, `act`, `aact`, `comp`, `onMount`, `useApi`, `#if`, `#ife`, `#each`, `#eachi`, `imp`.
 
 - **Color themes**: Tylix Dark and Tylix Light (*Preferences: Color Theme*).
-- **Icons**: `.tyx` files get the Tylix mark in any icon theme. The optional **Tylix Icons** theme also gives Tylix app folders (`app`, `pages`, `components`, `capabilities`, `controllers`, `models`, `migrations`, …) and `tylix.config.*` their own icons. Turn it on with *Preferences: File Icon Theme* → **Tylix Icons**.
+- **Icons**: `.tyx` files get the Tylix mark in any icon theme. The optional **Tylix Icons** theme also gives Tylix app folders (`app`, `pages`, `views`, `components`, `capabilities`, `controllers`, `models`, `migrations`, `plugins`, `logs`, …) and `tylix.config.*` their own icons. Turn it on with *Preferences: File Icon Theme* → **Tylix Icons**.
 
 Only files that start with `page`, `component` or `capability` get Tylix features. Other `.tyx` files (such as code-generator templates) are highlighted as JavaScript and never get errors.
 

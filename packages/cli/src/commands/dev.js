@@ -37,7 +37,7 @@ const FRONTEND_DIRS = ['pages', 'useApi']
 
 // app/views holds a hosted frontend (React, ...). Vite hot-reloads it,
 // so a change there never restarts the server either.
-// (app/frontend in projects made before 1.6.)
+// (app/frontend in projects made before 2.0.)
 const HOSTED_FRONTEND_DIRS = [VIEWS_DIR, LEGACY_VIEWS_DIR]
 
 // Files that don't need a server restart wherever they live under app/.

@@ -1,7 +1,7 @@
 {
   "name": "@tylix/client",
-  "version": "1.5.0",
-  "description": "Browser client for Tylix apps: API requests and the auth session, with no framework dependency.",
+  "version": "2.0.0",
+  "description": "Browser client for Tylix apps: API requests, the auth session, live channels and the typed route client, with no framework dependency.",
   "license": "MIT",
   "author": "Mbiyrukzz",
   "type": "module",
@@ -10,7 +10,10 @@
     "client",
     "auth",
     "fetch",
-    "websocket"
+    "websocket",
+    "typed-api",
+    "typescript",
+    "routes"
   ],
   "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/client#readme",
   "repository": {

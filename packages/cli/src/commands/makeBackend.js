@@ -58,7 +58,7 @@ export const ${name}${ts ? ': JobHandler' : ''} = {
 
 // ---- make:queue-retries ----------------------------------------------------
 
-// Jobs tables made before 1.6 have no available_at column, so retries
+// Jobs tables made before 2.0 have no available_at column, so retries
 // can't wait between attempts. This writes the migration that adds it.
 export async function makeQueueRetries() {
   const { baseDir, ts, ext } = await project()
