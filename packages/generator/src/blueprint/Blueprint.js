@@ -32,7 +32,8 @@ export class Blueprint {
   belongsTo(modelName, { foreignKey } = {}) {
     const model = pascalCase(modelName);
     const fk = foreignKey || `${model.toLowerCase()}_id`;
-    this.field(fk, "integer");
+    // Indexed: every "where user_id = ?" and join on it uses the index.
+    this.field(fk, "integer", { index: true });
     this.relations.push({ type: "belongsTo", model, foreignKey: fk });
     return this;
   }

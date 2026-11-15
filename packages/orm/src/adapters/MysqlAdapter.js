@@ -34,6 +34,14 @@ export class MysqlAdapter extends DatabaseAdapter {
     this.connection = null
   }
 
+  get dialect() {
+    return 'mysql'
+  }
+
+  get driverName() {
+    return 'mysql'
+  }
+
   async connect() {
     this.connection = mysql.createPool({
       ...this.config,
@@ -47,7 +55,7 @@ export class MysqlAdapter extends DatabaseAdapter {
       const conn = await this.connection.getConnection() // fail fast on bad credentials
       conn.release()
     } catch (err) {
-      const error = normalizeDatabaseError('mysql', err)
+      const error = normalizeDatabaseError(this.driverName, err)
       const { host, port, user, database } = this.config
       error.detail = `Tried ${host}:${port} as "${user}", database "${database}"`
       await this.connection.end().catch(() => {})
@@ -83,11 +91,11 @@ export class MysqlAdapter extends DatabaseAdapter {
     const start = timed ? performance.now() : 0
     try {
       const [result] = await this.connection.execute(sql, converted)
-      if (timed) emitQuery({ driver: 'mysql', sql, durationMs: performance.now() - start })
+      if (timed) emitQuery({ driver: this.driverName, sql, durationMs: performance.now() - start })
       return result
     } catch (err) {
-      if (timed) emitQuery({ driver: 'mysql', sql, durationMs: performance.now() - start, error: err })
-      throw normalizeDatabaseError('mysql', err, { sql, params: converted })
+      if (timed) emitQuery({ driver: this.driverName, sql, durationMs: performance.now() - start, error: err })
+      throw normalizeDatabaseError(this.driverName, err, { sql, params: converted })
     }
   }
 

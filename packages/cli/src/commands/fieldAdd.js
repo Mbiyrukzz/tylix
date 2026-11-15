@@ -6,7 +6,7 @@ import {
   AlterMigrationGenerator,
 } from '@tylix/generator'
 
-import { detectLanguage, pascalCase } from '@tylix/shared'
+import { detectLanguage, pascalCase, parseFieldArg } from '@tylix/shared'
 
 export async function fieldAdd(name, fieldArgs = []) {
   const baseDir = process.cwd()
@@ -38,13 +38,8 @@ export async function fieldAdd(name, fieldArgs = []) {
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'))
 
   const newFields = fieldArgs.map((arg) => {
-    const [fieldName, fieldType = 'string', modifier] = arg.split(':')
-    return {
-      name: fieldName,
-      type: fieldType,
-      unique: modifier === 'unique',
-      system: modifier === 'system',
-    }
+    const field = parseFieldArg(arg)
+    return { unique: false, system: false, ...field }
   })
 
   const seen = new Set()
@@ -55,6 +50,13 @@ export async function fieldAdd(name, fieldArgs = []) {
     }
     seen.add(f.name)
 
+    // Existing rows need a value for a NOT NULL column: every database
+    // refuses to add one without a default.
+    if (f.nullable === false && f.default === undefined) {
+      console.error(`Field "${f.name}" is required but has no default, so rows already in the table would have no value. Add one, e.g. ${f.name}:${f.type}:required:default=...`)
+      process.exit(1)
+    }
+
     if (manifest.fields.some((existing) => existing.name === f.name)) {
       console.error(`Field "${f.name}" already exists on ${featureName}.`)
       process.exit(1)
@@ -63,7 +65,8 @@ export async function fieldAdd(name, fieldArgs = []) {
 
   const alterBlueprint = new Blueprint(featureName)
   for (const f of newFields) {
-    alterBlueprint.field(f.name, f.type, { unique: f.unique })
+    const { name: _name, type: _type, ...options } = f
+    alterBlueprint.field(f.name, f.type, options)
   }
   alterBlueprint.table(manifest.table)
 

@@ -4,6 +4,47 @@ All Tylix packages share one version number and are released together.
 
 ## Unreleased
 
+### MariaDB and CockroachDB
+- `DATABASE_DRIVER=mariadb` (MySQL protocol, through `mysql2`) and
+  `DATABASE_DRIVER=cockroach` (PostgreSQL protocol, through `pg`), in
+  `create-tylix` (`--database mariadb|cockroach`), `.env` defaults, error
+  pages and banners. On CockroachDB, `SERIAL` ids count 1, 2, 3 and come
+  back as numbers, as on PostgreSQL.
+- PostgreSQL and CockroachDB read `DATABASE_URL` and `DATABASE_SSL`.
+- Every adapter has a `dialect`; SQLite and PostgreSQL have `transaction(fn)`.
+
+### Migrations: indexes, foreign keys, and changes that work
+- The schema builder moved to `@tylix/orm` (`createSchema(adapter)`) and
+  now has `notNullable()`, `default()`, `useCurrent()`, `index()`,
+  `unique()`, `table.index([...])`, foreign keys (`foreignId().constrained()`,
+  `foreign().references().on()`, `onDelete`), `change()`, `renameColumn`,
+  `dropIndex`, `dropUnique`, `dropForeign`, `renameTable`, `hasTable`,
+  `hasColumn`, and the column types `bigIncrements`, `bigInteger`,
+  `decimal`, `enum`, `uuid`, `time`, `char`, `binary`. Laravel's names
+  (`schema.create`, `schema.table`, `dropIfExists`) work too.
+- Unique columns get named unique indexes. Before, adding a unique column
+  with `field:add` failed on SQLite ("Cannot add a UNIQUE column").
+- SQLite rebuilds the table for `change()` and foreign-key changes,
+  keeping its rows and indexes.
+- Tested against PostgreSQL 17, CockroachDB 24.3, MySQL 8.4, MariaDB 11.4,
+  SQLite and MongoDB (`TYLIX_TEST_DATABASES` runs the server tests).
+- `tylix migrate:status`, `migrate:rollback [--step=N]`, `migrate:reset`,
+  `migrate:refresh [--seed]` and `migrate:fresh [--seed]`; migrations are
+  recorded in batches (older tables are upgraded in place). The commands
+  that undo or drop work need `--force` in production.
+- SQLite and PostgreSQL run each migration in a transaction.
+- `make:migration` reads the name: `create_x_table`,
+  `add_y_to_x_table`, `remove_y_from_x_table`, `--table=`, `--create=`.
+- Field modifiers for `make:feature`, `field:add` and `make:migration`:
+  `unique`, `index`, `required`, `nullable`, `default=<value>`. `belongsTo`
+  foreign keys are indexed.
+
+### create-tylix
+- The last step says what to do: **Create project** (Enter) or **Cancel**,
+  with the keys shown.
+- The Blank template is gone: every project is the Starter App.
+  `--template blank` still runs and creates the Starter App, with a note.
+
 ### Typed API client generated from the routes
 - `tylix routes:types` (and `tylix dev`, on start) writes a client from
   the routes the app registers: `app/views/api.generated.ts` for hosted

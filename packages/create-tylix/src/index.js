@@ -13,7 +13,10 @@ const CHOICES = {
   database: {
     sqlite: 'sqlite',
     mysql: 'mysql',
+    mariadb: 'mariadb',
     postgres: 'postgres',
+    cockroach: 'cockroach',
+    cockroachdb: 'cockroach',
     mongodb: 'mongodb',
     none: 'none',
   },
@@ -24,7 +27,6 @@ const CHOICES = {
     sass: 'sass',
     'plain-css': 'plain-css',
   },
-  template: { starter: 'starter', blank: 'blank' },
   frontend: { tylix: 'tylix', react: 'react', svelte: 'svelte', vue: 'vue', angular: 'angular' },
   'package-manager': { npm: 'npm', pnpm: 'pnpm' },
 }
@@ -73,6 +75,13 @@ function parseCli(argv) {
     resolved[flag] = map[values[flag]]
   }
 
+  // --template is kept so existing scripts still run; every project is
+  // the Starter App now.
+  if (values.template !== undefined) {
+    if (!['starter', 'blank'].includes(values.template)) fail(`Invalid --template "${values.template}". Allowed: starter`)
+    if (values.template === 'blank') console.warn('Note: the Blank template was removed; creating the Starter App (delete the pages you do not need).')
+  }
+
   const nonInteractive = Boolean(values.yes)
   if (nonInteractive && !projectName) fail('--yes requires a project name.')
   if (resolved.frontend === 'angular' && resolved.language === 'javascript') {
@@ -94,7 +103,6 @@ function parseCli(argv) {
     databasePassword: values['database-password'],
     authEnabled: resolved.auth,
     styling: resolved.styling,
-    starter: resolved.template,
     frontend: resolved.frontend,
     packageManager: resolved['package-manager'],
     gitInit: values['no-git'] ? false : undefined,

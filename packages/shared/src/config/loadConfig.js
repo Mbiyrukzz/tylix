@@ -73,7 +73,16 @@ function driverDefaults(driver, cwd) {
         password: '',
         database: name,
       }
+    case 'cockroach':
+      return {
+        host: '127.0.0.1',
+        port: 26257,
+        user: 'root',
+        password: '',
+        database: name,
+      }
     case 'mysql':
+    case 'mariadb':
       return {
         host: '127.0.0.1',
         port: 3306,
@@ -93,7 +102,21 @@ function databaseFromEnv(driver) {
     case 'sqlite':
       return defined({ filename: env('DATABASE_FILENAME') })
     case 'postgres':
+    case 'cockroach':
+      // DATABASE_URL (a full postgresql:// URL, as hosted databases and
+      // CockroachDB Cloud give out) wins over the separate values.
+      // DATABASE_SSL=true turns on TLS.
+      return defined({
+        connectionString: env('DATABASE_URL'),
+        host: env('DATABASE_HOST'),
+        port: toNumber(env('DATABASE_PORT')),
+        user: env('DATABASE_USER'),
+        password: env('DATABASE_PASSWORD'),
+        database: env('DATABASE_NAME'),
+        ssl: toBoolean(env('DATABASE_SSL')),
+      })
     case 'mysql':
+    case 'mariadb':
       return defined({
         host: env('DATABASE_HOST'),
         port: toNumber(env('DATABASE_PORT')),

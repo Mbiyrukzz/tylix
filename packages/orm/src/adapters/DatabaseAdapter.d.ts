@@ -8,6 +8,13 @@ export declare class DatabaseAdapter {
     /** SQL keyword used for LIKE conditions: "LIKE" by default, "ILIKE" on Postgres. */
     readonly likeOperator: 'LIKE' | 'ILIKE';
 
+    /** Which SQL the schema builder writes for this database. */
+    readonly dialect: 'sqlite' | 'postgres' | 'cockroach' | 'mysql' | 'mariadb' | 'mongodb';
+    /** The name errors, metrics and banners use. */
+    readonly driverName: string;
+    /** SQLite and PostgreSQL: run fn inside BEGIN/COMMIT, ROLLBACK when it throws. */
+    transaction?<T>(fn: () => Promise<T>): Promise<T>;
+
     /** Updates rows matching every field of `where` in one statement; resolves to how many changed. */
     updateWhere(table: string, values: Record<string, unknown>, where: Record<string, unknown>): Promise<number>;
 

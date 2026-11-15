@@ -175,7 +175,7 @@ export async function writeFrontend(config) {
   const isTs = config.language === 'typescript'
   const flags = {
     auth: config.authEnabled,
-    posts: config.authEnabled && config.starter === 'starter',
+    posts: config.authEnabled,
     tailwind: config.styling === 'tailwind',
     ts: isTs,
   }

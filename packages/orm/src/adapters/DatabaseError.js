@@ -1,6 +1,8 @@
 const DRIVER_LABELS = {
   mysql: 'MySQL',
+  mariadb: 'MariaDB',
   postgres: 'PostgreSQL',
+  cockroach: 'CockroachDB',
   sqlite: 'SQLite',
   mongodb: 'MongoDB',
 }
@@ -290,7 +292,10 @@ function classifyMongo(err, message) {
 
 const CLASSIFIERS = {
   mysql: classifyMysql,
+  mariadb: classifyMysql,
   postgres: classifyPostgres,
+  // CockroachDB reports PostgreSQL SQLSTATE codes.
+  cockroach: classifyPostgres,
   sqlite: classifySqlite,
   mongodb: classifyMongo,
 }

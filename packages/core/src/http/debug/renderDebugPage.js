@@ -17,6 +17,8 @@ const JS_KEYWORDS = new Set(
 
 const DRIVER_LABELS = {
   mysql: 'MySQL',
+  mariadb: 'MariaDB',
+  cockroach: 'CockroachDB',
   postgres: 'PostgreSQL',
   sqlite: 'SQLite',
   mongodb: 'MongoDB',

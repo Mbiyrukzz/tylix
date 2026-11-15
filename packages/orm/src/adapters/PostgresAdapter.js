@@ -31,23 +31,43 @@ export function ensureReturningId(sql) {
 }
 
 export class PostgresAdapter extends DatabaseAdapter {
-  constructor({ connectionString, host, port, user, password, database } = {}) {
+  constructor({ connectionString, host, port, user, password, database, ssl } = {}) {
     super()
     this.config = connectionString
       ? { connectionString }
       : { host, port, user, password, database }
+    if (ssl !== undefined) this.config.ssl = ssl
     this.pool = null
+    // Set while transaction() runs: every statement goes through it.
+    this.txClient = null
   }
+
+  get dialect() {
+    return 'postgres'
+  }
+
+  // The name errors, metrics and banners use.
+  get driverName() {
+    return 'postgres'
+  }
+
+  // Session setup for each new pooled connection (CockroachAdapter).
+  // pg runs a client's queries in order, so these finish before any
+  // query the app sends on that client.
+  onConnect() {}
 
   async connect() {
     this.pool = new pg.Pool(this.config)
+    this.pool.on('connect', (client) => {
+      Promise.resolve(this.onConnect(client)).catch(() => {})
+    })
     try {
       // pg connects lazily, so test it now. A wrong password or a
       // stopped server should fail at startup, not on the first request.
       const client = await this.pool.connect()
       client.release()
     } catch (err) {
-      const error = normalizeDatabaseError('postgres', err)
+      const error = normalizeDatabaseError(this.driverName, err)
       const { host, port, user, database } = this.config
       error.detail = this.config.connectionString
         ? 'Using DATABASE_URL connection string'
@@ -83,12 +103,34 @@ export class PostgresAdapter extends DatabaseAdapter {
     const timed = hasQueryListeners()
     const start = timed ? performance.now() : 0
     try {
-      const result = await this.pool.query(sql, params)
-      if (timed) emitQuery({ driver: 'postgres', sql, durationMs: performance.now() - start })
+      const result = await (this.txClient ?? this.pool).query(sql, params)
+      if (timed) emitQuery({ driver: this.driverName, sql, durationMs: performance.now() - start })
       return result
     } catch (err) {
-      if (timed) emitQuery({ driver: 'postgres', sql, durationMs: performance.now() - start, error: err })
-      throw normalizeDatabaseError('postgres', err, { sql, params })
+      if (timed) emitQuery({ driver: this.driverName, sql, durationMs: performance.now() - start, error: err })
+      throw normalizeDatabaseError(this.driverName, err, { sql, params })
+    }
+  }
+
+  // Runs fn with every statement on one connection inside BEGIN/COMMIT;
+  // ROLLBACK when it throws. Not re-entrant, and only for code that runs
+  // alone (migrations): other requests would join the transaction.
+  async transaction(fn) {
+    this.ensureConnected()
+    if (this.txClient) return fn()
+    const client = await this.pool.connect()
+    this.txClient = client
+    try {
+      await client.query('BEGIN')
+      const result = await fn()
+      await client.query('COMMIT')
+      return result
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {})
+      throw err
+    } finally {
+      this.txClient = null
+      client.release()
     }
   }
 

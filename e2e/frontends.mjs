@@ -125,8 +125,6 @@ async function scaffold(frontend, name, log) {
     'yes',
     '--styling',
     'tailwind',
-    '--template',
-    'starter',
     '--no-git',
   ]
   const code = await run(process.execPath, args, { cwd: WORK, env: { TYLIX_LOCAL: '1' }, log })

@@ -25,7 +25,7 @@ import { fieldRemove } from './commands/fieldRemove.js'
 import { tinker } from './commands/tinker.js'
 import { doctor } from './commands/doctor.js'
 import { dbSeed } from './commands/dbSeed.js'
-import { migrate } from './commands/migrate.js'
+import { migrate, migrateFresh, migrateRefresh, migrateReset, migrateRollback, migrateStatus } from './commands/migrate.js'
 import { makeIcon } from './commands/makeIcon.js'
 import { makeService } from './commands/makeService.js'
 import { makeMail } from './commands/makeMail.js'
@@ -98,6 +98,27 @@ async function main() {
     return
   }
 
+  if (command?.startsWith('migrate:')) {
+    const force = rest.includes('--force')
+    const seed = rest.includes('--seed')
+    const run = {
+      'migrate:status': () => migrateStatus(),
+      'migrate:rollback': () => {
+        const raw = flagValue(rest, 'step')
+        const step = raw === undefined ? undefined : Number(raw)
+        if (step !== undefined && (!Number.isInteger(step) || step < 1)) throw new Error(`--step must be a whole number above 0, got "${raw}".`)
+        return migrateRollback({ step, force })
+      },
+      'migrate:reset': () => migrateReset({ force }),
+      'migrate:refresh': () => migrateRefresh({ force, seed }),
+      'migrate:fresh': () => migrateFresh({ force, seed }),
+    }[command]
+    if (run) {
+      await run()
+      return
+    }
+  }
+
    if (command === 'dev') {
     await dev({ port: portFlag(rest) })
     return
@@ -154,6 +175,17 @@ async function main() {
   if (command === 'log:clear') {
     const [channel] = positionalArgs(rest, [])
     await logClear({ channel })
+    return
+  }
+
+  if (command === 'make:migration') {
+    const [name, ...fieldArgs] = positionalArgs(rest, ['table', 'create'])
+    try {
+      await makeMigration(name, fieldArgs, { table: flagValue(rest, 'table'), create: flagValue(rest, 'create') })
+    } catch (err) {
+      console.error(`\n✘ ${err.message}\n`)
+      process.exit(1)
+    }
     return
   }
 
@@ -409,7 +441,7 @@ async function main() {
     console.error(`Unknown command: ${command}`)
     if (pluginCommands.length) console.error(`Plugin commands: ${pluginCommands.join(', ')}`)
     console.error(
-      `Available commands: dev, build, start, check, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, queue:failed, queue:retry, queue:flush, make:queue-retries, channels:work, log:tail, log:clear, routes:types, export, deploy:init, plugins, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, check, migrate, migrate:status, migrate:rollback, migrate:reset, migrate:refresh, migrate:fresh, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, queue:failed, queue:retry, queue:flush, make:queue-retries, channels:work, log:tail, log:clear, routes:types, export, deploy:init, plugins, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

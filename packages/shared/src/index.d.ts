@@ -4,7 +4,10 @@ export { writeFile, exists } from './filesystem/writeFile.js';
 export type { WriteFileOptions } from './filesystem/writeFile.js';
 export { VIEWS_DIR, LEGACY_VIEWS_DIR, viewsDirName, resolveViewsDir, viewsDirLabel } from './filesystem/viewsDir.js';
 export { resolveColumnType } from './schema/columnTypes.js';
-export type { Schema, CreateTableBuilder, AlterTableBuilder, ColumnDef } from './schema/Schema.js';
+export interface ParsedField { name: string; type: string; unique?: boolean; index?: boolean; system?: boolean; nullable?: boolean; default?: unknown }
+export declare function parseFieldArg(arg: string): ParsedField;
+export declare function columnModifiers(field: Partial<ParsedField>): string;
+export type { Schema, CreateTableBuilder, AlterTableBuilder, TableBuilder, ColumnDef, ForeignKeyDef, ForeignAction } from './schema/Schema.js';
 export { loadConfig, resolveFrontendConfig, defineConfig, FRONTEND_DRIVERS } from './config/loadConfig.js';
 export type {
   DatabaseConfig,

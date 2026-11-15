@@ -111,6 +111,14 @@ export class MongoAdapter extends DatabaseAdapter {
     this.counters = {}
   }
 
+  get dialect() {
+    return 'mongodb'
+  }
+
+  get driverName() {
+    return 'mongodb'
+  }
+
   async updateWhere(table, values, where) {
     this.ensureConnected()
     const result = await this.db.collection(table).updateMany({ ...where }, { $set: { ...values } })

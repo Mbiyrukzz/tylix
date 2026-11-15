@@ -5,7 +5,7 @@ const driver = process.env.DATABASE_DRIVER
 
 if (!driver) {
   throw new Error(
-    'DATABASE_DRIVER is not set. Add it to your .env file (sqlite, mysql, postgres, mongodb or none).',
+    'DATABASE_DRIVER is not set. Add it to your .env file (sqlite, postgres, mysql, mariadb, cockroach, mongodb or none).',
   )
 }
 

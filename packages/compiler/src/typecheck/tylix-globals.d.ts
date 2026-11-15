@@ -6,7 +6,7 @@ interface TylixDebugInfo {
   title: string | null
   hint: string | null
   kind: string | null
-  driver: 'mysql' | 'postgres' | 'sqlite' | 'mongodb' | null
+  driver: 'mysql' | 'mariadb' | 'postgres' | 'cockroach' | 'sqlite' | 'mongodb' | null
   code: string | number | null
   detail: string | null
   table: string | null

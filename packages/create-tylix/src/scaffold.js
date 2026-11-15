@@ -50,6 +50,16 @@ import { initGit } from './steps/initGit.js'
 // "type this".
 const accent = (text) => hex(BRAND.sky, 'blue')(text)
 
+const DATABASE_LABELS = {
+  sqlite: 'SQLite',
+  postgres: 'PostgreSQL',
+  mysql: 'MySQL',
+  mariadb: 'MariaDB',
+  cockroach: 'CockroachDB',
+  mongodb: 'MongoDB',
+  none: 'None',
+}
+
 const FRONTEND_LABELS = { tylix: 'Tylix', react: 'React', svelte: 'Svelte', vue: 'Vue', angular: 'Angular' }
 
 // Defaults used when --yes is set and a value wasn't passed as a flag.
@@ -59,7 +69,6 @@ const DEFAULTS = {
   database: 'sqlite',
   authEnabled: true,
   styling: 'plain-css',
-  starter: 'starter',
   packageManager: 'npm',
   gitInit: true,
   installNow: true,
@@ -129,8 +138,10 @@ async function runWizard(initialProjectName, options = {}) {
         message: 'Choose your database',
         choices: [
           { label: 'SQLite', value: 'sqlite', hint: 'Great for development' },
-          { label: 'MySQL', value: 'mysql', hint: 'Production ready' },
           { label: 'PostgreSQL', value: 'postgres', hint: 'Advanced SQL' },
+          { label: 'MySQL', value: 'mysql', hint: 'Production ready' },
+          { label: 'MariaDB', value: 'mariadb', hint: 'Open-source MySQL fork' },
+          { label: 'CockroachDB', value: 'cockroach', hint: 'Distributed SQL, PostgreSQL compatible' },
           { label: 'MongoDB', value: 'mongodb', hint: 'Document database' },
           { label: 'None', value: 'none', hint: "I'll configure later" },
         ],
@@ -139,7 +150,7 @@ async function runWizard(initialProjectName, options = {}) {
 
   let databaseUser = ''
   let databasePassword = ''
-  if (database === 'postgres' || database === 'mysql') {
+  if (['postgres', 'mysql', 'mariadb', 'cockroach'].includes(database)) {
     const defaultUser = database === 'postgres' ? 'postgres' : 'root'
 
     databaseUser = await resolve(options.databaseUser, defaultUser, async () => {
@@ -177,6 +188,7 @@ async function runWizard(initialProjectName, options = {}) {
       })
     })
 
+    // A local CockroachDB (start-single-node --insecure) has no password.
     databasePassword = await resolve(options.databasePassword, '', () =>
       password({
         message: `Enter the password for the "${databaseUser}" user`,
@@ -206,15 +218,9 @@ async function runWizard(initialProjectName, options = {}) {
     }),
   )
 
-  const starter = await resolve(options.starter, DEFAULTS.starter, () =>
-    select({
-      message: 'Starter Template',
-      choices: [
-        { label: 'Starter App', value: 'starter' },
-        { label: 'Blank', value: 'blank' },
-      ],
-    }),
-  )
+  // Every project starts from the Starter App (landing page, posts,
+  // dashboard): deleting pages is quicker than writing them.
+  const starter = 'starter'
 
   const packageManager = await resolve(
     options.packageManager,
@@ -247,7 +253,7 @@ async function runWizard(initialProjectName, options = {}) {
   console.log(
     `Language          ${accent(language === 'javascript' ? 'JavaScript' : 'TypeScript')}`,
   )
-  console.log(`Database          ${accent(database)}`)
+  console.log(`Database          ${accent(DATABASE_LABELS[database] ?? database)}`)
   if (databaseUser) {
     console.log(`Database User     ${accent(databaseUser)}`)
   }
@@ -255,19 +261,25 @@ async function runWizard(initialProjectName, options = {}) {
     `Authentication    ${authEnabled ? green('Enabled') : dim('Disabled')}`,
   )
   console.log(`Styling           ${accent(styling)}`)
-  console.log(
-    `Starter           ${accent(starter === 'starter' ? 'Starter App' : 'Blank')}`,
-  )
   console.log(`Package Manager   ${accent(packageManager)}`)
   console.log(`Git               ${gitInit ? green('Yes') : dim('No')}`)
   printDivider(54)
 
-  // The final "Create Project" confirmation is only for humans.
+  // The final confirmation is only for humans. Saying what the keys do
+  // matters here: a lone highlighted line reads like a label, not a
+  // question waiting for Enter.
   if (!nonInteractive) {
-    await select({
-      message: '',
-      choices: [{ label: 'Create Project', value: true }],
+    const go = await select({
+      message: `${bold('Ready to create the project?')} ${dim('↑/↓ to choose, Enter to confirm, Ctrl+C to quit')}`,
+      choices: [
+        { label: 'Create project', value: true, hint: dim('press Enter') },
+        { label: 'Cancel', value: false },
+      ],
     })
+    if (!go) {
+      console.log(dim('\nCancelled. Nothing was created.'))
+      process.exit(0)
+    }
   }
 
   return {
@@ -345,7 +357,7 @@ async function runBuildSteps(config) {
     })
   }
 
-  if (!hosted && config.starter === 'starter') {
+  if (!hosted) {
     steps.push({
       label: 'Creating Not Found page',
       fn: () => writePage(config, '_not_found'),
@@ -384,7 +396,7 @@ async function runBuildSteps(config) {
   steps.push({ label: 'Creating API routes', fn: () => writeApiRoutes(config) })
   steps.push({ label: 'Creating backend folders and tests', fn: () => writeBackendStructure(config) })
 
-  if (config.starter === 'starter' && config.authEnabled) {
+  if (config.authEnabled) {
     steps.push(
       {
         label: 'Creating Post feature',
@@ -495,7 +507,7 @@ function printSuccessScreen(config) {
   }
 
   console.log(bold('Database'))
-  console.log(`${green('✓')} ${config.database}\n`)
+  console.log(`${green('✓')} ${DATABASE_LABELS[config.database] ?? config.database}\n`)
 
   // Only list routes that actually exist for this configuration.
   if (config.authEnabled) {
@@ -514,15 +526,13 @@ function printSuccessScreen(config) {
     console.log('GET    /api/auth/providers')
     console.log('GET    /api/auth/oauth/:provider')
     console.log('GET    /api/auth/oauth/:provider/callback')
-    if (config.starter === 'starter') {
-      console.log('GET    /api/posts')
-      console.log('POST   /api/posts')
-      console.log('GET    /api/posts/:id')
-      console.log('DELETE /api/posts/:id')
-      console.log('GET    /api/public/posts')
-      console.log('GET    /api/public/posts/:id')
-      console.log('POST   /api/uploads')
-    }
+    console.log('GET    /api/posts')
+    console.log('POST   /api/posts')
+    console.log('GET    /api/posts/:id')
+    console.log('DELETE /api/posts/:id')
+    console.log('GET    /api/public/posts')
+    console.log('GET    /api/public/posts/:id')
+    console.log('POST   /api/uploads')
     console.log('GET    /dashboard')
   }
   printHeavyDivider()

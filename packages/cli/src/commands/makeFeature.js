@@ -6,7 +6,7 @@ import {
   DashboardGenerator,
   RouteGenerator,
 } from '@tylix/generator'
-import { detectLanguage } from '@tylix/shared'
+import { detectLanguage, parseFieldArg } from '@tylix/shared'
 
 // First line of every route file written by make:feature.
 const FEATURE_ROUTE_MARKER = '// @tylix-feature'
@@ -89,10 +89,8 @@ export async function makeFeature(
       continue
     }
 
-    const options = {}
-    if (third === 'unique') options.unique = true
-    if (third === 'system') options.system = true
-    blueprint.field(fieldName, fieldType, options)
+    const { name: parsedName, type, ...options } = parseFieldArg(arg)
+    blueprint.field(parsedName, type, options)
   }
 
   blueprint.timestamps().api().crud()

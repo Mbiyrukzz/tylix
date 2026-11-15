@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { writeFile, resolveColumnType } from '@tylix/shared'
+import { writeFile, resolveColumnType, columnModifiers } from '@tylix/shared'
 import { TemplateEngine } from '../templates/TemplateEngine.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -31,7 +31,7 @@ export class AlterMigrationGenerator {
     return fields
       .map((f) => {
         const columnType = resolveColumnType(f.type)
-        const modifiers = f.unique ? `.unique()` : ''
+        const modifiers = columnModifiers(f)
         return `        table.${columnType}("${f.name}")${modifiers};`
       })
       .join('\n')

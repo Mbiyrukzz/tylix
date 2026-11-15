@@ -24,15 +24,11 @@ const STATIC_TEMPLATE_BY_PAGE = {
 // Page keys whose file name differs from the key.
 const FILE_NAME_BY_PAGE = { _not_found: '_not-found' }
 
-// Home depends on two things:
-//   - the Blank starter has no landing components, so it gets a page
-//     that imports nothing;
-//   - otherwise, the auth variant does `uses Auth` and reads
-//     `Auth.user`, and that capability only exists when
-//     config.authEnabled is true (see writeCapabilities.js).
+// Home: the auth variant does `uses Auth` and reads `Auth.user`, and
+// that capability only exists when config.authEnabled is true (see
+// writeCapabilities.js).
 function resolveTemplateName(config, pageName) {
   if (pageName === 'Home') {
-    if (config.starter !== 'starter') return 'home-page-blank.tyx.template'
     return config.authEnabled
       ? 'home-page.tyx.template'
       : 'home-page-noauth.tyx.template'
@@ -74,7 +70,7 @@ export async function writeLayout(config) {
   )
 
   // The Posts link only makes sense when the public posts pages exist.
-  const showPosts = config.starter === 'starter' && config.authEnabled
+  const showPosts = config.authEnabled
   const content = raw.replaceAll('__SHOW_POSTS__', String(showPosts))
 
   await fs.writeFile(

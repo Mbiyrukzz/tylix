@@ -8,6 +8,9 @@ export declare const OBSERVER_EVENTS: readonly ["creating", "created", "updating
 export * from "./adapters/AdapterFactory.js";
 export * from "./adapters/MysqlAdapter.js";
 export * from "./adapters/MongoAdapter.js";
+export * from "./adapters/CockroachAdapter.js";
+export * from "./adapters/MariadbAdapter.js";
+export * from "./schema/SchemaBuilder.js";
 export * from "./query/QueryBuilder.js";
 export * from "./query/buildSelectSql.js";
 export * from "./query/types.js";export * from "./instrumentation.js";

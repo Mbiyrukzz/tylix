@@ -5,9 +5,8 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 
-// Imported by the layout, so they are written for every project,
-// including the Blank starter. No-auth projects get a navbar that
-// doesn't depend on the Auth capability. OAuthButtons is used by the
+// Imported by the layout, so they are written for every project.
+// No-auth projects get a navbar that doesn't depend on the Auth capability. OAuthButtons is used by the
 // login and register pages, which exist whenever auth does.
 const LAYOUT_COMPONENTS_AUTH = ['SiteNavbar', 'SiteFooter', 'OAuthButtons']
 const LAYOUT_COMPONENTS_PUBLIC = ['SiteNavbarPublic', 'SiteFooter']
@@ -75,8 +74,6 @@ export async function writeComponents(config) {
   for (const name of layoutComponents) {
     await copyComponent(componentsDir, name)
   }
-
-  if (config.starter !== 'starter') return
 
   for (const name of HOME_COMPONENTS) {
     await copyComponent(componentsDir, name)

@@ -47,9 +47,18 @@ export function detectDatabaseUsers(driver) {
       return users.length ? users : null
     }
 
-    if (driver === 'mysql') {
+    if (driver === 'cockroach') {
+      const out = execSync(`cockroach sql --insecure --host=127.0.0.1 --format=tsv -e "SELECT username FROM system.users"`, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 3000,
+      }).toString()
+      const users = out.split('\n').slice(1).map((line) => line.trim()).filter(Boolean)
+      return users.length ? users : null
+    }
+
+    if (driver === 'mysql' || driver === 'mariadb') {
       const out = execSync(
-        `mysql -u root -h 127.0.0.1 -N -e "SELECT DISTINCT User FROM mysql.user WHERE User != ''"`,
+        `${driver === 'mariadb' ? 'mariadb' : 'mysql'} -u root -h 127.0.0.1 -N -e "SELECT DISTINCT User FROM mysql.user WHERE User != ''"`,
         { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 },
       ).toString()
 

@@ -1,4 +1,4 @@
-export type DatabaseDriver = 'mysql' | 'postgres' | 'sqlite' | 'mongodb';
+export type DatabaseDriver = 'mysql' | 'mariadb' | 'postgres' | 'cockroach' | 'sqlite' | 'mongodb';
 
 export type DatabaseErrorKind =
     | 'connection_failed'

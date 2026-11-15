@@ -21,7 +21,7 @@ const read = (dir, file) => fs.readFile(path.join(dir, 'app1', file), 'utf-8')
 
 test('writes a guide per backend folder, an example middleware, tests and a README', () =>
   inTempDir(async (dir) => {
-    await writeBackendStructure({ projectName: 'app1', frontend: 'react', language: 'typescript', authEnabled: true, starter: 'starter' })
+    await writeBackendStructure({ projectName: 'app1', frontend: 'react', language: 'typescript', authEnabled: true })
     for (const folder of ['controllers', 'models', 'routes', 'services', 'middleware', 'validators', 'jobs', 'mail', 'seeders']) {
       assert.match(await read(dir, `app/${folder}/README.md`), /^# /, folder)
     }
@@ -38,7 +38,7 @@ test('writes a guide per backend folder, an example middleware, tests and a READ
 
 test('JavaScript and no-auth variants', () =>
   inTempDir(async (dir) => {
-    await writeBackendStructure({ projectName: 'app1', frontend: 'tylix', language: 'javascript', authEnabled: false, starter: 'blank' })
+    await writeBackendStructure({ projectName: 'app1', frontend: 'tylix', language: 'javascript', authEnabled: false })
     assert.doesNotMatch(await read(dir, 'app/middleware/logRequests.js'), /import type/)
     const testFile = await read(dir, 'tests/api.test.js')
     assert.doesNotMatch(testFile, /type TestClient|: TestClient|\/api\/me|public\/posts/)
@@ -51,7 +51,7 @@ test('never replaces files that already exist', () =>
     await fs.mkdir(path.join(dir, 'app1', 'tests'), { recursive: true })
     await fs.writeFile(path.join(dir, 'app1', 'tests', 'api.test.js'), 'mine')
     await fs.writeFile(path.join(dir, 'app1', 'README.md'), 'my readme')
-    await writeBackendStructure({ projectName: 'app1', frontend: 'vue', language: 'javascript', authEnabled: true, starter: 'starter' })
+    await writeBackendStructure({ projectName: 'app1', frontend: 'vue', language: 'javascript', authEnabled: true })
     assert.equal(await read(dir, 'tests/api.test.js'), 'mine')
     assert.equal(await read(dir, 'README.md'), 'my readme')
   }))

@@ -1,5 +1,9 @@
 export interface DatabaseConfig {
-    driver: string;
+    driver: 'sqlite' | 'postgres' | 'cockroach' | 'mysql' | 'mariadb' | 'mongodb' | (string & {});
+    /** PostgreSQL / CockroachDB: DATABASE_URL. */
+    connectionString?: string;
+    /** PostgreSQL / CockroachDB: DATABASE_SSL. */
+    ssl?: boolean | Record<string, unknown>;
     filename?: string;
     host?: string;
     port?: number;

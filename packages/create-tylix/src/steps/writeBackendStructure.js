@@ -233,7 +233,7 @@ export async function writeBackendStructure(config) {
   await write(`app/middleware/logRequests.${ext}`, isTs ? MIDDLEWARE.ts : MIDDLEWARE.js)
   await write(
     `tests/api.test.${ext}`,
-    apiTest({ authEnabled: config.authEnabled, posts: config.authEnabled && config.starter === 'starter', ts: isTs }),
+    apiTest({ authEnabled: config.authEnabled, posts: config.authEnabled, ts: isTs }),
   )
   await write('README.md', readme(config, ext))
 }

@@ -9,6 +9,12 @@ const TYPE_MAP = {
   date: "date",
   datetime: "datetime",
   json: "json",
+  decimal: "decimal",
+  bigInteger: "bigInteger",
+  timestamp: "timestamp",
+  time: "time",
+  uuid: "uuid",
+  longText: "longText",
 };
 
 export function resolveColumnType(fieldType) {

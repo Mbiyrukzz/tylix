@@ -96,6 +96,8 @@ const DRIVER_LABELS = {
   sqlite: 'SQLite',
   postgres: 'PostgreSQL',
   mysql: 'MySQL',
+  mariadb: 'MariaDB',
+  cockroach: 'CockroachDB',
   mongodb: 'MongoDB',
 }
 

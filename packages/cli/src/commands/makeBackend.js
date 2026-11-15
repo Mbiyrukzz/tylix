@@ -68,9 +68,8 @@ export async function makeQueueRetries() {
     console.log('✔ The available_at migration already exists. Run "tylix migrate".')
     return
   }
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+  // UTC, like every other generated migration, so they sort in order.
+  const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
   const file = path.join(dir, `${stamp}_add_available_at_to_jobs_table.${ext}`)
   const types = ts ? "import type { Schema, AlterTableBuilder } from '@tylix/shared'\n\n" : ''
   await writeNew(

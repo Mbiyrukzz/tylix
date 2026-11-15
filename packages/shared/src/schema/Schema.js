@@ -1,4 +1,4 @@
-// No runtime values — buildSchema() in @tylix/cli's migrate.js constructs
-// an object satisfying this shape at runtime. This module exists only so
-// migration files can import the Schema/TableBuilder types by contract.
+// No runtime values: createSchema() in @tylix/orm builds an object of
+// this shape for each migration. This module exists so migration files
+// can import the Schema / TableBuilder types.
 export {}

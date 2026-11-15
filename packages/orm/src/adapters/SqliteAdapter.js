@@ -54,6 +54,32 @@ export class SqliteAdapter extends DatabaseAdapter {
     }
   }
 
+  get dialect() {
+    return 'sqlite'
+  }
+
+  get driverName() {
+    return 'sqlite'
+  }
+
+  // BEGIN/COMMIT around fn; ROLLBACK when it throws. SQLite DDL is
+  // transactional, so a failed migration leaves no half-made table.
+  async transaction(fn) {
+    if (this.inTransaction) return fn()
+    this.inTransaction = true
+    await this.run('BEGIN')
+    try {
+      const result = await fn()
+      await this.run('COMMIT')
+      return result
+    } catch (err) {
+      await this.run('ROLLBACK').catch(() => {})
+      throw err
+    } finally {
+      this.inTransaction = false
+    }
+  }
+
   quoteIdentifier(name) {
     return `"${name.replace(/"/g, '""')}"`
   }

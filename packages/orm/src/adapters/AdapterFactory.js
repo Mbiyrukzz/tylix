@@ -2,11 +2,15 @@ import { SqliteAdapter } from './SqliteAdapter.js'
 import { PostgresAdapter } from './PostgresAdapter.js'
 import { MysqlAdapter } from './MysqlAdapter.js'
 import { MongoAdapter } from './MongoAdapter.js'
+import { CockroachAdapter } from './CockroachAdapter.js'
+import { MariadbAdapter } from './MariadbAdapter.js'
 
 const ADAPTERS = {
   sqlite: SqliteAdapter,
   postgres: PostgresAdapter,
   mysql: MysqlAdapter,
+  mariadb: MariadbAdapter,
+  cockroach: CockroachAdapter,
   mongodb: MongoAdapter,
 }
 

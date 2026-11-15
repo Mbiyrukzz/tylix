@@ -437,9 +437,21 @@ function buildDatabaseEnvLines(config) {
         `DATABASE_PASSWORD=${dbPassword}`,
         `DATABASE_NAME=${projectSlug}`,
       ]
-    case 'mysql':
+    case 'cockroach':
       return [
-        `DATABASE_DRIVER=mysql`,
+        `DATABASE_DRIVER=cockroach`,
+        `DATABASE_HOST=127.0.0.1`,
+        `DATABASE_PORT=26257`,
+        `DATABASE_USER=${formatEnvValue(config.databaseUser || 'root')}`,
+        `DATABASE_PASSWORD=${dbPassword}`,
+        `DATABASE_NAME=${projectSlug}`,
+        `# CockroachDB Cloud: set DATABASE_URL=postgresql://... (it wins over the values above)`,
+        `# and DATABASE_SSL=true.`,
+      ]
+    case 'mysql':
+    case 'mariadb':
+      return [
+        `DATABASE_DRIVER=${driver}`,
         `DATABASE_HOST=127.0.0.1`,
         `DATABASE_PORT=3306`,
         `DATABASE_USER=${formatEnvValue(config.databaseUser || 'root')}`,

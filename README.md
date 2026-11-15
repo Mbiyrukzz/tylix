@@ -44,7 +44,7 @@ Requires Node.js 22.13 or later. The installer asks for:
 
 * Frontend: native Tylix, React, Vue, Svelte or Angular
 * JavaScript or TypeScript
-* SQLite, MySQL, PostgreSQL or MongoDB
+* SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB or MongoDB
 * Authentication
 * Styling and a starter template
 
@@ -132,6 +132,71 @@ const posts = await Post.where('published', true)
 
 Observers (`created`, `updated`, ...), traits (`use(Model, Searchable({ fields: ['title'] }))`),
 pagination and atomic `updateWhere` are built in.
+
+Drivers: `sqlite`, `postgres`, `mysql`, `mariadb`, `cockroach` and `mongodb`
+(`DATABASE_DRIVER` in `.env`). CockroachDB uses the PostgreSQL driver and
+counts ids 1, 2, 3 like everyone else. `DATABASE_URL` and `DATABASE_SSL=true`
+connect PostgreSQL or CockroachDB to a hosted cluster.
+
+## Migrations
+
+```javascript
+export const up = async (schema) => {
+  await schema.createTable('posts', (table) => {
+    table.increments('id')
+    table.string('title', 200).notNullable()
+    table.string('slug').unique()
+    table.enum('status', ['draft', 'published']).default('draft').index()
+    table.decimal('price', 10, 2).default(0)
+    table.foreignId('user_id').constrained().cascadeOnDelete()
+    table.timestamps()
+    table.index(['status', 'created_at'])
+  })
+}
+
+export const down = async (schema) => {
+  await schema.dropTable('posts')
+}
+```
+
+A later migration changes the table:
+
+```javascript
+export const up = async (schema) => {
+  await schema.alterTable('posts', (table) => {
+    table.string('subtitle').nullable()                    // add
+    table.string('title', 500).notNullable().change()      // change type, null, default
+    table.renameColumn('body', 'content')
+    table.dropIndex(['status'])                            // by columns or name
+    table.dropForeign(['user_id'])
+    table.dropColumn('legacy')
+  })
+}
+```
+
+Every column type works on every SQL database. MySQL and MariaDB keep
+indexes inside `CREATE TABLE`. SQLite can't change a column in place, so
+it rebuilds the table, keeping its rows, indexes and foreign keys.
+`hasTable`, `hasColumn`, `renameTable` and `raw` are there too, and so are
+Laravel's names (`schema.create`, `schema.table`, `schema.dropIfExists`).
+On MongoDB, indexes, renames and dropped fields apply, and the rest is
+ignored.
+
+```bash
+tylix make:migration add_status_to_posts_table status:string:index:required:default=draft
+tylix make:migration create_tags_table name:string:unique
+tylix make:migration tune_posts --table=posts      # an empty alterTable
+tylix migrate
+tylix migrate:status
+tylix migrate:rollback            # the last batch; --step=2 for the last two migrations
+tylix migrate:refresh --seed      # roll everything back, migrate, seed
+tylix migrate:fresh               # drop every table, migrate (--force in production)
+```
+
+Field modifiers (`make:feature`, `field:add`, `make:migration`): `unique`,
+`index`, `required`, `nullable`, `default=<value>`. On SQLite and
+PostgreSQL each migration runs in a transaction, so one that fails
+changes nothing.
 
 ---
 
@@ -492,7 +557,8 @@ Each folder has a README saying what goes there and which command makes it.
 
 * Reactive compiler and runtime, file-based pages, hot reload
 * React, Vue, Svelte and Angular frontends with server-side rendering
-* ORM for SQLite, MySQL, PostgreSQL and MongoDB; observers and traits
+* ORM for SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB and MongoDB; observers and traits
+* Migrations with indexes, foreign keys, column changes and rollbacks
 * Authentication, validation shared with the browser
 * Queues, scheduler, channels, mail
 * Logs, metrics, health checks; workers and a shared store

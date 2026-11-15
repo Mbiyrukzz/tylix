@@ -1,7 +1,7 @@
 import type { DatabaseAdapter } from './DatabaseAdapter.js';
 
 export interface DatabaseConfig {
-    driver: 'sqlite' | 'postgres' | 'mysql' | 'mongodb';
+    driver: 'sqlite' | 'postgres' | 'cockroach' | 'mysql' | 'mariadb' | 'mongodb';
     [key: string]: unknown;
 }
 

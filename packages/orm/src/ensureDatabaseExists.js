@@ -5,7 +5,9 @@ export async function ensureDatabaseExists(databaseConfig) {
   const { driver } = databaseConfig
   if (driver === 'postgres') {
     await ensurePostgresDatabase(databaseConfig)
-  } else if (driver === 'mysql') {
+  } else if (driver === 'cockroach') {
+    await ensureCockroachDatabase(databaseConfig)
+  } else if (driver === 'mysql' || driver === 'mariadb') {
     await ensureMysqlDatabase(databaseConfig)
   }
   // sqlite: the file is created automatically on connect, nothing to do here.
@@ -60,5 +62,18 @@ async function ensureMysqlDatabase({ host, port, user, password, database }) {
     )
   } finally {
     await connection.end()
+  }
+}
+
+// CockroachDB has CREATE DATABASE IF NOT EXISTS, and every cluster has a
+// "defaultdb" to connect to first.
+async function ensureCockroachDatabase({ connectionString, host, port = 26257, user = 'root', password, database, ssl }) {
+  if (connectionString || !database) return
+  const client = new pg.Client({ host, port, user, password, database: 'defaultdb', ...(ssl !== undefined ? { ssl } : {}) })
+  await client.connect()
+  try {
+    await client.query(`CREATE DATABASE IF NOT EXISTS "${database.replace(/"/g, '""')}"`)
+  } finally {
+    await client.end()
   }
 }
