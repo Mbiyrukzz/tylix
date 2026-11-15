@@ -3,7 +3,7 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { loadConfig, loadEnv, detectLanguage, parseEnv, exists as pathExists } from '@tylix/shared'
+import { loadConfig, loadEnv, detectLanguage, parseEnv, exists as pathExists, resolveViewsDir } from '@tylix/shared'
 import { discoverFeatures } from '@tylix/core'
 import { bootstrapDatabase } from '../bootstrap.js'
 import { FRONTEND_PACKAGES, NATIVE_DRIVER, SSR_OUTLET, loadFrontendAdapter } from '../frontend/frontendHost.js'
@@ -266,7 +266,7 @@ export async function doctor() {
       return `${pages.length} .tyx page(s)`
     })
   } else {
-    const frontendDir = path.join(baseDir, 'app', 'frontend')
+    const frontendDir = resolveViewsDir(baseDir)
     let adapter = null
     await check(FRONTEND_PACKAGES[driver], async () => {
       ;({ adapter } = await loadFrontendAdapter(baseDir, driver))
@@ -292,14 +292,14 @@ export async function doctor() {
     let html = null
     await check('index.html', async () => {
       html = await fs.readFile(path.join(frontendDir, 'index.html'), 'utf-8').catch(() => null)
-      if (html === null) throw new Error('app/frontend/index.html is missing')
+      if (html === null) throw new Error('app/views/index.html is missing')
       return 'present'
     })
     if (config.frontend.ssr) {
       await check('SSR entry', async () => {
         const names = ['entry-server.tsx', 'entry-server.ts', 'entry-server.jsx', 'entry-server.js']
         for (const name of names) if (await pathExists(path.join(frontendDir, name))) return name
-        throw new Error('frontend.ssr is on but app/frontend has no entry-server file')
+        throw new Error('frontend.ssr is on but app/views has no entry-server file')
       })
       if (html !== null) {
         await check('SSR outlet', async () => {

@@ -138,3 +138,9 @@ declare global {
   // eslint-disable-next-line no-var
   var __TYLIX_DATA__: Record<string, ApiResult> | undefined
 }
+
+/** The runtime of the client "tylix routes:types" generates. */
+export type RouteTable = { [name: string]: [method: string, pattern: string] | RouteTable }
+export function createRouteClient(api: Api, table: RouteTable): any
+/** "/api/posts/:id" + { id: 7 } + { page: 2 } -> "/api/posts/7?page=2". Throws when a param is missing. */
+export function buildPath(pattern: string, params?: Record<string, string | number>, query?: Record<string, unknown>): string

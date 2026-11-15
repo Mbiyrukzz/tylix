@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   Router,
+  addReadinessCheck,
+  logger,
   discoverFeatures,
   registerFeatureRoutes,
   registerRouteFiles,
@@ -15,6 +17,7 @@ import { loadConfig, loadEnv, detectLanguage, exists as pathExists, pascalCase }
 import { bootstrapDatabase } from '../bootstrap.js'
 import { configureObservability, registerOperationsRoutes } from './observability.js'
 import { openStore } from './store.js'
+import { preparePlugins } from './plugins.js'
 import { HMR_CLIENT_SCRIPT } from '../hotReload.js'
 import { renderErrorPage } from '../utils/error-page.js'
 import { locateCompileError } from './locateError.js'
@@ -877,12 +880,14 @@ function assertProductionConfig(config) {
 // as tinker that need every backend route without serving a frontend.
 export async function createApp(
   baseDir,
-  { production = false, hotReloadCompiler = false, frontend = true } = {},
+  { production = false, hotReloadCompiler = false, frontend = true, static: staticExport = false } = {},
 ) {
   await loadEnv(baseDir)
   const language = await detectLanguage(baseDir)
   const config = await loadConfig(baseDir, language)
-  if (production) assertProductionConfig(config)
+  // Plugins first: their config() hooks may change anything below.
+  const plugins = await preparePlugins(baseDir, config)
+  if (production && !staticExport) assertProductionConfig(config)
   const serverOptions = configureObservability(config)
 
   // Compiler switches from the project config, e.g. { not: 'loose' }.
@@ -900,6 +905,21 @@ export async function createApp(
   // The real `router` is what the server uses.
   const recorder = createRouteRecorder(router)
   const recorded = recorder.router
+
+  const authWrap = (handler) => requireAuth(handler, config.auth?.secret, { hydrate: config.auth?.hydrate })
+  const pluginContext = (plugin) => ({
+    name: plugin.name,
+    baseDir,
+    config,
+    production,
+    router: recorded,
+    use: (middleware) => router.use(middleware),
+    auth: authWrap,
+    logger: logger.child({ plugin: plugin.name }),
+    addReadinessCheck: (name, check, options) => addReadinessCheck(`${plugin.name}:${name}`, check, options),
+  })
+  recorder.setSource('plugin')
+  await plugins.runWith('register', (plugin) => [pluginContext(plugin)])
 
   recorder.setSource('routes')
   await loadCustomRoutes(recorded, baseDir, {
@@ -967,6 +987,11 @@ export async function createApp(
     config.app?.url,
   )
 
+  // Plugin routes come after the app's own API routes (the first match
+  // wins, so the app can override a plugin) and before pages.
+  recorder.setSource('plugin')
+  await plugins.runWith('routes', (plugin) => [recorded, pluginContext(plugin)])
+
   // frontend.driver in tylix.config picks who renders pages. "tylix" (the
   // default, and what every existing project gets) is the native .tyx
   // compiler. Anything else is a hosted frontend served through Vite.
@@ -1030,7 +1055,7 @@ export async function createApp(
 
   registerOperationsRoutes(router, config)
 
-  return {
+  const app = {
     router,
     config,
     // For new Server(app.router, { ...app.serverOptions }): logging and
@@ -1046,7 +1071,9 @@ export async function createApp(
       host: frontendHost,
     },
     store,
+    plugins,
     async close() {
+      await plugins.close()
       await frontendHost?.close()
       await store.close()
     },
@@ -1118,4 +1145,7 @@ export async function createApp(
       return false
     },
   }
+
+  await plugins.run('boot', app)
+  return app
 }

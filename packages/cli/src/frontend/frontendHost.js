@@ -3,7 +3,7 @@ import net from 'node:net'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { buildDebugPayload, renderDebugPage } from '@tylix/core'
-import { FRONTEND_DRIVERS, resolveFrontendConfig } from '@tylix/shared'
+import { FRONTEND_DRIVERS, resolveFrontendConfig, resolveViewsDir } from '@tylix/shared'
 import { MIME_TYPES } from '../utils/mime.js'
 import { createProjectImporter, resolveFromProject } from './importFromProject.js'
 import { injectChannelsPort, injectServerRender, injectSession } from './session.js'
@@ -220,7 +220,8 @@ async function linkedPackageDirs(baseDir) {
 async function baseViteConfig(baseDir, { adapter, importFromProject, userVite }) {
   await assertRequiredPackages(baseDir, adapter)
   const vite = await importFromProject('vite')
-  const root = path.join(baseDir, adapter.root)
+  // adapter.root is app/views; a project made before 1.6 keeps app/frontend.
+  const root = adapter.root === 'app/views' ? resolveViewsDir(baseDir) : path.join(baseDir, adapter.root)
   const plugins = await adapter.vitePlugins({ importFromProject, root, baseDir })
   const config = {
     root,

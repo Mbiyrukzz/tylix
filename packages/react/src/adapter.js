@@ -12,7 +12,7 @@ export default {
 
   // Folder that holds index.html and the React source, relative to the
   // project root.
-  root: 'app/frontend',
+  root: 'app/views',
 
   // Modules that must exist once in the browser bundle. Two Reacts break
   // hooks; two @tylix/client copies would mean two separate sessions.
@@ -26,7 +26,7 @@ export default {
     return [react()]
   },
 
-  // Server-side rendering (frontend.ssr: true): app/frontend/entry-server
+  // Server-side rendering (frontend.ssr: true): app/views/entry-server
   // renders pages with renderWithData from @tylix/react/server.
   ssr: true,
 

@@ -32,7 +32,7 @@ test('writes a guide per backend folder, an example middleware, tests and a READ
     assert.match(testFile, /the current user needs a login/)
     const readme = await read(dir, 'README.md')
     assert.match(readme, /React pages on a Tylix backend/)
-    assert.match(readme, /app\/frontend\//)
+    assert.match(readme, /app\/views\//)
     assert.match(await read(dir, 'app/routes/README.md'), /web\.ts/)
   }))
 

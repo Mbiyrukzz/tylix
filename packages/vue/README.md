@@ -29,7 +29,7 @@ before deciding.
 ## The starter's layout
 
 ```
-app/frontend/
+app/views/
   router.js        every page and its URL (make:page adds routes here)
   providers/       composables with data and actions (usePublicPosts, useMyPosts),
                    shared with child components through provide/inject

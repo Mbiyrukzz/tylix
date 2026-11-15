@@ -3,7 +3,7 @@
 //
 //   node e2e/hot-reload.mjs <appDir> <baseUrl>
 //
-// Hosted frontends (app/frontend): a page edit reaches the open tab (Vite
+// Hosted frontends (app/views): a page edit reaches the open tab (Vite
 // HMR) and the next server render; a backend edit restarts the server and
 // the open tab reloads once it is back.
 // Native .tyx pages: page, component, app/loading.tyx and stylesheet edits
@@ -16,7 +16,7 @@ import { createReport, launchBrowser, sleep, waitFor } from './lib/browser.mjs'
 
 const appDir = path.resolve(process.argv[2] ?? '.')
 const base = (process.argv[3] ?? 'http://localhost:3000').replace(/\/$/, '')
-const hosted = fs.existsSync(path.join(appDir, 'app', 'frontend'))
+const hosted = fs.existsSync(path.join(appDir, 'app', 'views'))
 const MARK = `HMR-${Date.now()}`
 
 const originals = new Map()
@@ -59,7 +59,7 @@ try {
   await page.waitForLoadState('networkidle')
 
   if (hosted) {
-    const homeFile = findFile(path.join(appDir, 'app', 'frontend', 'pages'), (name) => /^home\.(tsx|jsx|vue|svelte|ts)$/i.test(name))
+    const homeFile = findFile(path.join(appDir, 'app', 'views', 'pages'), (name) => /^home\.(tsx|jsx|vue|svelte|ts)$/i.test(name))
     const heading = 'Your full-stack app is ready.'
 
     await report.step('a saved page shows up in the open tab', async () => {

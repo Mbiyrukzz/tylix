@@ -5,7 +5,7 @@
 export default {
   name: 'svelte',
   label: 'Svelte',
-  root: 'app/frontend',
+  root: 'app/views',
 
   // One Svelte runtime and one session in the bundle.
   dedupe: ['svelte', '@tylix/client', '@tylix/svelte'],
@@ -19,7 +19,7 @@ export default {
     return [svelte({ configFile: false })]
   },
 
-  // Server-side rendering (frontend.ssr: true): app/frontend/entry-server
+  // Server-side rendering (frontend.ssr: true): app/views/entry-server
   // renders pages with renderWithData from @tylix/svelte/server.
   ssr: true,
 

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { detectLanguage, loadConfig, loadEnv, exists } from '@tylix/shared'
+import { detectLanguage, loadConfig, loadEnv, exists, resolveViewsDir } from '@tylix/shared'
 import { pageFiles, registerRoute, routeFile, findRouteFile, IMPORTS_MARKER, ROUTES_MARKER } from '../frontend/generateFiles.js'
 
 const STARTER_TEMPLATE = (name) => `page ${name}
@@ -70,7 +70,7 @@ export async function makePage(name, { auth = false } = {}) {
     return makeNativePage(baseDir, name)
   }
 
-  const frontendDir = path.join(baseDir, 'app', 'frontend')
+  const frontendDir = resolveViewsDir(baseDir)
   const page = pageFiles(driver, name, { ts })
   const pagePath = path.join(frontendDir, page.file)
   const routesPath = path.join(frontendDir, await findRouteFile(driver, ts, (file) => exists(path.join(frontendDir, file))))

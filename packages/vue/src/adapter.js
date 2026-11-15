@@ -5,7 +5,7 @@
 export default {
   name: 'vue',
   label: 'Vue',
-  root: 'app/frontend',
+  root: 'app/views',
 
   // One Vue runtime, one router and one session in the bundle.
   dedupe: ['vue', 'vue-router', '@tylix/client', '@tylix/vue'],
@@ -20,7 +20,7 @@ export default {
     return [vue({ template: { transformAssetUrls: { includeAbsolute: false } } })]
   },
 
-  // Server-side rendering (frontend.ssr: true): app/frontend/entry-server
+  // Server-side rendering (frontend.ssr: true): app/views/entry-server
   // renders pages with renderWithData from @tylix/vue/server.
   ssr: true,
 

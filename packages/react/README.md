@@ -42,7 +42,7 @@ the data.
 Apps created with `create-tylix` keep data out of pages:
 
 ```
-app/frontend/
+app/views/
   App.jsx          providers around <AppRoutes />
   AppRoutes.jsx    every page and its URL (make:page adds routes here)
   providers/       context with data and actions (usePublicPosts, useMyPosts)

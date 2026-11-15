@@ -171,7 +171,7 @@ export async function writeFrontend(config) {
   const templateDir = path.join(TEMPLATES_ROOT, frontend.templateDir)
 
   const targetDir = path.join(process.cwd(), config.projectName)
-  const frontendDir = path.join(targetDir, 'app', 'frontend')
+  const frontendDir = path.join(targetDir, 'app', 'views')
   const isTs = config.language === 'typescript'
   const flags = {
     auth: config.authEnabled,

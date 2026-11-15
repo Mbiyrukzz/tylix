@@ -62,7 +62,7 @@ import { injectAuth } from '@tylix/angular'
       </div>
       <div class="mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
         <div class="tx-panel p-6">
-          <h2 class="font-semibold mb-2">app/frontend</h2>
+          <h2 class="font-semibold mb-2">app/views</h2>
           <p class="text-sm text-muted">Your Angular code. Edits hot-reload without restarting the server.</p>
         </div>
         <div class="tx-panel p-6">

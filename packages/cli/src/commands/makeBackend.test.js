@@ -38,7 +38,9 @@ test('wireObserver works with trait bases and refuses what it cannot edit safely
 })
 
 test('generated sources', () => {
-  assert.match(jobSource('SendInvoice', true), /export const SendInvoice = \{\n  async handle\(payload: Record<string, unknown>\)/)
+  assert.match(jobSource('SendInvoice', true), /export const SendInvoice: JobHandler = \{/)
+  assert.match(jobSource('SendInvoice', true), /tries: 3,\n  backoff: \[10, 60, 300\],/)
+  assert.match(jobSource('SendInvoice', true), /async handle\(payload: Record<string, unknown>\)/)
   assert.doesNotMatch(jobSource('SendInvoice', false), /Record</)
 
   const observer = observerSource('UserObserver', 'User', false)

@@ -2,6 +2,65 @@
 
 All Tylix packages share one version number and are released together.
 
+## Unreleased
+
+### Typed API client generated from the routes
+- `tylix routes:types` (and `tylix dev`, on start) writes a client from
+  the routes the app registers: `app/views/api.generated.ts` for hosted
+  frontends, `app/types/api.d.ts` for native pages. Routes are named
+  `posts.index`, `posts.show`, `auth.refresh`, `login`. Feature routes are
+  typed from their fields and auth routes from their bodies. `--check`
+  fails when the client is stale. `typedRoutes: false` turns the dev
+  write off.
+- `@tylix/client` exports `createRouteClient` and `buildPath`.
+
+### Job retries with backoff
+- Jobs take `tries`, `backoff` (seconds, a list, `'exponential'` or a
+  function), `maxBackoff`, `timeout` and a `failed()` hook, and `handle`
+  gets `{ id, attempt, tries }`. `queue` in `tylix.config` and
+  `QUEUE_TRIES` / `QUEUE_BACKOFF` / `QUEUE_TIMEOUT` set the defaults.
+- `dispatch(name, payload, { delay })`, plus `PermanentJobError`.
+- `tylix queue:failed`, `queue:retry <id|all>`, `queue:flush`.
+- New apps get an `available_at` column on `jobs`. Existing apps run
+  `tylix make:queue-retries && tylix migrate`; until then retries happen
+  without a delay.
+
+### Logging, as in Laravel
+- `Log` from `@tylix/core`: the eight RFC 5424 levels, `Log.channel()`,
+  `Log.stack()`, `Log.build()`, `Log.withContext()`, `Log.extend()`.
+- Channels in `logging` in `tylix.config`: `stack`, `single`, `daily`
+  (rotated, `days` kept), `console`, `stderr`, `null`, `custom`, each with
+  its own minimum `level`. `LOG_CHANNEL`, `LOG_STACK` (default
+  `console,daily`) and `LOG_DAILY_DAYS`.
+- File lines are written as `[date] env.LEVEL: message {context} {extra}`,
+  with the stack trace of any error. Files go in `storage/logs/`.
+- `tylix log:tail [channel] [--level=] [--lines=] [--no-follow]` and
+  `tylix log:clear`.
+- A channel that fails is reported once and never breaks a request.
+
+### Static site generation
+- `tylix export` writes `dist/static`: every page without parameters, the
+  pages they link to, `export.paths`, and their assets, `public/`
+  and a `404.html`. `export.exclude`, `export.crawl`, `--out`.
+
+### Plugin system
+- `plugins` in `tylix.config` (objects, packages, files, `[file, options]`)
+  and `app/plugins/*`. Hooks: `config`, `register` (middleware, readiness
+  checks), `routes`, `boot` and `close`. Plugins can also add
+  `logDrivers`, `commands` (run as `tylix <command>`) and `deployAdapters`.
+- `tylix plugins` lists them, and `definePlugin` gives them types.
+
+### Deployment adapters
+- `tylix deploy:init <adapter>` writes the files for `docker`, `fly`,
+  `render`, `railway` or `pm2` (servers), or for `netlify`, `vercel`,
+  `github-pages` or `cloudflare-pages` (static export). Plugins can add
+  more.
+
+### `app/frontend` is now `app/views`
+- New React, Vue, Svelte and Angular apps keep their source in
+  `app/views`. Existing apps need no change: when only `app/frontend`
+  exists, every command uses it.
+
 ## 1.5.0
 
 ### Social sign-in in every starter

@@ -29,17 +29,68 @@ async function project() {
 // ---- make:job ------------------------------------------------------------
 
 export function jobSource(name, ts) {
-  return `// Runs in the background, outside any request (start the worker with
+  const P = ts ? ': Record<string, unknown>' : ''
+  return `${ts ? "import type { JobHandler } from '@tylix/core'\n\n" : ''}// Runs in the background, outside any request (start the worker with
 // "tylix queue:work"). Queue it from a controller, observer or service:
 //   import { dispatch } from '@tylix/core'
 //   await dispatch('${name}', { /* payload */ })
-export const ${name} = {
-  async handle(payload${ts ? ': Record<string, unknown>' : ''}) {
-    // The work goes here. Throwing marks the job failed, with the error
-    // recorded on its row in the jobs table.
+//   await dispatch('${name}', { /* payload */ }, { delay: 60 })  // in a minute
+export const ${name}${ts ? ': JobHandler' : ''} = {
+  // Attempts in total, and the seconds to wait before each retry (the last
+  // wait repeats). backoff: 'exponential' doubles the wait each time.
+  tries: 3,
+  backoff: [10, 60, 300],
+  // Seconds an attempt may run before it counts as failed (0: no limit).
+  timeout: 120,
+
+  async handle(payload${P}) {
+    // The work goes here. Throwing retries the job; after the last attempt
+    // it is marked failed ("tylix queue:failed", "tylix queue:retry <id>").
+    // Throw new PermanentJobError(...) from '@tylix/core' to fail at once.
+  },
+
+  async failed(payload${P}, error${ts ? ': Error' : ''}) {
+    // Called once, after the last attempt failed: tell someone, undo work.
   },
 }
 `
+}
+
+// ---- make:queue-retries ----------------------------------------------------
+
+// Jobs tables made before 1.6 have no available_at column, so retries
+// can't wait between attempts. This writes the migration that adds it.
+export async function makeQueueRetries() {
+  const { baseDir, ts, ext } = await project()
+  const dir = path.join(baseDir, 'database', 'migrations')
+  const existing = await fs.readdir(dir).catch(() => [])
+  if (existing.some((f) => /_add_available_at_to_jobs_table\./.test(f))) {
+    console.log('✔ The available_at migration already exists. Run "tylix migrate".')
+    return
+  }
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+  const file = path.join(dir, `${stamp}_add_available_at_to_jobs_table.${ext}`)
+  const types = ts ? "import type { Schema, AlterTableBuilder } from '@tylix/shared'\n\n" : ''
+  await writeNew(
+    baseDir,
+    file,
+    `${types}// When a queued job may run next: dispatch(..., { delay }) and retry backoff.
+export const up = async (schema${ts ? ': Schema' : ''}) => {
+  await schema.alterTable('jobs', (table${ts ? ': AlterTableBuilder' : ''}) => {
+    table.datetime('available_at')
+  })
+}
+
+export const down = async (schema${ts ? ': Schema' : ''}) => {
+  await schema.alterTable('jobs', (table${ts ? ': AlterTableBuilder' : ''}) => {
+    table.dropColumn('available_at')
+  })
+}
+`,
+  )
+  console.log(`\n✔ Migration created: ${path.relative(baseDir, file)}\n  Run "tylix migrate", then restart "tylix queue:work".\n`)
 }
 
 export async function makeJob(name) {

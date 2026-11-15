@@ -93,7 +93,7 @@ const TYLIX_FOLDERS = [
   'app', 'pages', 'components', 'capabilities', 'controllers', 'models',
   'migrations', 'validators', 'routes', 'jobs', 'observers', 'traits',
   'channels', 'mail', 'services', 'useApi', 'middleware', 'features',
-  'frontend', 'database', 'resources', 'public', 'config', 'dashboard',
+  'frontend', 'views', 'logs', 'plugins', 'database', 'resources', 'public', 'config', 'dashboard',
 ]
 
 const defs = {}

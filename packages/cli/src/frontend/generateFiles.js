@@ -42,7 +42,7 @@ const join = (...parts) => parts.filter(Boolean).join('/')
 function pageBody(title, file) {
   return {
     heading: titleCase(title),
-    hint: `Edit app/frontend/${file} to change this page.`,
+    hint: `Edit app/views/${file} to change this page.`,
   }
 }
 
@@ -146,7 +146,7 @@ export class ${n.identifier} {
 
 const PAGES = { react: reactPage, vue: vuePage, svelte: sveltePage, angular: angularPage }
 
-// The file each frontend's routes live in, relative to app/frontend.
+// The file each frontend's routes live in, relative to app/views.
 export function routeFile(driver, ts) {
   switch (driver) {
     case 'react':
@@ -164,7 +164,7 @@ export function routeFile(driver, ts) {
 
 // The route file a project actually has: the current one, or the older
 // location (React's App.jsx) when only that exists. `exists` checks a
-// path relative to app/frontend.
+// path relative to app/views.
 export async function findRouteFile(driver, ts, exists) {
   const current = routeFile(driver, ts)
   const legacy = legacyRouteFile(driver, ts)

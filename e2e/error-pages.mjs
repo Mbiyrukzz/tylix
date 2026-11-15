@@ -20,7 +20,7 @@ const appDir = path.resolve(process.argv[2] ?? '.')
 const base = (process.argv[3] ?? 'http://localhost:3000').replace(/\/$/, '')
 const production = process.argv.includes('--production')
 const keep = process.argv.includes('--keep')
-const frontendDir = path.join(appDir, 'app', 'frontend')
+const frontendDir = path.join(appDir, 'app', 'views')
 const hosted = fs.existsSync(frontendDir)
 const CRASH = 'E2E_CRASH_CHECK'
 

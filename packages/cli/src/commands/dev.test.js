@@ -19,6 +19,7 @@ test('frontend files anywhere under app/ never restart the server', () => {
     app('tailwind-input.css'),
     app('useApi', 'posts.ts'),
     app('frontend', 'pages', 'Home.tsx'),
+    app('views', 'pages', 'Home.tsx'),
   ]) {
     assert.equal(isFrontendChange(base, file), true, file)
   }
@@ -68,9 +69,9 @@ test('any saved frontend file drops the whole SSR module graph', () => {
   let invalidated = 0
   const server = { watcher, environments: { ssr: { moduleGraph: { invalidateAll: () => invalidated++ } } } }
   keepSsrModulesFresh(server)
-  watcher.emit('change', '/project/app/frontend/pages/home.ts')
-  watcher.emit('add', '/project/app/frontend/pages/new.ts')
-  watcher.emit('unlink', '/project/app/frontend/pages/new.ts')
+  watcher.emit('change', '/project/app/views/pages/home.ts')
+  watcher.emit('add', '/project/app/views/pages/new.ts')
+  watcher.emit('unlink', '/project/app/views/pages/new.ts')
   assert.equal(invalidated, 3)
 })
 

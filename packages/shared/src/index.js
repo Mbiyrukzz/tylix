@@ -1,6 +1,7 @@
 export * from './strings/case.js'
 export * from './strings/pluralize.js'
 export * from './filesystem/writeFile.js'
+export * from './filesystem/viewsDir.js'
 export * from './schema/columnTypes.js'
 export * from './config/loadConfig.js'
 export * from './validation/index.js'

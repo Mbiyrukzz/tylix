@@ -184,6 +184,126 @@ await broadcast('chat', { text: 'Deploy finished' }) // tylix channels:work
 const stats = await cache.remember('stats', 60, computeStats)
 ```
 
+## Job retries with backoff
+
+```javascript
+// app/jobs/SendInvoice.js            (tylix make:job SendInvoice)
+export const SendInvoice = {
+  tries: 3,                       // attempts in total
+  backoff: [10, 60, 300],         // seconds before each retry; or 30, or 'exponential'
+  timeout: 120,                   // an attempt that takes longer counts as failed
+  async handle(payload, job) { /* job.attempt is 1, 2, 3 */ },
+  async failed(payload, error) { /* once, after the last attempt */ },
+}
+
+await dispatch('SendInvoice', { invoiceId }, { delay: 60 })  // run in a minute
+```
+
+`queue: { tries, backoff, timeout }` in `tylix.config` (or `QUEUE_TRIES`,
+`QUEUE_BACKOFF`, `QUEUE_TIMEOUT`) sets the defaults. Throw a
+`PermanentJobError` to fail without retrying. `tylix queue:failed` lists
+failed jobs, `tylix queue:retry <id|all>` queues them again, and
+`tylix queue:flush` deletes them. Apps made before 1.6 run
+`tylix make:queue-retries && tylix migrate` once to add the `available_at`
+column that delays need.
+
+---
+
+# Logging
+
+Log channels work the way they do in Laravel:
+
+```javascript
+import { Log } from '@tylix/core'
+
+Log.info('Invoice sent', { invoiceId: 12 })
+Log.warning('Disk almost full', { pct: 91 })
+Log.channel('payments').error('Charge failed', { error })
+Log.stack(['daily', 'slack']).critical('Payments are down')
+Log.withContext({ tenant: 3 })          // added to every later entry
+```
+
+The eight levels are `debug`, `info`, `notice`, `warning`, `error`,
+`critical`, `alert` and `emergency`. The default `stack` channel writes to
+the console and to a daily file, `storage/logs/tylix-2026-11-15.log`:
+
+```
+[2026-11-15 10:22:01] production.ERROR: Charge failed {"orderId":7} {"requestId":"4d36..."}
+[stacktrace]
+Error: card declined
+    at ...
+```
+
+```javascript
+// tylix.config
+logging: {
+  default: 'stack',                                       // LOG_CHANNEL
+  channels: {
+    stack: { driver: 'stack', channels: ['console', 'daily'] },  // LOG_STACK
+    daily: { driver: 'daily', path: 'storage/logs/tylix.log', days: 14 },  // LOG_DAILY_DAYS
+    payments: { driver: 'single', path: 'storage/logs/payments.log', level: 'warning' },
+    slack: { driver: 'custom', via: (config) => ({ write(entry) { /* send it */ } }) },
+  },
+}
+```
+
+Drivers: `stack`, `single`, `daily`, `console`, `stderr`, `null`, `custom`,
+plus any registered with `Log.extend('name', factory)` or by a plugin.
+`tylix log:tail [channel] [--level=error]` follows a log file, and
+`tylix log:clear` empties the log files.
+
+---
+
+# Typed API Client
+
+The routes the app registers become a typed client. `tylix dev` writes it
+when it starts, and `tylix routes:types` writes it on demand (`--check`
+fails CI when it is stale). The client goes in `app/views/api.generated.ts`
+for React, Vue, Svelte and Angular, and the types go in
+`app/types/api.d.ts` for native pages.
+
+```typescript
+import { routes } from './api.generated'
+
+const page = await routes.posts.index({ query: { page: 2 } })   // ApiResult<Paginated<Post>>
+const post = await routes.posts.show({ id: 7 })                 // ApiResult<{ data: Post }>
+await routes.posts.update({ id: 7 }, { title: 'New title' })    // body typed as PostInput
+await routes.login({ email, password })
+await routes.$request('DELETE /api/posts/:id', { params: { id: 7 } })
+```
+
+Feature routes are typed from their fields, and auth routes from their
+request bodies. Other routes are typed by their method and path
+parameters. It runs on `api()` from `@tylix/client`, so session refresh
+and the `{ ok, data, error }` results work the same way.
+
+---
+
+# Plugins
+
+```javascript
+// app/plugins/audit.js  (or plugins: [audit()] in tylix.config)
+import { definePlugin } from '@tylix/core'
+
+export default definePlugin({
+  name: 'audit',
+  config(config) { return { observability: { ...config.observability, slowRequestMs: 500 } } },
+  register({ use, logger }) { use((req, res, next) => next()) },   // middleware
+  routes(router, { auth }) { router.get('/api/audit', auth(listAudit)) },
+  boot(app) {},
+  close() {},
+  logDrivers: { slack: (config) => ({ write(entry) {} }) },
+  commands: { 'audit:prune': { description: 'Delete old rows', run(args) {} } },
+  deployAdapters: { mycloud: { name: 'mycloud', label: 'My Cloud', files: () => ({ 'mycloud.json': '{}' }) } },
+})
+```
+
+`plugins` in `tylix.config` takes plugin objects, package names, file
+paths and `[specifier, options]` pairs. Files in `app/plugins/` are loaded
+after them. Plugin routes come after the app's own routes, so the app
+can override them. `tylix plugins` lists what each plugin adds, and
+`tylix <command>` runs a plugin's command.
+
 ---
 
 # Running in Production
@@ -205,6 +325,40 @@ npx tylix start --workers auto
 Every setting is documented in the generated `.env`, and `tylix doctor`
 shows each value and where it came from.
 
+## Deployment adapters
+
+```bash
+tylix deploy:init              # list the adapters
+tylix deploy:init fly          # Dockerfile + fly.toml (web and queue processes)
+```
+
+Server adapters (they run `tylix start`): `docker`, `fly`, `render`,
+`railway`, `pm2`. Static adapters (they publish `tylix export`):
+`netlify`, `vercel`, `github-pages`, `cloudflare-pages`. Existing files
+are kept unless you pass `--force`. Plugins can add adapters.
+
+## Static site generation
+
+```bash
+tylix build && tylix export     # dist/static
+```
+
+`tylix export` runs the production app on a private port, renders `/`,
+every page without parameters and every page linked from them, then
+writes the HTML, the scripts, styles and images they use, `public/`, and
+a `404.html`. Pages with parameters go in `export.paths`:
+
+```javascript
+// tylix.config
+export: {
+  paths: async () => (await Post.all()).map((post) => `/posts/${post.id}`),
+  exclude: ['/dashboard'],
+}
+```
+
+API routes are not exported, so a page that loads data in the browser
+still needs the backend.
+
 ---
 
 # CLI
@@ -225,8 +379,16 @@ tylix make:trait HasSlug
 tylix make:channel chat
 
 tylix queue:work
+tylix queue:failed
+tylix queue:retry all
 tylix schedule:work
 tylix channels:work
+
+tylix log:tail --level=error
+tylix routes:types
+tylix export
+tylix deploy:init fly
+tylix plugins
 
 tylix doctor
 tylix tinker
@@ -282,13 +444,16 @@ app/
 ├── traits/           reusable model behaviour
 ├── mail/
 ├── seeders/
+├── plugins/          plugins loaded at start
 ├── pages/            native .tyx pages
-└── frontend/         React, Vue, Svelte or Angular
+└── views/            React, Vue, Svelte or Angular (app/frontend before 1.6)
     ├── pages/
     ├── providers/
-    └── services/
+    ├── services/
+    └── api.generated.ts   typed API client
 
 database/migrations/
+storage/logs/         daily log files
 tests/
 public/
 tylix.config.js
@@ -333,11 +498,9 @@ Each folder has a README saying what goes there and which command makes it.
 * Logs, metrics, health checks; workers and a shared store
 * Feature generator, doctor, tinker, benchmarks (`bench/`)
 * VS Code extension and language server, DevTools panel, `tylix check`
-
-## Planned
-
 * Typed API client generated from the routes
 * Job retries with backoff
+* Laravel-style log channels
 * Static site generation
 * Plugin system
 * Deployment adapters

@@ -7,7 +7,7 @@ import path from 'node:path'
 export default {
   name: 'angular',
   label: 'Angular',
-  root: 'app/frontend',
+  root: 'app/views',
 
   // One Angular runtime (core, router, ...) and one session in the bundle.
   dedupe: [
@@ -45,7 +45,7 @@ export default {
     ssr: { noExternal: [/^@angular\//, /^tylix-icons\/angular/] },
   },
 
-  // Server-side rendering (frontend.ssr: true): app/frontend/entry-server
+  // Server-side rendering (frontend.ssr: true): app/views/entry-server
   // renders pages with renderWithData from @tylix/angular/server.
   ssr: true,
   // Angular's server output includes <app-root> itself, so its outlet

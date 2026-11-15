@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pascalCase, detectLanguage, loadConfig, loadEnv, exists } from '@tylix/shared'
+import { pascalCase, detectLanguage, loadConfig, loadEnv, exists, resolveViewsDir } from '@tylix/shared'
 import { channelPageFiles, registerRoute, routeFile, findRouteFile } from '../frontend/generateFiles.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -90,7 +90,7 @@ export async function makeChannel(name) {
 // Writes the hosted frontend's demo page and registers its route. Returns
 // the page's path, or null when the route could not be added.
 async function writeHostedDemo(baseDir, driver, pageName, channelName, ts) {
-  const frontendDir = path.join(baseDir, 'app', 'frontend')
+  const frontendDir = resolveViewsDir(baseDir)
   const page = channelPageFiles(driver, pageName, channelName, { ts })
   const pagePath = path.join(frontendDir, page.file)
   const routesPath = path.join(frontendDir, await findRouteFile(driver, ts, (file) => exists(path.join(frontendDir, file))))

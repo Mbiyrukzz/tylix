@@ -157,7 +157,7 @@ function readme(config, ext) {
   const hosted = config.frontend !== 'tylix'
   const frontend = FRONTEND_NAMES[config.frontend] ?? config.frontend
   const pages = hosted
-    ? `app/frontend/         ${frontend} app: pages/, components/, entry-server (SSR)`
+    ? `app/views/            ${frontend} app: pages/, components/, entry-server (SSR)`
     : `app/pages/            .tyx pages (the file name is the URL) and components/`
   return `# ${config.projectName}
 

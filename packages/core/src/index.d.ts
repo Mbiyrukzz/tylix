@@ -21,3 +21,5 @@ export * from './http/types.js'
 export * from './observability/index.js'
 export * from './store/index.js'
 export * from './channels/broadcast.js'
+
+export * from './plugins/plugins.js'

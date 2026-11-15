@@ -15,10 +15,10 @@ import { removeFeature } from './commands/removeFeature.js'
 import { makeAuth } from './commands/makeAuth.js'
 import { makePage } from './commands/makePage.js'
 import { makeComponent } from './commands/makeComponent.js'
-import { makeJob, makeObserver, makeTrait } from './commands/makeBackend.js'
+import { makeJob, makeObserver, makeTrait, makeQueueRetries } from './commands/makeBackend.js'
 import { scheduleWork } from './commands/scheduleWork.js'
 import { channelsWork } from './commands/channelsWork.js'
-import { queueWork } from './commands/queueWork.js'
+import { queueWork, queueFailed, queueRetry, queueFlush } from './commands/queueWork.js'
 import { makeChannel } from './commands/makeChannel.js'
 import { fieldAdd } from './commands/fieldAdd.js'
 import { fieldRemove } from './commands/fieldRemove.js'
@@ -35,6 +35,11 @@ import { dev } from './commands/dev.js'
 import { build } from './commands/build.js'
 import { start } from './commands/start.js'
 import { check } from './commands/check.js'
+import { logTail, logClear } from './commands/logs.js'
+import { listPlugins, runPluginCommand } from './commands/plugins.js'
+import { routesTypes } from './commands/routesTypes.js'
+import { exportStatic } from './commands/exportStatic.js'
+import { deployInit } from './commands/deployInit.js'
 
 const projectRoot = process.cwd()
 if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
@@ -113,6 +118,45 @@ async function main() {
     return
   }
 
+  if (command === 'deploy:init') {
+    const [name] = positionalArgs(rest, [])
+    await deployInit(name, { force: rest.includes('--force') })
+    return
+  }
+
+  if (command === 'export') {
+    try {
+      await exportStatic({ outDir: flagValue(rest, 'out') })
+    } catch (err) {
+      console.error(`\n✘ ${err.message}\n`)
+      process.exit(1)
+    }
+    process.exit(0)
+  }
+
+  if (command === 'routes:types') {
+    await routesTypes({ check: rest.includes('--check') })
+    return
+  }
+
+  if (command === 'plugins') {
+    await listPlugins()
+    return
+  }
+
+  if (command === 'log:tail') {
+    const [channel] = positionalArgs(rest, ['lines', 'level'])
+    const lines = Number(flagValue(rest, 'lines') ?? 50)
+    await logTail({ channel, lines: Number.isInteger(lines) && lines > 0 ? lines : 50, level: flagValue(rest, 'level'), follow: !rest.includes('--no-follow') })
+    return
+  }
+
+  if (command === 'log:clear') {
+    const [channel] = positionalArgs(rest, [])
+    await logClear({ channel })
+    return
+  }
+
   if (command === 'list:features') {
     await listFeatures()
     return
@@ -178,6 +222,26 @@ async function main() {
 
   if (command === 'queue:work') {
     await queueWork()
+    return
+  }
+
+  if (command === 'queue:failed') {
+    await queueFailed()
+    return
+  }
+
+  if (command === 'queue:retry') {
+    await queueRetry(positionalArgs(rest, []))
+    return
+  }
+
+  if (command === 'queue:flush') {
+    await queueFlush()
+    return
+  }
+
+  if (command === 'make:queue-retries') {
+    await makeQueueRetries()
     return
   }
 
@@ -335,10 +399,17 @@ async function main() {
   }
 
   const handler = COMMANDS[command]
+  let pluginCommands = []
+  if (!handler && command) {
+    const ran = await runPluginCommand(command, rest)
+    if (ran === true) return
+    pluginCommands = ran?.available ?? []
+  }
   if (!handler) {
     console.error(`Unknown command: ${command}`)
+    if (pluginCommands.length) console.error(`Plugin commands: ${pluginCommands.join(', ')}`)
     console.error(
-      `Available commands: dev, build, start, check, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, channels:work, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, check, migrate, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, queue:failed, queue:retry, queue:flush, make:queue-retries, channels:work, log:tail, log:clear, routes:types, export, deploy:init, plugins, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

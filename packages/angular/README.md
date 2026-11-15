@@ -44,7 +44,7 @@ session once and retries.
 ## The starter's layout
 
 ```
-app/frontend/
+app/views/
   app.routes.ts    every page and its URL (make:page adds routes here)
   providers/       injectable stores with data and actions (PublicPostsStore,
                    MyPostsStore), provided per page component

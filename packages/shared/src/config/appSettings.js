@@ -9,7 +9,7 @@
 import { envSource } from './loadEnv.js'
 
 export const CSP_MODES = ['off', 'report-only', 'enforce']
-export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'silent']
+export const LOG_LEVELS = ['debug', 'info', 'notice', 'warn', 'warning', 'error', 'critical', 'alert', 'emergency', 'silent']
 
 function raw(name) {
   const value = process.env[name]
@@ -244,9 +244,40 @@ export function resolveAppSettings(userConfig = {}, sources = {}) {
     }),
   }
 
+  // Log channels, as in Laravel (see @tylix/core logging.js). LOG_CHANNEL
+  // picks the default channel, LOG_STACK the channels the "stack" channel
+  // writes to, LOG_DAILY_DAYS how long daily files are kept.
+  const logging = userConfig.logging ?? {}
+  const userChannels = logging.channels ?? {}
+  const resolvedLogging = {
+    default: setting(sources, 'logging.default', { env: 'LOG_CHANNEL', fileValue: logging.default, fallback: 'stack', type: 'string' }),
+    channels: { ...userChannels },
+  }
+  const stack = setting(sources, 'logging.stack', {
+    env: 'LOG_STACK',
+    fileValue: userChannels.stack?.channels,
+    fallback: () => ['console', 'daily'],
+    type: 'list',
+  })
+  resolvedLogging.channels.stack = { driver: 'stack', ...userChannels.stack, channels: stack }
+  const days = setting(sources, 'logging.days', {
+    env: 'LOG_DAILY_DAYS',
+    fileValue: userChannels.daily?.days,
+    fallback: 14,
+    type: 'nonNegativeInteger',
+  })
+  resolvedLogging.channels.daily = { driver: 'daily', path: 'storage/logs/tylix.log', ...userChannels.daily, days }
+
   const resolvedChannels = {
     port: setting(sources, 'channels.port', { env: 'CHANNELS_PORT', fileValue: channels.port, fallback: 6001, type: 'port' }),
   }
 
-  return { app: resolvedApp, server: resolvedServer, channels: resolvedChannels, observability: resolvedObservability, store: resolvedStore }
+  return {
+    app: resolvedApp,
+    server: resolvedServer,
+    channels: resolvedChannels,
+    observability: resolvedObservability,
+    logging: resolvedLogging,
+    store: resolvedStore,
+  }
 }

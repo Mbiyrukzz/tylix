@@ -83,7 +83,7 @@ export interface ServerConfig {
 
 export interface ObservabilityConfig {
     /** LOG_LEVEL. Default info. */
-    logLevel: 'debug' | 'info' | 'warn' | 'error' | 'silent';
+    logLevel: 'debug' | 'info' | 'notice' | 'warn' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency' | 'silent';
     /** LOG_FORMAT. Default json in production, pretty otherwise. */
     logFormat: 'json' | 'pretty';
     /** ACCESS_LOG: one line per request; "api" logs only /api/. Default true in production, "api" otherwise. */
@@ -96,6 +96,22 @@ export interface ObservabilityConfig {
     metrics: boolean;
     /** METRICS_TOKEN: required as a bearer token for /metrics when set. */
     metricsToken?: string;
+}
+
+export type LogChannelConfig =
+    | { driver: 'stack'; channels: string[]; level?: string }
+    | { driver: 'single'; path?: string; level?: string; format?: 'line' | 'json' }
+    | { driver: 'daily'; path?: string; days?: number; level?: string; format?: 'line' | 'json' }
+    | { driver: 'console'; stream?: 'stdout' | 'stderr'; level?: string }
+    | { driver: 'null' }
+    | { driver: 'custom'; via: (config: any, context: { baseDir: string; environment: string }) => unknown; level?: string; [key: string]: unknown }
+    | { driver: string; level?: string; [key: string]: unknown };
+
+export interface LoggingConfig {
+    /** LOG_CHANNEL. Default "stack". */
+    default: string;
+    /** Named channels; stack, single, daily, console, stderr and null always exist. stack.channels is LOG_STACK (default console,daily); daily.days is LOG_DAILY_DAYS (default 14). */
+    channels: Record<string, LogChannelConfig>;
 }
 
 export interface StoreConfig {
@@ -124,6 +140,7 @@ export interface TylixConfig {
     server: ServerConfig;
     channels: ChannelsConfig;
     observability: ObservabilityConfig;
+    logging: LoggingConfig;
     store: StoreConfig;
     /** For app.*, server.*, channels.* and observability.* keys: where each value came from. */
     readonly sources: Record<string, SettingSource>;
@@ -140,6 +157,29 @@ export interface UserConfig {
     server?: Partial<Omit<ServerConfig, 'csp'>> & { csp?: Partial<ServerConfig['csp']> };
     channels?: Partial<ChannelsConfig>;
     observability?: Partial<ObservabilityConfig>;
+    logging?: Partial<LoggingConfig>;
+    /** Defaults for queued jobs; each job may set its own. QUEUE_TRIES, QUEUE_BACKOFF, QUEUE_TIMEOUT override. */
+    queue?: {
+        tries?: number;
+        backoff?: number | number[] | 'exponential' | ((attempt: number) => number);
+        maxBackoff?: number;
+        timeout?: number;
+    };
+    /** Plugin objects, package names, file paths, or [specifier, options]. Falsy entries are skipped. */
+    plugins?: unknown[];
+    /** tylix export (static site generation). */
+    export?: {
+        /** Default dist/static. */
+        outDir?: string;
+        /** Extra pages to export, e.g. ones with parameters. */
+        paths?: string[] | ((info: { pageRoutes: string[]; routes: Array<{ method: string; pattern: string }> }) => string[] | Promise<string[]>);
+        /** Paths (and everything below them) or patterns to leave out. */
+        exclude?: Array<string | RegExp>;
+        /** Follow links found in pages. Default true. */
+        crawl?: boolean;
+    };
+    /** false: tylix dev doesn't write the typed API client. */
+    typedRoutes?: boolean;
     store?: Partial<StoreConfig>;
     database?: Partial<DatabaseConfig>;
     auth?: Partial<AuthConfig> & Record<string, unknown>;

@@ -39,7 +39,7 @@ matchPath('/posts/:id', '/posts/7') // { id: '7' }
 ## The starter's layout
 
 ```
-app/frontend/
+app/views/
   App.svelte       every page and its URL (make:page adds routes here)
   providers/       stores with data and actions (usePublicPosts, useMyPosts),
                    shared with child components through context

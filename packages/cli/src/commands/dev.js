@@ -14,6 +14,9 @@ import {
   printDivider,
   loadEnv,
   exists as pathExists,
+  VIEWS_DIR,
+  LEGACY_VIEWS_DIR,
+  resolveViewsDir,
 } from '@tylix/shared'
 import { Server } from '@tylix/core'
 import {
@@ -22,6 +25,7 @@ import {
   createSaveTracker,
 } from '../hotReload.js'
 import { createApp } from '../server/createApp.js'
+import { writeRouteClient } from './routesTypes.js'
 import { getTylixVersion } from '../utils/version.js'
 import { freePort } from '../frontend/frontendHost.js'
 
@@ -31,9 +35,10 @@ const execFileAsync = promisify(execFile)
 // rebuilds Tailwind and reloads the page; it never restarts the server.
 const FRONTEND_DIRS = ['pages', 'useApi']
 
-// app/frontend holds a hosted frontend (React, ...). Vite hot-reloads it,
+// app/views holds a hosted frontend (React, ...). Vite hot-reloads it,
 // so a change there never restarts the server either.
-const HOSTED_FRONTEND_DIR = 'frontend'
+// (app/frontend in projects made before 1.6.)
+const HOSTED_FRONTEND_DIRS = [VIEWS_DIR, LEGACY_VIEWS_DIR]
 
 // Files that don't need a server restart wherever they live under app/.
 const FRONTEND_EXTENSIONS = ['.tyx', '.css']
@@ -155,6 +160,7 @@ function printBanner({
   //   feature  CRUD routes mounted from a feature manifest
   //   routes   app/routes/*.ts, web.ts and make:api files
   //   auth     the built-in login/register routes
+  //   plugin   routes added by plugins
   printRouteGroup(
     'Features',
     routes.filter((r) => r.source === 'feature'),
@@ -166,6 +172,10 @@ function printBanner({
   printRouteGroup(
     'Auth',
     routes.filter((r) => r.source === 'auth'),
+  )
+  printRouteGroup(
+    'Plugins',
+    routes.filter((r) => r.source === 'plugin'),
   )
 
   console.log()
@@ -190,7 +200,7 @@ export function isFrontendChange(baseDir, file) {
   const relative = path.relative(path.join(baseDir, 'app'), file)
   if (FRONTEND_ROOT_FILES.includes(relative)) return true
   const topFolder = relative.split(path.sep)[0]
-  return FRONTEND_DIRS.includes(topFolder) || topFolder === HOSTED_FRONTEND_DIR
+  return FRONTEND_DIRS.includes(topFolder) || HOSTED_FRONTEND_DIRS.includes(topFolder)
 }
 
 // Page routes are registered once, when the server starts, from the files
@@ -365,6 +375,17 @@ async function runServer({ port } = {}) {
 
   const app = await createApp(baseDir, { production: false, hotReloadCompiler })
 
+  // Keep the typed API client in step with the routes (typedRoutes: false
+  // in tylix.config turns it off). Written only when it changed.
+  if (app.config.typedRoutes !== false) {
+    try {
+      const { changed } = await writeRouteClient(baseDir, app)
+      if (changed.length && !wasRestarted) console.log(`  Typed API client updated: ${changed.join(', ')}`)
+    } catch (err) {
+      console.warn(`⚠ Could not write the typed API client: ${err.message}`)
+    }
+  }
+
   // Priority: --port flag, the port a restarted child keeps, then PORT
   // (config.server.port: .env, tylix.config, default 3000).
   port = port ?? (Number(process.env.TYLIX_DEV_PORT) || undefined) ?? app.config.server.port
@@ -404,7 +425,7 @@ async function runServer({ port } = {}) {
   // total is correct across folders.
   const tracker = createSaveTracker({ rootDir: baseDir, log: !underSupervisor })
 
-  const hostedDir = path.join(appDir, HOSTED_FRONTEND_DIR)
+  const hostedDir = resolveViewsDir(baseDir)
   const relevant = (file) => {
     // Vite watches and hot-reloads the hosted frontend itself.
     if (hostedFrontend && (file === hostedDir || file.startsWith(hostedDir + path.sep))) return false

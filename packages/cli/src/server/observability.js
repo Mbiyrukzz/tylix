@@ -2,7 +2,7 @@
 // slow-query warnings and database metrics, and the /health, /ready and
 // /metrics endpoints.
 import { ConnectionManager, onQuery } from '@tylix/orm'
-import { addReadinessCheck, JobRecord, logger, metrics, runReadinessChecks } from '@tylix/core'
+import { addReadinessCheck, configureLogging, JobRecord, logger, metrics, runReadinessChecks } from '@tylix/core'
 
 let stopQueryListener = null
 
@@ -10,6 +10,16 @@ let stopQueryListener = null
 export function configureObservability(config) {
   const settings = config.observability
   logger.configure({ level: settings.logLevel, format: settings.logFormat })
+  // Log channels (console, daily files in storage/logs, ...). The process
+  // still starts when a channel is misconfigured: it logs to the console
+  // and says what is wrong.
+  try {
+    if (config.logging) configureLogging(config.logging, { baseDir: config.baseDir ?? process.cwd(), environment: config.app?.env ?? 'local' })
+    else logger.configure({ transports: null })
+  } catch (err) {
+    logger.configure({ transports: null })
+    logger.error(`Logging config: ${err.message} Logging to the console only.`)
+  }
 
   stopQueryListener?.()
   stopQueryListener = null

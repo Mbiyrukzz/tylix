@@ -2,13 +2,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { componentFile } from '../frontend/generateFiles.js'
 import { projectFrontend } from './makePage.js'
-import { exists } from '@tylix/shared'
+import { exists, resolveViewsDir } from '@tylix/shared'
 
 
 // tylix make:component <Name>
 // Native projects get a .tyx component under app/pages/components (its file
 // name is its tag). Hosted frontends get one in their own format under
-// app/frontend/components.
+// app/views/components.
 export async function makeComponent(name) {
   const baseDir = process.cwd()
   const { driver, ts } = await projectFrontend(baseDir)
@@ -22,7 +22,7 @@ export async function makeComponent(name) {
     content = `component ${componentName}\n\nprops\n\ntemplate\n  <div>\n    <!-- ${componentName} -->\n  </div>\n`
   } else {
     const component = componentFile(driver, name, { ts })
-    filePath = path.join(baseDir, 'app', 'frontend', component.file)
+    filePath = path.join(resolveViewsDir(baseDir), component.file)
     content = component.content
   }
 

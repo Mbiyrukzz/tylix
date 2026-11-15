@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { detectLanguage, loadEnv, loadConfig, exists as pathExists } from '@tylix/shared'
+import { detectLanguage, loadEnv, loadConfig, exists as pathExists, resolveViewsDir } from '@tylix/shared'
 import {
   NATIVE_DRIVER,
   buildFrontend,
@@ -102,7 +102,7 @@ async function buildCss(baseDir) {
   }
 }
 
-// Typechecks a hosted frontend against app/frontend/tsconfig.json with the
+// Typechecks a hosted frontend against app/views/tsconfig.json with the
 // checker its adapter names (tsc for React, svelte-check for Svelte), run
 // from the project's own node_modules. Skipped when the tsconfig or the
 // checker is missing, e.g. in a JavaScript project.
@@ -113,7 +113,7 @@ async function typecheckFrontend(baseDir, driver) {
     args: (tsconfig) => ['--noEmit', '-p', tsconfig],
   }
   const binPath = path.join(baseDir, 'node_modules', '.bin', checker.bin)
-  const tsconfig = path.join(baseDir, 'app', 'frontend', 'tsconfig.json')
+  const tsconfig = path.join(resolveViewsDir(baseDir), 'tsconfig.json')
   if (!(await pathExists(binPath)) || !(await pathExists(tsconfig))) return true
 
   console.log(`\nTypechecking the frontend (${checker.bin})...`)

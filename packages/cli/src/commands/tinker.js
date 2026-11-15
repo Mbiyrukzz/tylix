@@ -4,7 +4,7 @@ import path from 'node:path'
 import { inspect } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { bootstrapDatabase } from '../bootstrap.js'
-import { loadConfig, detectLanguage, exists as pathExists } from '@tylix/shared'
+import { loadConfig, detectLanguage, exists as pathExists, resolveViewsDir } from '@tylix/shared'
 import { cache, discoverFeatures, dispatch } from '@tylix/core'
 import { ConnectionManager } from '@tylix/orm'
 import { migrate } from './migrate.js'
@@ -282,8 +282,8 @@ export async function tinker({ evalCode = null } = {}) {
 
   context.pages = async () => {
     if (hosted) {
-      console.log(`${driver} pages (routes in app/frontend/${routeFile(driver, language === 'typescript')}):`)
-      console.log(await listFiles(path.join(baseDir, 'app', 'frontend', 'pages'), ''))
+      console.log(`${driver} pages (routes in app/views/${routeFile(driver, language === 'typescript')}):`)
+      console.log(await listFiles(path.join(resolveViewsDir(baseDir), 'pages'), ''))
       return
     }
     console.log(await listFiles(path.join(baseDir, 'app', 'pages'), '.tyx'))
@@ -335,7 +335,7 @@ export async function tinker({ evalCode = null } = {}) {
 
     console.log('')
     if (hosted) {
-      console.log(`Pages: a ${driver} app; its routes are in app/frontend/${routeFile(driver, language === 'typescript')}.`)
+      console.log(`Pages: a ${driver} app; its routes are in app/views/${routeFile(driver, language === 'typescript')}.`)
       return
     }
     const pageFiles = await listFiles(path.join(baseDir, 'app', 'pages'), '.tyx')
@@ -450,7 +450,7 @@ Database
 
 Project
   features()            print each feature's feature.json
-  pages()               list page files (app/pages or app/frontend/pages)
+  pages()               list page files (app/pages or app/views/pages)
   config()              print the resolved config (secrets masked)
   env()                 print environment variables (secrets masked)
   mail()                show the mail driver and load mailer functions

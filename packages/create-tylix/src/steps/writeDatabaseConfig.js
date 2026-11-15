@@ -5,14 +5,14 @@ import path from 'node:path'
 // between machines or is secret (the database connection, the auth secret,
 // mail credentials) lives in .env and is not repeated here. Values set in
 // .env take priority over this file.
-const frontendBlock = (driver, label, { ssr = false } = {}) => `  // Pages are a ${label} app in app/frontend, served through Vite. Remove
+const frontendBlock = (driver, label, { ssr = false } = {}) => `  // Pages are a ${label} app in app/views, served through Vite. Remove
   // this block (or set driver: "tylix") for native .tyx pages.
   frontend: {
     driver: "${driver}",${
       ssr
         ? `
     // Server-side rendering: pages arrive as HTML with their data, then
-    // hydrate (app/frontend/entry-server). false = client rendering only.
+    // hydrate (app/views/entry-server). false = client rendering only.
     ssr: true,`
         : ''
     }
@@ -43,6 +43,23 @@ __FRONTEND__  auth: {
     // Refuse passwords found in public data breaches (Have I Been Pwned).
     checkBreachedPasswords: false,
   },
+  logging: {
+    // LOG_CHANNEL picks the channel; "stack" writes to every channel in
+    // LOG_STACK (default console,daily). Daily files are kept in
+    // storage/logs for LOG_DAILY_DAYS (14) days. Use them with
+    // Log.info(...), Log.channel("name").error(...) from @tylix/core.
+    channels: {
+      // payments: { driver: "daily", path: "storage/logs/payments.log", level: "warning" },
+    },
+  },
+  queue: {
+    // Defaults for every job; a job can set its own tries/backoff/timeout.
+    tries: 3,
+    backoff: "exponential",
+  },
+  // Plugins: packages, files, or plugin objects. Files in app/plugins/
+  // are loaded too.
+  plugins: [],
 });
 `
 
