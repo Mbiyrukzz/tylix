@@ -34,7 +34,7 @@ first feature. With Tylix they already work together.
 
 ---
 
-**Status: stable (2.0).** Tylix follows [semantic versioning](https://semver.org):
+**Status: stable (2.1).** Tylix follows [semantic versioning](https://semver.org):
 2.x releases add features and fix bugs without breaking your app; anything
 that would break it waits for 3.0. See the [changelog](CHANGELOG.md), and
 [Upgrading from 1.x](#upgrading-from-1x).
@@ -52,9 +52,12 @@ Requires Node.js 22.13 or later. The installer asks for:
 * Frontend: native Tylix, React, Vue, Svelte or Angular
 * JavaScript or TypeScript
 * SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB or MongoDB
-* Authentication
-* Styling (every project starts from the Starter App)
+* Styling: Tailwind CSS or plain CSS
 * Installable app (PWA), also `--pwa`
+
+Every app is the full Starter App (landing page, posts, dashboard) with
+authentication built in: login, registration, Google/GitHub sign-in, email
+verification and password reset.
 
 ---
 
@@ -546,6 +549,8 @@ Each folder has a README saying what goes there and which command makes it.
 | [`@tylix/orm`](packages/orm) | models and database adapters |
 | [`@tylix/shared`](packages/shared) | validation, settings, naming helpers |
 | [`@tylix/auth`](packages/auth) | authentication |
+| [`@tylix/permissions`](packages/permissions) | roles and permissions for any JS app: wildcards, inheritance, denies, teams |
+| [`@tylix/pwa`](packages/pwa) | installable, offline-ready PWAs for every frontend |
 | [`@tylix/mail`](packages/mail) | email |
 | [`@tylix/pdf`](packages/pdf) | PDF documents: tables, charts, QR codes, HTML, Unicode fonts; any JS runtime |
 | [`@tylix/excel`](packages/excel) | Excel (.xlsx) and CSV, writing and reading; any JS runtime |
@@ -578,6 +583,8 @@ Each folder has a README saying what goes there and which command makes it.
 * Static site generation
 * Plugin system
 * Deployment adapters
+* Roles and permissions (`@tylix/permissions`, `tylix make:permissions`)
+* Installable, offline-ready PWAs (`@tylix/pwa`, `tylix make:pwa`)
 
 ---
 
@@ -606,7 +613,8 @@ npx tylix make:queue-retries && npx tylix migrate                     # once: th
   or `app/types/api.d.ts` for native pages). Set `typedRoutes: false` in
   `tylix.config` to turn that off.
 * **create-tylix** has no Blank template; `--template blank` creates the
-  Starter App.
+  Starter App. Since 2.1 every app includes authentication and a database
+  (`--auth no` and `--database none` no longer apply).
 
 ---
 

@@ -2,7 +2,7 @@
 
 All Tylix packages share one version number and are released together.
 
-## Unreleased
+## 2.1.0
 
 ### Roles and permissions: `@tylix/permissions`
 - A new package for any JavaScript app, inspired by spatie/laravel-permission:
@@ -46,6 +46,16 @@ All Tylix packages share one version number and are released together.
   for `.tyx` apps, generated components for React, Vue, Svelte and
   Angular, and `usePwa()` / `injectPwa()` / a Svelte store.
 - Usable without Tylix: `manifest()`, `serviceWorker()`, `headTags()`.
+
+### create-tylix: authentication in every app
+- The installer no longer asks about authentication: every app is the full
+  Starter App with login, registration, Google/GitHub sign-in, email
+  verification, password reset, the dashboard and posts.
+- It asks instead whether to make an installable app (PWA); `--pwa` does
+  the same without the prompt.
+- **None** is gone from the database choices (authentication needs one);
+  `--database none` is refused with a message saying why. `--auth` still
+  parses so existing scripts run, and `--auth no` is ignored with a note.
 
 ### Loading screen
 - Pages the browser renders (every `.tyx` page, and React, Vue, Svelte or

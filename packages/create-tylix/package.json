@@ -1,6 +1,6 @@
 {
   "name": "create-tylix",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Create a new Tylix app: native Tylix, React, Vue, Svelte or Angular frontend on SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB or MongoDB, with auth, the Starter App and styling wired up.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -56,11 +56,11 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^2.0.0",
-    "@tylix/cli": "^2.0.0",
-    "@tylix/core": "^2.0.0",
-    "@tylix/generator": "^2.0.0",
-    "@tylix/shared": "^2.0.0"
+    "@tylix/auth": "^2.1.0",
+    "@tylix/cli": "^2.1.0",
+    "@tylix/core": "^2.1.0",
+    "@tylix/generator": "^2.1.0",
+    "@tylix/shared": "^2.1.0"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0"

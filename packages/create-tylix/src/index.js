@@ -18,9 +18,7 @@ const CHOICES = {
     cockroach: 'cockroach',
     cockroachdb: 'cockroach',
     mongodb: 'mongodb',
-    none: 'none',
   },
-  auth: { yes: true, no: false },
   styling: {
     tailwind: 'tailwind',
     'css-modules': 'css-modules',
@@ -65,6 +63,11 @@ function parseCli(argv) {
   const { values, positionals } = parsed
   const projectName = positionals[0]
 
+  // Checked before the generic validation so the error says why.
+  if (values.database === 'none') {
+    fail('Every project includes authentication, which needs a database. Use --database sqlite (or another).')
+  }
+
   const resolved = {}
   for (const [flag, map] of Object.entries(CHOICES)) {
     if (values[flag] === undefined) continue
@@ -83,15 +86,17 @@ function parseCli(argv) {
     if (values.template === 'blank') console.warn('Note: the Blank template was removed; creating the Starter App (delete the pages you do not need).')
   }
 
+  // --auth is kept so existing scripts still run; every project ships
+  // with authentication now (the Starter App needs it).
+  if (values.auth !== undefined) {
+    if (!['yes', 'no'].includes(values.auth)) fail(`Invalid --auth "${values.auth}". Authentication is always included; drop the flag.`)
+    if (values.auth === 'no') console.warn('Note: authentication is always included now; ignoring --auth no.')
+  }
+
   const nonInteractive = Boolean(values.yes)
   if (nonInteractive && !projectName) fail('--yes requires a project name.')
   if (resolved.frontend === 'angular' && resolved.language === 'javascript') {
     fail('Angular projects are TypeScript-only (components need decorators). Drop --language or use --language ts.')
-  }
-  if (resolved.auth === true && resolved.database === 'none') {
-    fail(
-      'Authentication needs a database. Use --database sqlite (or another) or --auth no.',
-    )
   }
 
   // Keys match the config object built in scaffold.js. Anything left
@@ -102,7 +107,6 @@ function parseCli(argv) {
     database: resolved.database,
     databaseUser: values['database-user'],
     databasePassword: values['database-password'],
-    authEnabled: resolved.auth,
     styling: resolved.styling,
     frontend: resolved.frontend,
     packageManager: resolved['package-manager'],

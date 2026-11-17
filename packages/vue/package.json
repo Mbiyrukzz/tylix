@@ -1,6 +1,6 @@
 {
   "name": "@tylix/vue",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Vue frontend for Tylix: auth and API composables, plus the Vite adapter the Tylix CLI loads.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -56,7 +56,7 @@
     "test": "node --test src/*.test.js"
   },
   "dependencies": {
-    "@tylix/client": "^2.0.0"
+    "@tylix/client": "^2.1.0"
   },
   "peerDependencies": {
     "vue": "^3.4.0"

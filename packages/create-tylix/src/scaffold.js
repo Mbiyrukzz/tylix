@@ -58,7 +58,6 @@ const DATABASE_LABELS = {
   mariadb: 'MariaDB',
   cockroach: 'CockroachDB',
   mongodb: 'MongoDB',
-  none: 'None',
 }
 
 const FRONTEND_LABELS = { tylix: 'Tylix', react: 'React', svelte: 'Svelte', vue: 'Vue', angular: 'Angular' }
@@ -68,7 +67,6 @@ const DEFAULTS = {
   frontend: 'tylix',
   language: 'typescript',
   database: 'sqlite',
-  authEnabled: true,
   styling: 'plain-css',
   packageManager: 'npm',
   gitInit: true,
@@ -145,7 +143,6 @@ async function runWizard(initialProjectName, options = {}) {
           { label: 'MariaDB', value: 'mariadb', hint: 'Open-source MySQL fork' },
           { label: 'CockroachDB', value: 'cockroach', hint: 'Distributed SQL, PostgreSQL compatible' },
           { label: 'MongoDB', value: 'mongodb', hint: 'Document database' },
-          { label: 'None', value: 'none', hint: "I'll configure later" },
         ],
       }),
   )
@@ -198,17 +195,10 @@ async function runWizard(initialProjectName, options = {}) {
     )
   }
 
-  const authEnabled = await resolve(
-    options.authEnabled,
-    DEFAULTS.authEnabled,
-    () => confirm({ message: 'Authentication' }),
-  )
-
-  if (authEnabled && database === 'none') {
-    throw new Error(
-      'Authentication needs a database. Choose a database or disable authentication.',
-    )
-  }
+  // Every project is a full Starter App, so authentication (login,
+  // register, dashboard, posts) is always included. The steps still read
+  // config.authEnabled, so it stays on the config.
+  const authEnabled = true
 
   const styling = await resolve(options.styling, DEFAULTS.styling, () =>
     select({
@@ -264,9 +254,7 @@ async function runWizard(initialProjectName, options = {}) {
   if (databaseUser) {
     console.log(`Database User     ${accent(databaseUser)}`)
   }
-  console.log(
-    `Authentication    ${authEnabled ? green('Enabled') : dim('Disabled')}`,
-  )
+  console.log(`Authentication    ${green('Included')}`)
   console.log(`Styling           ${accent(styling)}`)
   console.log(`PWA               ${pwa ? green('Yes') : dim('No')}`)
   console.log(`Package Manager   ${accent(packageManager)}`)

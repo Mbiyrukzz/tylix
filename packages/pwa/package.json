@@ -1,6 +1,6 @@
 {
   "name": "@tylix/pwa",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Make any web app an installable, offline-ready PWA: web manifest, a generated service worker with safe caching strategies, update and install prompts, and React, Vue, Svelte and Angular helpers. Built into Tylix with pwa: true. No dependencies.",
   "license": "MIT",
   "author": "Mbiyrukzz",

@@ -1,6 +1,6 @@
 {
   "name": "@tylix/core",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The Tylix server core: HTTP server and router, Laravel-style log channels, metrics and health checks, a shared store (memory, database, Redis), cache, rate limiting, a queue with retries and backoff, scheduler, channels and plugins.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -50,9 +50,9 @@
     "test": "node --test 'src/**/*.test.js'"
   },
   "dependencies": {
-    "@tylix/auth": "^2.0.0",
-    "@tylix/orm": "^2.0.0",
-    "@tylix/shared": "^2.0.0",
+    "@tylix/auth": "^2.1.0",
+    "@tylix/orm": "^2.1.0",
+    "@tylix/shared": "^2.1.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {

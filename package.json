@@ -1,6 +1,6 @@
 {
   "name": "tylix-monorepo",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "Tylix: a full-stack JavaScript framework with its own .tyx pages or React, Vue, Svelte and Angular frontends, built-in auth, ORM and migrations for six databases, queues with retries, channels, log channels, plugins, static export and deployment adapters.",
   "license": "MIT",

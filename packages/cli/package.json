@@ -1,6 +1,6 @@
 {
   "name": "@tylix/cli",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "The Tylix command line: dev server, production server with workers, builds, migrations with rollbacks, generators, queue and channel workers, typed API client, static export, deployment adapters, plugins, logs, tinker and doctor.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -57,13 +57,13 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/auth": "^2.0.0",
-    "@tylix/compiler": "^2.0.0",
-    "@tylix/core": "^2.0.0",
-    "@tylix/generator": "^2.0.0",
-    "@tylix/mail": "^2.0.0",
-    "@tylix/orm": "^2.0.0",
-    "@tylix/pwa": "^2.0.0",
-    "@tylix/shared": "^2.0.0"
+    "@tylix/auth": "^2.1.0",
+    "@tylix/compiler": "^2.1.0",
+    "@tylix/core": "^2.1.0",
+    "@tylix/generator": "^2.1.0",
+    "@tylix/mail": "^2.1.0",
+    "@tylix/orm": "^2.1.0",
+    "@tylix/pwa": "^2.1.0",
+    "@tylix/shared": "^2.1.0"
   }
 }

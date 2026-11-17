@@ -13,17 +13,21 @@ The installer asks for:
 - **Frontend**: native Tylix (`.tyx` pages), React, Vue, Svelte or Angular
 - **Language**: JavaScript or TypeScript (Angular is TypeScript)
 - **Database**: SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB or MongoDB
-- **Authentication**: login, registration, email verification and password reset
-- **Styling**, plus the Starter App (landing page, posts, dashboard) in every project
+- **Styling**: Tailwind CSS or plain CSS
+- **PWA**: whether to make it an installable, offline-ready app
+
+Every project is the full Starter App (landing page, posts, dashboard) with
+authentication built in: login, registration, Google/GitHub sign-in, email
+verification and password reset.
 
 Before anything is written it shows the choices and waits on
 **Create project** (Enter) or **Cancel**.
 
 Non-interactive (`--database` takes `sqlite`, `postgres`, `mysql`,
-`mariadb`, `cockroach`, `mongodb` or `none`):
+`mariadb`, `cockroach` or `mongodb`; add `--pwa` for an installable app):
 
 ```sh
-npx create-tylix@latest my-app --yes --frontend react --language ts --database sqlite --auth yes
+npx create-tylix@latest my-app --yes --frontend react --language ts --database sqlite --pwa
 ```
 
 Every app gets the same backend layout (`app/controllers`, `models`,

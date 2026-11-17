@@ -2,7 +2,7 @@
   "name": "tyx-language",
   "displayName": "Tylix (.tyx) — Language, Themes & Icons",
   "description": "Tylix .tyx support: highlighting, live errors and type checking, completion, hover, go to definition, snippets, Tylix Dark/Light themes and Tylix file and folder icons.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "publisher": "tylix",
   "license": "MIT",
