@@ -55,6 +55,7 @@ function parseCli(argv) {
         'package-manager': { type: 'string' },
         'no-git': { type: 'boolean' },
         'no-install': { type: 'boolean' },
+        pwa: { type: 'boolean' },
       },
     })
   } catch (err) {
@@ -107,6 +108,7 @@ function parseCli(argv) {
     packageManager: resolved['package-manager'],
     gitInit: values['no-git'] ? false : undefined,
     installNow: values['no-install'] ? false : undefined,
+    pwa: values.pwa ? true : undefined,
   }
 
   return { projectName, options }

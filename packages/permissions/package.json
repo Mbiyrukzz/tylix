@@ -1,0 +1,101 @@
+{
+  "name": "@tylix/permissions",
+  "version": "2.0.0",
+  "description": "Roles and permissions for any JavaScript app: wildcards, role inheritance, denies, teams, expiring grants, resource rules, a browser snapshot, HTTP guards, and React, Vue, Svelte and Angular helpers. No dependencies.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "type": "module",
+  "keywords": [
+    "permissions",
+    "roles",
+    "rbac",
+    "acl",
+    "authorization",
+    "spatie",
+    "react",
+    "vue",
+    "svelte",
+    "angular",
+    "tylix"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/permissions#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/permissions"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./client": {
+      "types": "./src/client.d.ts",
+      "default": "./src/client.js"
+    },
+    "./schema": {
+      "types": "./src/schema.d.ts",
+      "default": "./src/schema.js"
+    },
+    "./react": {
+      "types": "./src/react.d.ts",
+      "default": "./src/react.js"
+    },
+    "./vue": {
+      "types": "./src/vue.d.ts",
+      "default": "./src/vue.js"
+    },
+    "./svelte": {
+      "types": "./src/svelte.d.ts",
+      "default": "./src/svelte.js"
+    },
+    "./angular": {
+      "types": "./src/angular.d.ts",
+      "default": "./src/angular.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "src",
+    "!**/*.test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=17.0.0",
+    "react": ">=18.0.0",
+    "vue": ">=3.3.0",
+    "@angular/router": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/core": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "@angular/router": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@tylix/orm": "^2.0.0"
+  }
+}

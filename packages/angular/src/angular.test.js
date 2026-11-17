@@ -191,3 +191,17 @@ test('provideAppErrorHandler keeps unhandled errors in a signal until cleared', 
     errorApp.destroy()
   }
 })
+
+test('the adapter bundles @tylix/angular into the server build with Angular', async () => {
+  // Left external, Node loads @tylix/angular/server with its own
+  // @angular/core and server rendering fails with NG0201.
+  const { default: adapter } = await import('./adapter.js')
+  const noExternal = adapter.viteConfig.ssr.noExternal
+  const bundled = (id) => noExternal.some((pattern) => pattern.test(id))
+  for (const id of ['@angular/core', '@angular/platform-server', '@tylix/angular', '@tylix/angular/server', '@tylix/permissions/angular', '@tylix/pwa/angular', 'tylix-icons/angular']) {
+    assert.ok(bundled(id), `${id} should be bundled`)
+  }
+  assert.ok(!bundled('@tylix/angularx'))
+  assert.ok(!bundled('@tylix/client'))
+  assert.ok(!bundled('@tylix/pwa'))
+})

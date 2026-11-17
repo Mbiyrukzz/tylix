@@ -30,6 +30,8 @@ import {
   createFrontendHost,
   resolveFrontendDriver,
 } from '../frontend/frontendHost.js'
+import { hasAppPermissions, loadAppPermissions, withAccess } from './permissions.js'
+import { createPwa } from './pwa.js'
 import {
   createInternalFetch,
   createSessionResolver,
@@ -249,9 +251,12 @@ async function registerAuthRoutes(router, baseDir, authConfig, mailConfig, appUr
   router.post('/api/auth/reset-password', (req, res) =>
     controller.resetPassword(req, res),
   )
+  // With roles and permissions (app/permissions), the user carries its
+  // access snapshot for can() and hasRole() in the browser.
+  const appPermissions = await loadAppPermissions(baseDir)
   router.get(
     '/api/me',
-    requireAuth((req, res) => controller.me(req, res), authConfig.secret),
+    requireAuth(withAccess(appPermissions, (req, res) => controller.me(req, res)), authConfig.secret),
   )
   if (has('resendVerification')) {
     router.post('/api/auth/resend-verification', (req, res) =>
@@ -587,7 +592,7 @@ function pickNotFound(found, urlPath) {
 async function registerPageRoutes(
   router,
   baseDir,
-  { hotReloadCompiler, production, compilerOptions, loadingBar = true, channelsPort = 6001 },
+  { hotReloadCompiler, production, compilerOptions, loadingBar = true, channelsPort = 6001, permissionsEnforced = false, extraHead = '', loadingScreen = true },
 ) {
   const pagesDir = path.join(baseDir, 'app', 'pages')
   if (!(await pathExists(pagesDir))) {
@@ -773,6 +778,9 @@ async function registerPageRoutes(
           stylesheets: prepared.stylesheets,
           language: compilerOptions,
           loadingBar,
+          permissionsEnforced,
+          extraHead,
+          loadingScreen,
         },
       )
       return { html: production ? html : injectHmrScript(html), ok: true }
@@ -992,6 +1000,11 @@ export async function createApp(
   recorder.setSource('plugin')
   await plugins.runWith('routes', (plugin) => [recorded, pluginContext(plugin)])
 
+  // Installable app and offline support (pwa in tylix.config): the
+  // manifest and service worker, before any page can claim those paths.
+  const pwa = frontend ? await createPwa(baseDir, config, { production }) : null
+  pwa?.routes(router)
+
   // frontend.driver in tylix.config picks who renders pages. "tylix" (the
   // default, and what every existing project gets) is the native .tyx
   // compiler. Anything else is a hosted frontend served through Vite.
@@ -1016,6 +1029,9 @@ export async function createApp(
         compilerOptions,
         loadingBar: config.loadingBar !== false,
         channelsPort: config.channels.port,
+        permissionsEnforced: await hasAppPermissions(baseDir),
+        extraHead: pwa?.head ?? '',
+        loadingScreen: config.loadingScreen !== false,
       },
     ))
   } else {
@@ -1023,6 +1039,7 @@ export async function createApp(
       driver: frontendDriver,
       production,
       config,
+      extraHead: pwa?.head ?? '',
     })
   }
 

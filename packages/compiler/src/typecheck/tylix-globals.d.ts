@@ -95,3 +95,25 @@ declare function notFound(): void
 
 // Capability names used in page scripts compile to this call.
 declare function resolveCapability(name: string): any
+// The PWA runtime (pwa in tylix.config). Undefined on apps without it.
+interface TylixPwaState {
+  supported: boolean
+  registered: boolean
+  offlineReady: boolean
+  updateAvailable: boolean
+  installable: boolean
+  installed: boolean
+  online: boolean
+  error: string | null
+}
+interface TylixPwa {
+  readonly state: TylixPwaState
+  subscribe(fn: (state: TylixPwaState) => void): () => void
+  install(): Promise<'accepted' | 'dismissed' | 'unavailable'>
+  update(): boolean
+  dismissUpdate(): void
+  dismissOfflineReady(): void
+}
+interface Window {
+  __TYLIX_PWA__?: TylixPwa
+}

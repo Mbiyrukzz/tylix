@@ -145,6 +145,8 @@ const PUBLISHED_VERSIONS = {
   '@tylix/svelte': '^2.0.0',
   '@tylix/vue': '^2.0.0',
   '@tylix/angular': '^2.0.0',
+  '@tylix/pwa': '^2.0.0',
+  '@tylix/permissions': '^2.0.0',
 }
 
 // Package name -> folder under packages/. Used for file: links and for
@@ -168,6 +170,8 @@ const LOCAL_PACKAGE_DIRS = {
   '@tylix/svelte': 'svelte',
   '@tylix/vue': 'vue',
   '@tylix/angular': 'angular',
+  '@tylix/pwa': 'pwa',
+  '@tylix/permissions': 'permissions',
 }
 
 // What each hosted frontend adds to package.json. `tylix` packages are
@@ -781,6 +785,9 @@ export async function createProjectStructure(config) {
     }
     if (config.authEnabled) {
       dependencies['@tylix/auth'] = pkgSpec('@tylix/auth')
+    }
+    if (config.pwa) {
+      dependencies['@tylix/pwa'] = pkgSpec('@tylix/pwa')
     }
     if (hosted) {
       for (const name of hostedFrontend.tylix) {

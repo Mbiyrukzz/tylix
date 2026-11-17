@@ -40,6 +40,9 @@ import { listPlugins, runPluginCommand } from './commands/plugins.js'
 import { routesTypes } from './commands/routesTypes.js'
 import { exportStatic } from './commands/exportStatic.js'
 import { deployInit } from './commands/deployInit.js'
+import { makePermissions } from './commands/makePermissions.js'
+import { makePwa } from './commands/makePwa.js'
+import { permissionCommand, PERMISSION_COMMANDS } from './commands/permission.js'
 
 const projectRoot = process.cwd()
 if (existsSync(path.join(projectRoot, 'tsconfig.json'))) {
@@ -191,6 +194,21 @@ async function main() {
 
   if (command === 'list:features') {
     await listFeatures()
+    return
+  }
+
+  if (command === 'make:pwa') {
+    await makePwa()
+    return
+  }
+
+  if (command === 'make:permissions') {
+    await makePermissions()
+    return
+  }
+
+  if (PERMISSION_COMMANDS.includes(command)) {
+    await permissionCommand(command, rest)
     return
   }
 
@@ -441,7 +459,7 @@ async function main() {
     console.error(`Unknown command: ${command}`)
     if (pluginCommands.length) console.error(`Plugin commands: ${pluginCommands.join(', ')}`)
     console.error(
-      `Available commands: dev, build, start, check, migrate, migrate:status, migrate:rollback, migrate:reset, migrate:refresh, migrate:fresh, db:seed, make:auth, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, queue:failed, queue:retry, queue:flush, make:queue-retries, channels:work, log:tail, log:clear, routes:types, export, deploy:init, plugins, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
+      `Available commands: dev, build, start, check, migrate, migrate:status, migrate:rollback, migrate:reset, migrate:refresh, migrate:fresh, db:seed, make:auth, make:permissions, make:pwa, permission:create-role, permission:create-permission, permission:assign, permission:revoke, permission:show, permission:sync, make:page, make:capability, make:component, make:validator, make:service, make:job, make:observer, make:trait, make:mail, make:pdf, make:export, make:api, make:channel, make:icon, field:add, field:remove, schedule:work, queue:work, queue:failed, queue:retry, queue:flush, make:queue-retries, channels:work, log:tail, log:clear, routes:types, export, deploy:init, plugins, tinker, doctor, remove:feature, list:features, ${Object.keys(COMMANDS).join(', ')}`,
     )
     process.exit(1)
   }

@@ -326,6 +326,20 @@ textarea.tx-input { resize: vertical; min-height: 6rem; }
 .tx-alert-success { color: rgb(var(--tx-mint)); background: rgb(var(--tx-mint) / 0.08); border-color: rgb(var(--tx-mint) / 0.35); }
 .tx-alert-info { color: rgb(var(--tx-link)); background: rgb(var(--tx-brand) / 0.08); border-color: rgb(var(--tx-brand) / 0.35); }
 
+/* ── Loader ─────────────────────────────────────────────────────────── */
+/* The Tylix mark, lit stroke by stroke: the same animation as the page
+   loading screen. Fades in after 150ms, so quick waits never flash it.
+   <div class="tx-loader" role="status" aria-label="Loading"><svg class="tx-loader-mark">...</svg></div> */
+
+.tx-loader { display: flex; align-items: center; justify-content: center; padding: 8rem 1.5rem; opacity: 0; animation: tx-loader-in 0.25s ease 0.15s forwards; }
+.tx-loader-mark { width: 44px; height: auto; overflow: visible; }
+.tx-loader-mark path { fill: rgb(var(--tx-brand)); opacity: 0.18; animation: tx-loader-stroke 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.tx-loader-mark .tx-loader-s2 { animation-delay: 0.15s; }
+.tx-loader-mark .tx-loader-s3 { animation-delay: 0.3s; }
+@keyframes tx-loader-in { to { opacity: 1; } }
+@keyframes tx-loader-stroke { 0%, 100% { opacity: 0.18; transform: translateX(-6px); } 35%, 60% { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tx-loader-mark path { animation: none; opacity: 1; transform: none; } }
+
 .tx-badge {
   display: inline-flex;
   align-items: center;

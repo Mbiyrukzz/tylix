@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Mbiyrukzz/tylix/main/packages/auth/logo.png" alt="Tylix Auth" width="160">
+</p>
+
 # @tylix/auth
 
 Authentication for **any JavaScript framework**: Next.js, Nuxt, SvelteKit,

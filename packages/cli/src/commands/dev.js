@@ -118,7 +118,8 @@ function printRouteGroup(title, routes) {
   if (routes.length === 0) return
   printGroup(title)
   for (const route of routes) {
-    printRoute(route.method, route.pattern, route.auth ? '🔒 auth' : '')
+    const notes = [route.auth ? '🔒 auth' : '', ...(route.permissions ?? []).map((p) => `🔑 ${p}`)]
+    printRoute(route.method, route.pattern, notes.filter(Boolean).join('  '))
   }
 }
 

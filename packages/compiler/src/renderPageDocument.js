@@ -16,6 +16,7 @@ import {
   declaredNames,
 } from './codegen/generateStatement.js'
 import { substituteCapabilityRefs } from './ast/substituteCapabilityRefs.js'
+import { loadingScreenHtml } from './loadingScreen.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RUNTIME_SOURCE = fs
@@ -38,6 +39,10 @@ const USE_CHANNEL_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'useChannel.js'), 'utf-8')
   .replace(/export\s+/g, '')
 
+const PERMISSIONS_SOURCE = fs
+  .readFileSync(path.join(__dirname, 'runtime', 'permissions.js'), 'utf-8')
+  .replace(/export\s+/g, '')
+
 const NOT_FOUND_SOURCE = fs
   .readFileSync(path.join(__dirname, 'runtime', 'notFound.js'), 'utf-8')
   .replace(/export\s+/g, '')
@@ -58,6 +63,13 @@ function __tylixExpose(instance, cls, meta) {
   var helpers = cls && cls.__helpers;
   if (helpers) {
     for (var key of Object.keys(helpers)) instance[key] = helpers[key];
+  }
+  // can(), cannot(), canAny(), hasRole() for templates (runtime/permissions.js),
+  // unless the class defines a member with that name itself.
+  if (typeof __tylixPermissionHelpers !== "undefined") {
+    for (var name of Object.keys(__tylixPermissionHelpers)) {
+      if (!(name in instance)) instance[name] = __tylixPermissionHelpers[name];
+    }
   }
   var hook = __tylixHook();
   if (hook && hook.register) {
@@ -282,7 +294,7 @@ function compileComponentSource(source, fallbackClassName, language) {
   const isNativeComponent = /^\s*component\s+\w+/.test(source)
 
   if (isNativeComponent) {
-    const { script, template } = parseComponentFile(source)
+    const { script, template, style } = parseComponentFile(source)
     const pageNode = substituteCapabilityRefs(
       script.trim().length > 0
         ? new Parser(new Lexer(script).tokenize(), language).parse()
@@ -297,7 +309,7 @@ function compileComponentSource(source, fallbackClassName, language) {
     const templateNodes = parseTemplate(template, language)
     const { code, rootVar } = generateTemplate(templateNodes)
 
-    return { classSource, code, rootVar, className: fallbackClassName }
+    return { classSource, code, rootVar, className: fallbackClassName, style: style ?? '' }
   }
 
   const { script, template } = parseComponent(source)
@@ -374,6 +386,15 @@ export async function renderPageDocument(
     // false turns off the built-in top loading bar. A project loading page
     // (app/loading.tyx) also replaces it.
     loadingBar = true,
+    // true when the app has roles and permissions (app/permissions), so a
+    // page's `permissions` block is enforced. Otherwise it is a no-op.
+    permissionsEnforced = false,
+    // Extra tags for <head> from the server (the PWA manifest and worker
+    // registration), before the project's own head.html.
+    extraHead = '',
+    // The full-page loading screen shown until the page first renders
+    // (see loadingScreen.js). false turns it off.
+    loadingScreen = true,
   } = {},
 ) {
   // createApp already has a variable called `language` that holds
@@ -430,6 +451,7 @@ export async function renderPageDocument(
   const loadingSource = await loadLoadingPage(loadingFile)
   let loadingClassSource = ''
   let loadingMountCode = ''
+  let loadingCompiledStyle = ''
   if (loadingSource !== null) {
     let loadingCompiled
     try {
@@ -443,6 +465,7 @@ export async function renderPageDocument(
       throw err
     }
     loadingClassSource = loadingCompiled.classSource
+    loadingCompiledStyle = loadingCompiled.style ?? ''
     loadingMountCode = `
     try {
       const loadingInstance = __tylixExpose(new ${loadingCompiled.className}({ loading: __tylixLoading }), ${loadingCompiled.className}, { kind: "loading", name: "Loading" });
@@ -507,6 +530,7 @@ ${childCode}
     .join('\n\n')
 
   let layoutClassSource = ''
+  let layoutCompiledStyle = ''
   let layoutMountCode = `document.getElementById("app").appendChild(${rootVar});`
 
   if (layout !== null) {
@@ -518,6 +542,7 @@ ${childCode}
       throw err
     }
     layoutClassSource = layoutCompiled.classSource
+    layoutCompiledStyle = layoutCompiled.style ?? ''
     layoutMountCode = `
     const layoutInstance = __tylixExpose(new ${layoutCompiled.className}(), ${layoutCompiled.className}, { kind: "layout", name: "Layout" });
     if (typeof layoutInstance.__ready === "function") {
@@ -551,6 +576,13 @@ ${layoutCompiled.code}
       ? `<script>window.__TYLIX_CHANNELS_PORT__ = ${JSON.stringify(channelsPort)};</script>`
       : ''
 
+  // The page's `permissions` block, checked once the page's needs are
+  // ready and before anything renders.
+  const requiredPermissions = (pageNode.permissions ?? []).map((p) => p.name)
+  const pagePermissionsCheck = requiredPermissions.length
+    ? `    if (!(await __tylixPagePermitted(${JSON.stringify(requiredPermissions)}, ${permissionsEnforced === true}))) return;`
+    : ''
+
   // If __ready() rejects (a failed needs/prefetch call), log it and keep
   // going so the page still renders, instead of showing a blank screen.
   const inlineScript = `
@@ -569,6 +601,8 @@ ${LOADING_INDICATOR_SOURCE}
 ${USE_API_SOURCE}
 
 ${NOT_FOUND_SOURCE}
+
+${PERMISSIONS_SOURCE}
 
 ${USE_CHANNEL_SOURCE}
 
@@ -595,6 +629,7 @@ ${loadingMountCode}
         console.error("ready failed:", err);
       }
     }
+${pagePermissionsCheck}
 ${code}
     __tylixAttach(instance, ${rootVar});
 ${layoutMountCode}
@@ -609,7 +644,12 @@ ${layoutMountCode}
 });
 `
 
-  const styleTag = style.trim().length > 0 ? `<style>\n${style}\n</style>` : ''
+  // The page's own style section, then each native component's (layout,
+  // loading page and children), once each.
+  const componentStyles = [layoutCompiledStyle, loadingCompiledStyle, ...compiledChildren.map((c) => c.style)]
+    .filter((css) => css && css.trim().length > 0)
+  const allStyles = [style, ...new Set(componentStyles)].filter((css) => css && css.trim().length > 0).join('\n\n')
+  const styleTag = allStyles.length > 0 ? `<style>\n${allStyles}\n</style>` : ''
 
   const styleLinks = stylesheets
     .map((href) => `<link rel="stylesheet" href="${href}">`)
@@ -622,6 +662,7 @@ ${layoutMountCode}
     { name: 'loading indicator', code: LOADING_INDICATOR_SOURCE },
     { name: 'useApi', code: USE_API_SOURCE },
     { name: 'notFound', code: NOT_FOUND_SOURCE },
+    { name: 'permissions', code: PERMISSIONS_SOURCE },
     { name: 'useChannel', code: USE_CHANNEL_SOURCE },
     { name: 'app/useApi helpers', code: apiHelpers },
     { name: 'page class', code: classSource },
@@ -674,14 +715,16 @@ ${layoutMountCode}
 
   const values = {
     title: escapeHtml(pageNode.title ?? pageName),
-    head: [channelsPortScript, themeScript, styleLinks, headTags, styleTag]
+    head: [channelsPortScript, themeScript, styleLinks, extraHead, headTags, styleTag]
       .filter((part) => part && part.length > 0)
       .join('\n  '),
-    body: `<div id="app"></div>\n  <script>${safeScript}</script>`,
+    body: `${loadingScreen ? loadingScreenHtml({ root: '#app' }) + '\n  ' : ''}<div id="app"></div>\n  <script>${safeScript}</script>`,
   }
 
   // One pass with a function replacer, so a "$&" or a placeholder-looking
   // string inside the generated script is never treated as a pattern or
   // substituted a second time.
-  return shell.replace(/%tylix\.(title|head|body)%/g, (_, key) => values[key])
+  // HTML comments are left alone, so a note like "scripts go before
+  // %tylix.head%" in app/index.html doesn't get a second copy of the head.
+  return shell.replace(/<!--[\s\S]*?-->|%tylix\.(title|head|body)%/g, (match, key) => (key ? values[key] : match))
 }

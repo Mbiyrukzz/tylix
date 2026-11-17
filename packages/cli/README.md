@@ -46,6 +46,9 @@ npm install -D @tylix/cli    # new apps from create-tylix already have it
 | `tylix make:trait HasSlug` | reusable model behaviour (`use(Model, HasSlug)`) |
 | `tylix make:channel chat` | a channel and a demo page |
 | `tylix make:mail Welcome`, `make:auth`, `make:icon` | mail, auth, icons |
+| `tylix make:permissions` | roles and permissions: models, migration, seeder, admin API and the `/admin/access` page |
+| `tylix permission:create-role`, `permission:create-permission`, `permission:assign`, `permission:revoke`, `permission:show`, `permission:sync` | manage roles from the terminal |
+| `tylix make:pwa` | an installable, offline-ready app: icons, offline page, `pwa` config and an update/install prompt |
 | `tylix field:add` / `field:remove` | change a feature's fields with a migration |
 
 Fields take modifiers after their type: `slug:string:unique`,

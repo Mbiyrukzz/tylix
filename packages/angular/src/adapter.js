@@ -41,8 +41,18 @@ export default {
   // without the JIT compiler. The same goes for any Angular component
   // library, like tylix-icons/angular; add others to frontend.vite in
   // tylix.config (ssr.noExternal).
+  //
+  // @tylix/angular is bundled for a second reason. Its server entry imports
+  // @angular/platform-server and defines InjectionTokens (TYLIX_SERVER).
+  // Left external, Node loads it from node_modules with its own copy of
+  // @angular/core, separate from the bundled one the app uses. Every token
+  // then exists twice, and server rendering fails with NG0201 ("No provider
+  // found for PlatformDestroyListeners"). Linked checkouts never showed
+  // this, because Vite inlines packages that resolve outside node_modules.
+  // The Angular entry points of @tylix/permissions and @tylix/pwa use
+  // tokens and inject() too, so they are bundled for the same reason.
   viteConfig: {
-    ssr: { noExternal: [/^@angular\//, /^tylix-icons\/angular/] },
+    ssr: { noExternal: [/^@angular\//, /^@tylix\/angular(\/|$)/, /^@tylix\/(permissions|pwa)\/angular$/, /^tylix-icons\/angular/] },
   },
 
   // Server-side rendering (frontend.ssr: true): app/views/entry-server

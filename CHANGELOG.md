@@ -2,6 +2,74 @@
 
 All Tylix packages share one version number and are released together.
 
+## Unreleased
+
+### Roles and permissions: `@tylix/permissions`
+- A new package for any JavaScript app, inspired by spatie/laravel-permission:
+  roles, permissions and direct grants, plus built-in wildcards
+  (`posts.*`, `posts.edit,delete`, `*`), role inheritance, explicit denies
+  (`!posts.delete`, `deny()`) that beat any allow, teams on every
+  assignment, grants that expire, default roles for every signed-in user,
+  resource rules (`can(user, 'posts.update', post)`), a declarative
+  `sync()`, and a shared-cache option for several processes.
+- Stores: memory, the Tylix ORM (six tables, `createPermissionTables`), or
+  your own (eight methods).
+- `user.access` snapshots checked synchronously in the browser with the
+  server's matching, with helpers for React (`<Can>`, `useCan`), Vue
+  (`v-can`, `$can`, `useCan`), Svelte (`abilityStore`, `use:can`) and
+  Angular (`injectCan`, `permissionGuard`).
+- HTTP guards: `permissions.middleware()` for Tylix, Express and Connect,
+  `guard()` around a handler, `guardRequest()` for web `Request` frameworks.
+- `tylix make:permissions` writes the instance and starting roles, `Role`
+  and `Permission` models, the migration, a seeder, an admin API and, for
+  `.tyx` apps, an admin page at `/admin/access` with modals to create
+  roles and permissions and give users roles. Changes that would remove
+  your own access are refused and rolled back.
+- `tylix permission:create-role`, `permission:create-permission`,
+  `permission:assign`, `permission:revoke`, `permission:show` (a role ×
+  permission matrix) and `permission:sync`.
+- With `app/permissions`, `GET /api/me` and the SSR session carry
+  `user.access`; `.tyx` templates get `can()`, `cannot()`, `canAny()` and
+  `hasRole()`, and a page's `permissions` block is enforced (login for
+  guests, a 403 panel for others). `tylix dev` marks guarded routes with 🔑.
+
+### Progressive web apps: `@tylix/pwa`
+- `pwa` in `tylix.config` (or `tylix make:pwa`) makes any Tylix app
+  installable and usable offline, for `.tyx` pages and React, Vue, Svelte
+  and Angular alike: Tylix serves `/manifest.webmanifest` and a generated
+  `/sw.js`, and adds the tags to every page.
+- The worker precaches `public/` and the built bundle, never caches pages
+  by default (they can hold a signed-in user's data), never touches the
+  API, and serves an offline page. Each deploy is a new version that open
+  pages offer to switch to. In development it removes itself.
+- Install and update prompts: a `Pwa` capability and `PwaPrompt` component
+  for `.tyx` apps, generated components for React, Vue, Svelte and
+  Angular, and `usePwa()` / `injectPwa()` / a Svelte store.
+- Usable without Tylix: `manifest()`, `serviceWorker()`, `headTags()`.
+
+### Loading screen
+- Pages the browser renders (every `.tyx` page, and React, Vue, Svelte or
+  Angular pages that aren't server-rendered) show a loading screen until
+  they first render: the Tylix mark lit stroke by stroke over a progress
+  track, in the app's theme colours, light and dark. It only appears after
+  150ms, and `loadingScreen: false` in `tylix.config` turns it off.
+- `.tx-loader` in tylix-ui.css: the same mark as an in-page loader, used by
+  the starter apps while a guarded page waits for the session (React and
+  Svelte's `PageLoading`, and now Vue and Angular's first navigation too).
+
+### Fixes
+- Angular: server rendering failed with `NG0201: No provider found for
+  PlatformDestroyListeners` in apps installed from npm. `@tylix/angular`
+  was loaded by Node with its own copy of `@angular/core`; it is now
+  bundled into the server build with Angular itself.
+- Native components' `style` sections were dropped; they now reach the page.
+- `public/*.html` files are served as HTML (they were downloads).
+- `%tylix.head%` inside an HTML comment in `app/index.html` no longer gets
+  a second copy of the head.
+
+### Logos
+- `@tylix/auth`, `@tylix/excel` and `@tylix/pdf` have logos in their READMEs.
+
 ## 2.0.0
 
 Tylix 2 is stable. Apps made with 1.x keep running: see

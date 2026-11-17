@@ -1,0 +1,93 @@
+{
+  "name": "@tylix/pwa",
+  "version": "2.0.0",
+  "description": "Make any web app an installable, offline-ready PWA: web manifest, a generated service worker with safe caching strategies, update and install prompts, and React, Vue, Svelte and Angular helpers. Built into Tylix with pwa: true. No dependencies.",
+  "license": "MIT",
+  "author": "Mbiyrukzz",
+  "type": "module",
+  "keywords": [
+    "pwa",
+    "progressive-web-app",
+    "service-worker",
+    "offline",
+    "manifest",
+    "install",
+    "react",
+    "vue",
+    "svelte",
+    "angular",
+    "tylix"
+  ],
+  "homepage": "https://github.com/Mbiyrukzz/tylix/tree/main/packages/pwa#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mbiyrukzz/tylix.git",
+    "directory": "packages/pwa"
+  },
+  "bugs": {
+    "url": "https://github.com/Mbiyrukzz/tylix/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./client": {
+      "types": "./src/client.d.ts",
+      "default": "./src/client.js"
+    },
+    "./react": {
+      "types": "./src/react.d.ts",
+      "default": "./src/react.js"
+    },
+    "./vue": {
+      "types": "./src/vue.d.ts",
+      "default": "./src/vue.js"
+    },
+    "./svelte": {
+      "types": "./src/svelte.d.ts",
+      "default": "./src/svelte.js"
+    },
+    "./angular": {
+      "types": "./src/angular.d.ts",
+      "default": "./src/angular.js"
+    },
+    "./assets/*": "./assets/*",
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "src",
+    "assets",
+    "!**/*.test.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=17.0.0",
+    "react": ">=18.0.0",
+    "vue": ">=3.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@angular/core": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  }
+}

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Mbiyrukzz/tylix/main/packages/excel/logo.png" alt="Tylix Excel" width="360">
+</p>
+
 # @tylix/excel
 
 Excel files from your data, and your data from Excel files. Write a

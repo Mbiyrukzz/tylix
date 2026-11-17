@@ -28,6 +28,7 @@ import {
 } from './utils/packageManager.js'
 import { createProjectStructure } from './steps/createProjectStructure.js'
 import { installPackages } from './steps/installPackages.js'
+import { generatePwa } from './steps/generatePwa.js'
 import { writeStylingConfig } from './steps/writeStylingConfig.js'
 import { writeCompilerConfig } from './steps/writeCompilerConfig.js'
 import { writeOrmConfig } from './steps/writeOrmConfig.js'
@@ -72,6 +73,7 @@ const DEFAULTS = {
   packageManager: 'npm',
   gitInit: true,
   installNow: true,
+  pwa: false,
 }
 
 async function runWizard(initialProjectName, options = {}) {
@@ -218,6 +220,11 @@ async function runWizard(initialProjectName, options = {}) {
     }),
   )
 
+  // An installable, offline-ready app (tylix make:pwa after install).
+  const pwa = await resolve(options.pwa, DEFAULTS.pwa, () =>
+    confirm({ message: 'Installable app (PWA)?', initial: false }),
+  )
+
   // Every project starts from the Starter App (landing page, posts,
   // dashboard): deleting pages is quicker than writing them.
   const starter = 'starter'
@@ -261,6 +268,7 @@ async function runWizard(initialProjectName, options = {}) {
     `Authentication    ${authEnabled ? green('Enabled') : dim('Disabled')}`,
   )
   console.log(`Styling           ${accent(styling)}`)
+  console.log(`PWA               ${pwa ? green('Yes') : dim('No')}`)
   console.log(`Package Manager   ${accent(packageManager)}`)
   console.log(`Git               ${gitInit ? green('Yes') : dim('No')}`)
   printDivider(54)
@@ -295,6 +303,7 @@ async function runWizard(initialProjectName, options = {}) {
     packageManager,
     gitInit,
     installNow,
+    pwa,
   }
 }
 
@@ -413,6 +422,14 @@ async function runBuildSteps(config) {
         },
       },
     )
+  }
+  if (config.pwa) {
+    steps.push({
+      label: 'Making it an installable app (PWA)',
+      fn: () => generatePwa(config),
+      optional: true,
+      warningMessage: `The PWA was not set up. Run "cd ${config.projectName} && ${execCommand(pm, 'tylix make:pwa')}".`,
+    })
   }
   // Marked optional: a bad password or an unreachable database server
   // shouldn't abort the whole scaffold. The project is still fully

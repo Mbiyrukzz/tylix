@@ -7,6 +7,7 @@ export const MIME_TYPES = {
   '.json': 'application/json',
   '.map': 'application/json',
   '.webmanifest': 'application/manifest+json',
+  '.html': 'text/html; charset=utf-8',
   '.txt': 'text/plain',
   '.xml': 'application/xml',
   '.pdf': 'application/pdf',

@@ -1,3 +1,4 @@
+import { loadingScreenHtml } from '@tylix/compiler'
 import fs from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
@@ -76,8 +77,9 @@ function ssrEnabled(config, adapter) {
 // rendered: SSR off, or a render that failed. Usually nothing (the outlet
 // sits inside the root element), but Angular renders <app-root> itself, so
 // its outlet replaces that element and the fallback puts it back.
-async function renderDocument(template, { render, url, session, load, onRenderError, fallback = '', channelsPort }) {
+async function renderDocument(template, { render, url, session, load, onRenderError, fallback = '', channelsPort, extraHead = '', loadingScreen = true }) {
   let html = template.replace(SSR_OUTLET, fallback)
+  let rendered = false
   let status = 200
   let renderError = null
   if (render) {
@@ -90,11 +92,20 @@ async function renderDocument(template, { render, url, session, load, onRenderEr
       if (out?.head) html = html.replace('</head>', `${out.head}</head>`)
       html = injectServerRender(html, out?.data ?? {})
       status = out?.status ?? 200
+      rendered = true
     } catch (err) {
       onRenderError?.(err)
       console.error(`[tylix] Server rendering failed for ${url}; sending the client-rendered page instead.`, err)
       renderError = err
     }
+  }
+  // PWA tags and such, from the server.
+  if (extraHead) html = html.includes('</head>') ? html.replace('</head>', `${extraHead}\n</head>`) : extraHead + html
+  // A page the browser renders from scratch shows the loading screen
+  // until its root element fills; a server-rendered one has content already.
+  if (!rendered && loadingScreen) {
+    const screen = loadingScreenHtml({ root: '#root, #app, app-root' })
+    html = /<body[^>]*>/i.test(html) ? html.replace(/<body[^>]*>/i, (open) => `${open}\n  ${screen}`) : screen + html
   }
   return { html: injectChannelsPort(injectSession(html, session), channelsPort), status, renderError }
 }
@@ -311,6 +322,8 @@ async function createDevHost(baseDir, options) {
           load,
           fallback: options.adapter.ssrFallback,
           channelsPort: options.channelsPort,
+          extraHead: options.extraHead,
+          loadingScreen: options.loadingScreen,
           onRenderError: (err) => server.ssrFixStacktrace(err),
         })
         if (result.renderError) result.html = injectSsrErrorOverlay(result.html, result.renderError)
@@ -361,7 +374,7 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 }
 
-async function createProductionHost(baseDir, { ssr = false, fallback = '', channelsPort } = {}) {
+async function createProductionHost(baseDir, { ssr = false, fallback = '', channelsPort, extraHead = '', loadingScreen = true } = {}) {
   const outDir = path.join(baseDir, BUILD_DIR)
   const indexFile = path.join(outDir, 'index.html')
   let html
@@ -420,7 +433,7 @@ async function createProductionHost(baseDir, { ssr = false, fallback = '', chann
       return true
     },
     async serveHtml(req, res, { session = null, load } = {}) {
-      sendDocument(res, await renderDocument(html, { render, url: req.url, session, load, fallback, channelsPort }))
+      sendDocument(res, await renderDocument(html, { render, url: req.url, session, load, fallback, channelsPort, extraHead, loadingScreen }))
     },
     ssr: Boolean(render),
     reload() {},
@@ -428,14 +441,17 @@ async function createProductionHost(baseDir, { ssr = false, fallback = '', chann
   }
 }
 
-export async function createFrontendHost(baseDir, { driver, production, config }) {
+export async function createFrontendHost(baseDir, { driver, production, config, extraHead = '' }) {
   const { adapter, importFromProject } = await loadFrontendAdapter(baseDir, driver)
   const ssr = ssrEnabled(config, adapter)
   const channelsPort = config?.channels?.port
+  const loadingScreen = config?.loadingScreen !== false
   const host = production
-    ? await createProductionHost(baseDir, { ssr, fallback: adapter.ssrFallback, channelsPort })
+    ? await createProductionHost(baseDir, { ssr, fallback: adapter.ssrFallback, channelsPort, extraHead, loadingScreen })
     : await createDevHost(baseDir, {
         channelsPort,
+        extraHead,
+        loadingScreen,
         adapter,
         importFromProject,
         userVite: config?.frontend?.vite,

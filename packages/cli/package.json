@@ -63,6 +63,7 @@
     "@tylix/generator": "^2.0.0",
     "@tylix/mail": "^2.0.0",
     "@tylix/orm": "^2.0.0",
+    "@tylix/pwa": "^2.0.0",
     "@tylix/shared": "^2.0.0"
   }
 }

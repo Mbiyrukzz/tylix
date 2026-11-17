@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Mbiyrukzz/tylix/main/packages/pdf/logo.png" alt="Tylix PDF" width="360">
+</p>
+
 # @tylix/pdf
 
 PDF documents from plain JavaScript objects. You describe the content,

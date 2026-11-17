@@ -17,6 +17,9 @@ first feature. With Tylix they already work together.
 * ⚡ Reactive `.tyx` compiler, or React, Vue, Svelte and Angular
 * 🖥️ Server-side rendering for every frontend
 * 🔐 Authentication: sessions, email verification, password reset
+* 🛡️ Roles and permissions for any JS framework: wildcards, inheritance, denies, teams, an admin page (`tylix make:permissions`)
+* 📲 Installable, offline-ready PWAs for every frontend (`tylix make:pwa`)
+* ⏳ A branded loading screen while pages start, in light and dark
 * 🗄️ ORM for SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB and MongoDB, with observers and traits
 * 🧱 Migrations with indexes, foreign keys, column changes and rollbacks
 * ✅ Validation shared by the API and the browser
@@ -51,6 +54,7 @@ Requires Node.js 22.13 or later. The installer asks for:
 * SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB or MongoDB
 * Authentication
 * Styling (every project starts from the Starter App)
+* Installable app (PWA), also `--pwa`
 
 ---
 

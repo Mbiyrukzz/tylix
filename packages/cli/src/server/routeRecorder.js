@@ -5,12 +5,20 @@
 // requireAuth (or the auth() helpers built on it) carries it. Symbol.for
 // gives the same symbol in every package without an import.
 const AUTH_MARK = Symbol.for('tylix.requireAuth')
+// Set by @tylix/permissions guards to what they require ("posts.edit").
+const PERMISSION_MARK = Symbol.for('tylix.permission')
 const VERBS = ['get', 'post', 'put', 'patch', 'delete']
 
 function isGuarded(handlers) {
   return handlers.some(
     (handler) => typeof handler === 'function' && handler[AUTH_MARK] === true,
   )
+}
+
+function requiredPermissions(handlers) {
+  return handlers
+    .filter((handler) => typeof handler === 'function' && typeof handler[PERMISSION_MARK] === 'string')
+    .map((handler) => handler[PERMISSION_MARK])
 }
 
 // "/api/authors/:id" and "/api/authors/:authorId" match the same URLs,
@@ -45,6 +53,7 @@ export function createRouteRecorder(router) {
       method: upper,
       pattern,
       auth: isGuarded(handlers),
+      permissions: requiredPermissions(handlers),
       source,
     })
   }
