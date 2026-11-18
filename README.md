@@ -19,7 +19,7 @@ first feature. With Tylix they already work together.
 * 🔐 Authentication: sessions, email verification, password reset
 * 🛡️ Roles and permissions for any JS framework: wildcards, inheritance, denies, teams, an admin page (`tylix make:permissions`)
 * 📲 Installable, offline-ready PWAs for every frontend (`tylix make:pwa`)
-* ⏳ A branded loading screen while pages start, in light and dark
+* ⏳ A branded loading screen while pages start, and a `PageLoading` indicator on every page that waits for data, in light and dark
 * 🗄️ ORM for SQLite, PostgreSQL, MySQL, MariaDB, CockroachDB and MongoDB, with observers and traits
 * 🧱 Migrations with indexes, foreign keys, column changes and rollbacks
 * ✅ Validation shared by the API and the browser
@@ -112,12 +112,20 @@ render:
 
 ```jsx
 import { usePublicPosts } from '../providers/PostsProvider'
+import PageLoading from '../components/PageLoading'
 
 export default function Posts() {
   const { posts, loading } = usePublicPosts()
-  return loading ? <p>Loading…</p> : posts.map((post) => <p key={post.id}>{post.title}</p>)
+  if (loading) return <PageLoading compact label="Loading posts" />
+  return posts.map((post) => <p key={post.id}>{post.title}</p>)
 }
 ```
+
+`PageLoading` comes with every React, Vue, Svelte and Angular starter
+(`<PageLoading />`, `<app-page-loading />` in Angular): the Tylix mark,
+lit stroke by stroke, in light and dark. It waits 150ms before showing, so
+fast loads never flash it. `label` adds a caption; `compact` sizes it for
+one section instead of a whole page.
 
 ---
 

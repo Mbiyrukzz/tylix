@@ -1,6 +1,6 @@
 {
   "name": "@tylix/orm",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "The Tylix ORM: models with observers and traits, a query builder, a schema builder for migrations (indexes, foreign keys, column changes), and adapters for SQLite, PostgreSQL, CockroachDB, MySQL, MariaDB and MongoDB.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -48,7 +48,7 @@
     "test": "node --test 'src/**/*.test.js'"
   },
   "dependencies": {
-    "@tylix/shared": "^2.1.0",
+    "@tylix/shared": "^2.1.1",
     "mongodb": "^6.5.0",
     "mysql2": "^3.23.1",
     "pg": "^8.11.0"

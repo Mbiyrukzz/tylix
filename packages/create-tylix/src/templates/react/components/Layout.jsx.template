@@ -124,17 +124,6 @@ function Navbar() {
   )
 }
 
-// Shown while the session is checked before a guarded page. The Tylix
-// mark, lit stroke by stroke (.tx-loader in tylix-ui.css), like the
-// loading screen the whole page shows while it starts.
-export function PageLoading() {
-  return (
-    <div className="tx-loader" role="status" aria-label="Loading">
-      <svg className="tx-loader-mark" viewBox="0 0 552 366" aria-hidden="true"><path className="tx-loader-s1" d="M0 96 74 22Q96 0 120 0H552L482 77Q462 96 436 96Z"/><path className="tx-loader-s2" d="M34 366 148 151Q160 127 190 127H290L163 366Z"/><path className="tx-loader-s3" d="M218 339 294 192Q304 171 334 171H442L378 264Q368 277 353 283Z"/></svg>
-    </div>
-  )
-}
-
 export default function Layout() {
   // A page that throws while rendering shows ErrorPage instead of a blank
   // screen. Keyed on the URL, so going to another page clears the error.

@@ -3,6 +3,7 @@
   import { useHydrated, useSession } from '@tylix/svelte'
   // @if posts
   import { useMyPosts } from '../providers/posts'
+  import PageLoading from '../components/PageLoading.svelte'
   // @endif
 
   // The request's state during SSR, the browser's otherwise.
@@ -15,17 +16,41 @@
 
   let title = $state('')
   let body = $state('')
+  let coverImage = $state('')
   let error = $state('')
   let saving = $state(false)
+  let uploading = $state(false)
+
+  // Uploads the picked image straight away; the post sends its URL.
+  // @if ts
+  async function pickImage(event: Event & { currentTarget: HTMLInputElement }) {
+  // @endif
+  // @if !ts
+  async function pickImage(event) {
+  // @endif
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+    uploading = true
+    error = ''
+    const uploaded = await posts.uploadImage(file)
+    uploading = false
+    if (uploaded.error) {
+      error = uploaded.error
+      return
+    }
+    coverImage = uploaded.url ?? ''
+  }
 
   async function create() {
-    if (saving) return
+    if (saving || uploading) return
     if (!title.trim() || !body.trim()) {
       error = 'Give the post a title and some text.'
       return
     }
     saving = true
-    const problem = await posts.create({ title: title.trim(), body: body.trim() })
+    const problem = await posts.create({ title: title.trim(), body: body.trim(), cover_image: coverImage || null })
     saving = false
     if (problem) {
       error = problem
@@ -34,6 +59,7 @@
     error = ''
     title = ''
     body = ''
+    coverImage = ''
   }
 
   // @if ts
@@ -102,9 +128,36 @@
         bind:value={body}
         class="tx-input mb-3"
       ></textarea>
+      {#if coverImage}
+        <div class="relative mb-3">
+          <img src={coverImage} alt="Cover preview" class="w-full aspect-video object-cover rounded-lg border border-line" />
+          <button
+            type="button"
+            onclick={() => (coverImage = '')}
+            class="absolute top-2 right-2 text-xs font-medium px-2.5 py-1 rounded-lg bg-panel/90 border border-line"
+          >
+            Remove
+          </button>
+        </div>
+      {:else}
+        <label class="block mb-3">
+          <span class="text-xs text-muted">Cover image (optional, PNG, JPEG, WebP or GIF, up to 2 MB)</span>
+          <input
+            type="file"
+            name="cover_image"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onchange={pickImage}
+            disabled={uploading || !$hydrated}
+            class="block w-full text-sm text-muted mt-1"
+          />
+        </label>
+      {/if}
+      {#if uploading}
+        <p class="text-xs text-muted mb-3">Uploading…</p>
+      {/if}
       <button
         type="submit"
-        disabled={saving || !$hydrated}
+        disabled={saving || uploading || !$hydrated}
         class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Publish post'}
@@ -112,14 +165,17 @@
     </form>
 
     {#if $posts.loading && $posts.posts.length === 0}
-      <p class="text-sm text-muted">Loading posts…</p>
+      <PageLoading compact label="Loading posts" />
     {:else if $posts.error}
       <p class="text-sm text-coral">{$posts.error}</p>
     {:else if $posts.posts.length > 0}
       <ul class="space-y-3" data-testid="posts">
         {#each $posts.posts as post (post.id)}
           <li class="{cardClass} flex items-start justify-between gap-4">
-            <div>
+            {#if post.cover_image}
+              <img src={post.cover_image} alt="" class="w-20 h-14 object-cover rounded-lg border border-line shrink-0" />
+            {/if}
+            <div class="flex-1 min-w-0">
               <p class="font-semibold">{post.title}</p>
               <p class="text-sm text-muted mt-1 whitespace-pre-line">{post.body}</p>
             </div>

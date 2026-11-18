@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { usePublicPosts } from '../providers/PostsProvider'
+import PageLoading from '../components/PageLoading'
 
 // A fixed locale and time zone: with SSR, a date must read the same on the
 // server and in the visitor's browser, or hydration fails.
@@ -13,7 +14,7 @@ export default function Posts() {
     <div className="max-w-3xl mx-auto px-6 py-12">
       <h1 className="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
       {loading && posts.length === 0 ? (
-        <p className="text-sm text-muted">Loading posts…</p>
+        <PageLoading compact label="Loading posts" />
       ) : error ? (
         <p className="text-sm text-coral">{error}</p>
       ) : posts.length > 0 ? (

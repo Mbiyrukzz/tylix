@@ -126,6 +126,8 @@ function createMyPosts() {
     reload: result.reload,
     create,
     remove,
+    // Saves a cover image: { url } or { error }.
+    uploadImage: postsService.uploadImage,
   }
 }
 // @if ts

@@ -3,7 +3,7 @@ import { ActivatedRoute } from '@angular/router'
 import { toSignal } from '@angular/core/rxjs-interop'
 import { injectApi } from '@tylix/angular'
 import { postUrls, postsService } from '../services/posts'
-import type { Post, PostInput, PublicPost, PublicPostDetail } from '../services/posts'
+import type { Post, PostInput, PublicPost, PublicPostDetail, UploadResult } from '../services/posts'
 
 // Post data for the pages, as signals. A page lists the store it needs in
 // its own providers and injects it:
@@ -72,5 +72,10 @@ export class MyPostsStore {
     if (!removed.ok) return removed.error ?? 'Could not delete the post.'
     await this.result.reload()
     return null
+  }
+
+  // Saves a cover image: { url } to send as cover_image, or { error }.
+  uploadImage(file: File): Promise<UploadResult> {
+    return postsService.uploadImage(file)
   }
 }

@@ -1,5 +1,6 @@
 <script setup__LANG__>
 import { usePost } from '../providers/posts'
+import PageLoading from '../components/PageLoading.vue'
 
 // The post for this URL's :id (providers/posts).
 const { post, notFound, loading, error } = usePost()
@@ -11,7 +12,7 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZ
 <template>
   <article class="max-w-3xl mx-auto px-6 py-12">
     <RouterLink to="/posts" class="text-sm tx-link">← All posts</RouterLink>
-    <p v-if="loading && !post" class="text-sm text-muted mt-8">Loading…</p>
+    <PageLoading v-if="loading && !post" label="Loading post" />
     <div v-else-if="notFound" class="mt-8">
       <h1 class="text-2xl font-semibold">Post not found</h1>
       <p class="text-sm text-muted mt-2">It may have been deleted.</p>

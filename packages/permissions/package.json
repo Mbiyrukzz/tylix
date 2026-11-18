@@ -1,6 +1,6 @@
 {
   "name": "@tylix/permissions",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Roles and permissions for any JavaScript app: wildcards, role inheritance, denies, teams, expiring grants, resource rules, a browser snapshot, HTTP guards, and React, Vue, Svelte and Angular helpers. No dependencies.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -96,6 +96,6 @@
     }
   },
   "devDependencies": {
-    "@tylix/orm": "^2.1.0"
+    "@tylix/orm": "^2.1.1"
   }
 }

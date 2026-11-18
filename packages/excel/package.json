@@ -1,6 +1,6 @@
 {
   "name": "@tylix/excel",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Excel (.xlsx) and CSV for any JavaScript runtime: write styled sheets from objects in one call, read workbooks back into objects, formats, formulas, totals, tables, filters, dropdowns, conditional formatting, images and print setup. No dependencies.",
   "license": "MIT",
   "author": "Mbiyrukzz",

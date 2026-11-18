@@ -1,6 +1,6 @@
 {
   "name": "@tylix/shared",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Shared Tylix utilities: validation that runs on the server and in the browser, config and .env loading, migration schema types, field parsing and naming helpers.",
   "license": "MIT",
   "author": "Mbiyrukzz",

@@ -44,16 +44,18 @@ function maskConfig(node, key = '') {
 }
 
 
-async function listFiles(dir, ext) {
+// Every file under `dir` ending in `ext`, as paths relative to `dir`
+// (posts/[id].tyx, not just [id].tyx).
+async function listFiles(dir, ext, root = dir) {
   if (!(await pathExists(dir))) return []
   const entries = await fs.readdir(dir, { withFileTypes: true })
   const results = []
   for (const entry of entries) {
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
-      results.push(...(await listFiles(full, ext)))
+      results.push(...(await listFiles(full, ext, root)))
     } else if (entry.name.endsWith(ext)) {
-      results.push(path.relative(dir, full))
+      results.push(path.relative(root, full))
     }
   }
   return results
@@ -195,13 +197,21 @@ export async function tinker({ evalCode = null } = {}) {
   const servicesDir = path.join(baseDir, 'app', 'services')
   const context = {}
 
+  // The REPL gets a copy of `context` when it starts; helpers that read or
+  // add names use scope() so they work both there and in --eval, where
+  // there is no REPL and `context` itself is the scope.
+  let replServer = null
+  const scope = () => replServer?.context ?? context
+
   await loadModels(modelsDir, ext, context)
   const serviceNames = await loadModels(servicesDir, ext, context)
 
+  // Reads values through descriptors: the REPL context also holds Node
+  // globals whose getters throw when read off it (crypto, for one).
   const modelNames = () =>
-    Object.keys(replServer?.context ?? context).filter(
-      (k) => (replServer?.context ?? context)[k]?.getTable,
-    )
+    Object.entries(Object.getOwnPropertyDescriptors(scope()))
+      .filter(([, desc]) => typeof desc.value?.getTable === 'function')
+      .map(([name]) => name)
 
   context.migrate = migrate
   context.cache = cache
@@ -251,13 +261,13 @@ export async function tinker({ evalCode = null } = {}) {
 
   context.models = () => {
     for (const name of modelNames()) {
-      const table = tableOf(replServer.context[name])
+      const table = tableOf(scope()[name])
       console.log(`  ${name}${table ? `  →  ${table}` : ''}`)
     }
   }
 
   context.reload = async () => {
-    const loaded = await loadModels(modelsDir, ext, replServer.context, true)
+    const loaded = await loadModels(modelsDir, ext, scope(), true)
     console.log(`Reloaded: ${loaded.join(', ') || '(no models found)'}`)
   }
 
@@ -372,10 +382,8 @@ export async function tinker({ evalCode = null } = {}) {
     console.log(`Mailer: app/mail/mailer.${ext}`)
     console.log(`Functions: ${available.join(', ') || '(none found)'}`)
 
-    // The REPL got a copy of `context` at startup, so new names have to be
-    // added to the REPL's own context to be callable.
     for (const fn of available) {
-      replServer.context[fn] = mod[fn]
+      scope()[fn] = mod[fn]
     }
   }
 
@@ -482,7 +490,7 @@ REPL
     }${serviceNames.length ? `\nServices loaded: ${serviceNames.join(', ')}` : ''}\n`,
   )
 
-  const replServer = repl.start({
+  replServer = repl.start({
     prompt: 'tylix> ',
     useGlobal: false,
     ignoreUndefined: true,
@@ -520,17 +528,18 @@ const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 
 // tylix tinker --eval: runs `code` with tinker's helpers in scope. An
 // expression's value is printed; statements just run. await is implicit.
+// Names are looked up in `context` as the code runs (a `with` block; code
+// built by AsyncFunction is sloppy mode), so names a helper adds, such as
+// the mailer functions mail() loads, are callable on the following lines.
 async function runEval(code, context) {
-  const names = Object.keys(context)
-  const values = names.map((name) => context[name])
   let fn
   try {
-    fn = new AsyncFunction(...names, `return (${code}\n)`)
+    fn = new AsyncFunction('__tinker', `with (__tinker) { return (${code}\n) }`)
   } catch {
-    fn = new AsyncFunction(...names, code)
+    fn = new AsyncFunction('__tinker', `with (__tinker) {\n${code}\n}`)
   }
   try {
-    const result = await fn(...values)
+    const result = await fn(context)
     if (result !== undefined) {
       console.log(inspect(result, { colors: process.stdout.isTTY, depth: 6, maxArrayLength: 100, breakLength: 100 }))
     }

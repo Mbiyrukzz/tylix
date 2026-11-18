@@ -1,4 +1,5 @@
 import { useMailLog } from '../providers/MailLogProvider'
+import PageLoading from '../components/PageLoading'
 
 // A fixed locale and time zone: with SSR, a date must read the same on the
 // server and in the visitor's browser, or hydration fails.
@@ -26,7 +27,7 @@ export default function DevMail() {
       <p className="text-sm text-muted mb-8">The last 50 mails, newest first. Only available in development.</p>
 
       {loading && mails.length === 0 ? (
-        <p className="text-sm text-muted">Loading…</p>
+        <PageLoading compact label="Loading mail" />
       ) : error ? (
         <p className="text-sm text-coral">{error}</p>
       ) : mails.length === 0 ? (

@@ -1,6 +1,6 @@
 {
   "name": "@tylix/generator",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Code generators for Tylix: models, migrations (with indexes, defaults and NOT NULL), controllers, validators and full CRUD features from a blueprint.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -42,7 +42,7 @@
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
-    "@tylix/shared": "^2.1.0"
+    "@tylix/shared": "^2.1.1"
   },
   "devDependencies": {
     "jsdom": "^29.1.1"

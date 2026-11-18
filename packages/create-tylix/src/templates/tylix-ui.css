@@ -329,10 +329,15 @@ textarea.tx-input { resize: vertical; min-height: 6rem; }
 /* ── Loader ─────────────────────────────────────────────────────────── */
 /* The Tylix mark, lit stroke by stroke: the same animation as the page
    loading screen. Fades in after 150ms, so quick waits never flash it.
-   <div class="tx-loader" role="status" aria-label="Loading"><svg class="tx-loader-mark">...</svg></div> */
+   <div class="tx-loader" role="status" aria-label="Loading"><svg class="tx-loader-mark">...</svg></div>
+   Add a <span class="tx-loader-label"> for a caption, and .tx-loader-sm for
+   a section of a page (a list still loading) rather than the whole page. */
 
-.tx-loader { display: flex; align-items: center; justify-content: center; padding: 8rem 1.5rem; opacity: 0; animation: tx-loader-in 0.25s ease 0.15s forwards; }
+.tx-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.875rem; padding: 8rem 1.5rem; opacity: 0; animation: tx-loader-in 0.25s ease 0.15s forwards; }
 .tx-loader-mark { width: 44px; height: auto; overflow: visible; }
+.tx-loader-label { font-size: 0.8125rem; color: rgb(var(--tx-muted)); }
+.tx-loader-sm { padding: 2.5rem 1rem; gap: 0.625rem; }
+.tx-loader-sm .tx-loader-mark { width: 30px; }
 .tx-loader-mark path { fill: rgb(var(--tx-brand)); opacity: 0.18; animation: tx-loader-stroke 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
 .tx-loader-mark .tx-loader-s2 { animation-delay: 0.15s; }
 .tx-loader-mark .tx-loader-s3 { animation-delay: 0.3s; }

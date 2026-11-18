@@ -1,5 +1,6 @@
 <script__LANG__>
   import { usePublicPosts } from '../providers/posts'
+  import PageLoading from '../components/PageLoading.svelte'
 
   // Everyone's posts, newest first (providers/posts).
   const posts = usePublicPosts()
@@ -11,7 +12,7 @@
 <div class="max-w-3xl mx-auto px-6 py-12">
   <h1 class="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
   {#if $posts.loading && $posts.posts.length === 0}
-    <p class="text-sm text-muted">Loading posts…</p>
+    <PageLoading compact label="Loading posts" />
   {:else if $posts.error}
     <p class="text-sm text-coral">{$posts.error}</p>
   {:else if $posts.posts.length > 0}

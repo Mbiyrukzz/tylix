@@ -4,24 +4,54 @@ import { useAuth, useHydrated } from '@tylix/vue'
 // @if posts
 import { ref } from 'vue'
 import { useMyPosts } from '../providers/posts'
+import PageLoading from '../components/PageLoading.vue'
 
 // Your posts (providers/posts): the list plus create and remove, which
 // reload it. Only the logged-in user's posts.
-const { posts, loading: postsLoading, error: postsError, create: createPost, remove: removePost } = useMyPosts()
+const { posts, loading: postsLoading, error: postsError, create: createPost, remove: removePost, uploadImage } = useMyPosts()
 
 const title = ref('')
 const body = ref('')
+const coverImage = ref('')
 const error = ref('')
 const saving = ref(false)
+const uploading = ref(false)
+
+// Uploads the picked image straight away; the post sends its URL.
+// @if ts
+async function pickImage(event: Event) {
+  const input = event.target as HTMLInputElement
+// @endif
+// @if !ts
+async function pickImage(event) {
+  const input = event.target
+// @endif
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  uploading.value = true
+  error.value = ''
+  const uploaded = await uploadImage(file)
+  uploading.value = false
+  if (uploaded.error) {
+    error.value = uploaded.error
+    return
+  }
+  coverImage.value = uploaded.url ?? ''
+}
 
 async function create() {
-  if (saving.value) return
+  if (saving.value || uploading.value) return
   if (!title.value.trim() || !body.value.trim()) {
     error.value = 'Give the post a title and some text.'
     return
   }
   saving.value = true
-  const problem = await createPost({ title: title.value.trim(), body: body.value.trim() })
+  const problem = await createPost({
+    title: title.value.trim(),
+    body: body.value.trim(),
+    cover_image: coverImage.value || null,
+  })
   saving.value = false
   if (problem) {
     error.value = problem
@@ -30,6 +60,7 @@ async function create() {
   error.value = ''
   title.value = ''
   body.value = ''
+  coverImage.value = ''
 }
 
 // @if ts
@@ -92,20 +123,43 @@ const hydrated = useHydrated()
           rows="3"
           class="tx-input mb-3"
         ></textarea>
+        <div v-if="coverImage" class="relative mb-3">
+          <img :src="coverImage" alt="Cover preview" class="w-full aspect-video object-cover rounded-lg border border-line" />
+          <button
+            type="button"
+            class="absolute top-2 right-2 text-xs font-medium px-2.5 py-1 rounded-lg bg-panel/90 border border-line"
+            @click="coverImage = ''"
+          >
+            Remove
+          </button>
+        </div>
+        <label v-else class="block mb-3">
+          <span class="text-xs text-muted">Cover image (optional, PNG, JPEG, WebP or GIF, up to 2 MB)</span>
+          <input
+            type="file"
+            name="cover_image"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            :disabled="uploading || !hydrated"
+            class="block w-full text-sm text-muted mt-1"
+            @change="pickImage"
+          />
+        </label>
+        <p v-if="uploading" class="text-xs text-muted mb-3">Uploading…</p>
         <button
           type="submit"
-          :disabled="saving || !hydrated"
+          :disabled="saving || uploading || !hydrated"
           class="px-4 py-2 rounded-lg bg-brand text-white text-sm font-semibold hover:bg-brand-hover transition-colors disabled:opacity-50"
         >
           {{ saving ? 'Saving…' : 'Publish post' }}
         </button>
       </form>
 
-      <p v-if="postsLoading && posts.length === 0" class="text-sm text-muted">Loading posts…</p>
+      <PageLoading v-if="postsLoading && posts.length === 0" compact label="Loading posts" />
       <p v-else-if="postsError" class="text-sm text-coral">{{ postsError }}</p>
       <ul v-else-if="posts.length > 0" class="space-y-3" data-testid="posts">
         <li v-for="post in posts" :key="post.id" :class="[cardClass, 'flex items-start justify-between gap-4']">
-          <div>
+          <img v-if="post.cover_image" :src="post.cover_image" alt="" class="w-20 h-14 object-cover rounded-lg border border-line shrink-0" />
+          <div class="flex-1 min-w-0">
             <p class="font-semibold">{{ post.title }}</p>
             <p class="text-sm text-muted mt-1 whitespace-pre-line">{{ post.body }}</p>
           </div>

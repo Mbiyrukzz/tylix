@@ -1,5 +1,6 @@
 <script__LANG__>
   import { useMailLog } from '../providers/mail'
+  import PageLoading from '../components/PageLoading.svelte'
 
   // Development only (App.svelte registers this route when
   // import.meta.env.DEV is true, and the API behind it doesn't exist in
@@ -39,7 +40,7 @@
   <p class="text-sm text-muted mb-8">The last 50 mails, newest first. Only available in development.</p>
 
   {#if $logs.loading && mails.length === 0}
-    <p class="text-sm text-muted">Loading…</p>
+    <PageLoading compact label="Loading mail" />
   {:else if $logs.error}
     <p class="text-sm text-coral">{$logs.error}</p>
   {:else if mails.length === 0}

@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { usePost } from '../providers/PostsProvider'
+import PageLoading from '../components/PageLoading'
 
 // A fixed locale and time zone: with SSR, a date must read the same on the
 // server and in the visitor's browser, or hydration fails.
@@ -15,7 +16,7 @@ export default function PostDetail() {
         ← All posts
       </Link>
       {loading && !post ? (
-        <p className="text-sm text-muted mt-8">Loading…</p>
+        <PageLoading label="Loading post" />
       ) : notFound ? (
         <div className="mt-8">
           <h1 className="text-2xl font-semibold">Post not found</h1>

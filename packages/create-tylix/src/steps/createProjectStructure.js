@@ -129,24 +129,24 @@ declare function notFound(): void
 // the monorepo (e.g. someone ran `npx create-tylix` after installing
 // it from the registry). Bump these as real versions get published.
 const PUBLISHED_VERSIONS = {
-  '@tylix/cli': '^2.1.0',
-  '@tylix/core': '^2.1.0',
-  '@tylix/compiler': '^2.1.0',
-  '@tylix/generator': '^2.1.0',
-  '@tylix/orm': '^2.1.0',
-  '@tylix/shared': '^2.1.0',
-  '@tylix/auth': '^2.1.0',
-  '@tylix/mail': '^2.1.0',
-  '@tylix/pdf': '^2.1.0',
-  '@tylix/excel': '^2.1.0',
-  'tylix-icons': '^2.1.0',
-  '@tylix/client': '^2.1.0',
-  '@tylix/react': '^2.1.0',
-  '@tylix/svelte': '^2.1.0',
-  '@tylix/vue': '^2.1.0',
-  '@tylix/angular': '^2.1.0',
-  '@tylix/pwa': '^2.1.0',
-  '@tylix/permissions': '^2.1.0',
+  '@tylix/cli': '^2.1.1',
+  '@tylix/core': '^2.1.1',
+  '@tylix/compiler': '^2.1.1',
+  '@tylix/generator': '^2.1.1',
+  '@tylix/orm': '^2.1.1',
+  '@tylix/shared': '^2.1.1',
+  '@tylix/auth': '^2.1.1',
+  '@tylix/mail': '^2.1.1',
+  '@tylix/pdf': '^2.1.1',
+  '@tylix/excel': '^2.1.1',
+  'tylix-icons': '^2.1.1',
+  '@tylix/client': '^2.1.1',
+  '@tylix/react': '^2.1.1',
+  '@tylix/svelte': '^2.1.1',
+  '@tylix/vue': '^2.1.1',
+  '@tylix/angular': '^2.1.1',
+  '@tylix/pwa': '^2.1.1',
+  '@tylix/permissions': '^2.1.1',
 }
 
 // Package name -> folder under packages/. Used for file: links and for
@@ -276,11 +276,14 @@ const TRUST_PROXY_ENV_LINES = [
 ]
 
 // Shared by .env and .env.example. Requests with a bigger body get a 413.
-// Uploads (receipts, images) need this raised. Read by Server in @tylix/core.
+// Read by Server in @tylix/core (whose own fallback is 1 MB). The starter's
+// POST /api/uploads sends images up to 2 MB as base64 JSON, which is about
+// a third bigger (~2.8 MB), so 1 MB would refuse most photos.
 const MAX_BODY_ENV_LINES = [
-  `# Largest request body the server accepts, in bytes (1048576 = 1 MB).`,
-  `# Bigger requests get a 413 response. Raise it if your app accepts uploads.`,
-  `MAX_BODY_BYTES=1048576`,
+  `# Largest request body the server accepts, in bytes (4194304 = 4 MB).`,
+  `# Bigger requests get a 413 response. Image uploads (up to 2 MB) are sent`,
+  `# as base64, about a third bigger, so keep this above 3 MB if you use them.`,
+  `MAX_BODY_BYTES=4194304`,
 ]
 
 function buildDebugEnvLines(value) {

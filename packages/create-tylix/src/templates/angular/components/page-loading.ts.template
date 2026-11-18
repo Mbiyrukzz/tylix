@@ -1,0 +1,31 @@
+import { Component, booleanAttribute, input } from '@angular/core'
+
+// The loading indicator for anything a page waits on: the session before a
+// guarded page, or the data a page loads. The Tylix mark, lit stroke by
+// stroke (.tx-loader in tylix-ui.css), like the loading screen the whole
+// page shows while it starts. It fades in after 150ms, so quick loads never
+// flash it.
+//
+//   <app-page-loading />                                    a whole page
+//   <app-page-loading compact label="Loading posts" />      one section of a page
+@Component({
+  selector: 'app-page-loading',
+  template: `
+    <div
+      [class]="compact() ? 'tx-loader tx-loader-sm' : 'tx-loader'"
+      role="status"
+      [attr.aria-label]="label() || 'Loading'"
+      data-testid="page-loading"
+    >
+      <svg class="tx-loader-mark" viewBox="0 0 552 366" aria-hidden="true"><path class="tx-loader-s1" d="M0 96 74 22Q96 0 120 0H552L482 77Q462 96 436 96Z"/><path class="tx-loader-s2" d="M34 366 148 151Q160 127 190 127H290L163 366Z"/><path class="tx-loader-s3" d="M218 339 294 192Q304 171 334 171H442L378 264Q368 277 353 283Z"/></svg>
+      @if (label()) {
+        <span class="tx-loader-label">{{ label() }}…</span>
+      }
+    </div>
+  `,
+})
+export class PageLoading {
+  readonly label = input('')
+  // A bare attribute (<app-page-loading compact />) turns it on.
+  readonly compact = input(false, { transform: booleanAttribute })
+}

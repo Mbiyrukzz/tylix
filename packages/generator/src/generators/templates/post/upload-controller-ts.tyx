@@ -9,6 +9,10 @@
  * Checks: allowed MIME type, size limit, and the file's real signature
  * (so a renamed .exe or HTML file is refused). SVG is deliberately not
  * allowed: it can carry scripts.
+ *
+ * Base64 makes the JSON body about a third bigger than the image, so a
+ * 2 MB image needs MAX_BODY_BYTES (in .env) of at least ~3 MB. New
+ * projects ship with 4194304 (4 MB); the framework default is 1 MB.
  */
 
 import fs from "node:fs/promises";

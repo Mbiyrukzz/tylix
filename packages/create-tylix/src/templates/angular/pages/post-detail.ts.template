@@ -1,17 +1,18 @@
 import { Component, inject } from '@angular/core'
 import { RouterLink } from '@angular/router'
 import { PostStore } from '../providers/posts.store'
+import { PageLoading } from '../components/page-loading'
 
 // One post, from PostStore (providers/), which follows the route's :id.
 @Component({
   selector: 'app-post-detail',
-  imports: [RouterLink],
+  imports: [RouterLink, PageLoading],
   providers: [PostStore],
   template: `
     <article class="max-w-3xl mx-auto px-6 py-12">
       <a routerLink="/posts" class="text-sm tx-link">← All posts</a>
       @if (store.loading() && !store.post()) {
-        <p class="text-sm text-muted mt-8">Loading…</p>
+        <app-page-loading label="Loading post" />
       } @else if (store.notFound()) {
         <div class="mt-8">
           <h1 class="text-2xl font-semibold">Post not found</h1>

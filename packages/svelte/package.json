@@ -1,6 +1,6 @@
 {
   "name": "@tylix/svelte",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Svelte frontend for Tylix: auth and API stores, a small history router, plus the Vite adapter the Tylix CLI loads.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -56,7 +56,7 @@
     "test": "node --test src/*.test.js"
   },
   "dependencies": {
-    "@tylix/client": "^2.1.0"
+    "@tylix/client": "^2.1.1"
   },
   "peerDependencies": {
     "svelte": "^5.0.0"

@@ -1,6 +1,6 @@
 {
   "name": "@tylix/pdf",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "PDF documents for any JavaScript runtime: rich text, tables that span pages, lists, columns, images, SVG and @tylix/charts, QR codes and barcodes, HTML, headers, footers, page numbers, bookmarks, a table of contents and embedded Unicode fonts. No dependencies.",
   "license": "MIT",
   "author": "Mbiyrukzz",
@@ -51,7 +51,7 @@
     "test": "node --test test/*.test.js"
   },
   "peerDependencies": {
-    "@tylix/charts": "^2.1.0"
+    "@tylix/charts": "^2.1.1"
   },
   "peerDependenciesMeta": {
     "@tylix/charts": {
@@ -59,6 +59,6 @@
     }
   },
   "devDependencies": {
-    "@tylix/charts": "^2.1.0"
+    "@tylix/charts": "^2.1.1"
   }
 }

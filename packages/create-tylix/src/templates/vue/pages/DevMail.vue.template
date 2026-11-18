@@ -1,5 +1,6 @@
 <script setup__LANG__>
 import { useMailLog } from '../providers/mail'
+import PageLoading from '../components/PageLoading.vue'
 
 // Development only (router registers this route when import.meta.env.DEV
 // is true, and the API behind it doesn't exist in production). With
@@ -38,7 +39,7 @@ const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeS
     </div>
     <p class="text-sm text-muted mb-8">The last 50 mails, newest first. Only available in development.</p>
 
-    <p v-if="loading && mails.length === 0" class="text-sm text-muted">Loading…</p>
+    <PageLoading v-if="loading && mails.length === 0" compact label="Loading mail" />
     <p v-else-if="error" class="text-sm text-coral">{{ error }}</p>
     <p v-else-if="mails.length === 0" class="text-sm text-muted">No mails yet.</p>
     <ul v-else class="space-y-3" data-testid="mail-log">

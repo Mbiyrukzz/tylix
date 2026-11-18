@@ -6,7 +6,7 @@ import { Outlet, useParams } from 'react-router'
 import { useApi } from '@tylix/react'
 import { postUrls, postsService } from '../services/posts'
 // @if ts
-import type { Post, PostInput, PublicPost, PublicPostDetail } from '../services/posts'
+import type { Post, PostInput, PublicPost, PublicPostDetail, UploadResult } from '../services/posts'
 // @endif
 
 // Post data for the pages, as context. Pages call usePublicPosts(),
@@ -89,11 +89,13 @@ export function usePost() {
 // ---- The logged-in user's posts (/dashboard) --------------------------
 
 // Writes reload the list afterwards and return null or the error to show.
+// uploadImage saves a cover image and returns { url } or { error }.
 // @if ts
 type MyPostsValue = Loadable & {
   posts: Post[]
   create: (input: PostInput) => Promise<string | null>
   remove: (id: number) => Promise<string | null>
+  uploadImage: (file: File) => Promise<UploadResult>
 }
 const MyPostsContext = createContext<MyPostsValue | null>(null)
 
@@ -135,6 +137,7 @@ export function MyPostsProvider({ children }) {
     reload: result.reload,
     create,
     remove,
+    uploadImage: postsService.uploadImage,
   }
   return <MyPostsContext.Provider value={value}>{children ?? <Outlet />}</MyPostsContext.Provider>
 }

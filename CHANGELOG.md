@@ -2,6 +2,40 @@
 
 All Tylix packages share one version number and are released together.
 
+## 2.1.1
+
+### create-tylix: a loading indicator on every page
+- React, Vue, Svelte and Angular starters get a `PageLoading` component
+  (`components/PageLoading.jsx`, `.vue`, `.svelte`, `components/page-loading.ts`):
+  the Tylix mark lit stroke by stroke, in light and dark. It fades in after
+  150ms, so quick loads never flash it.
+- Every page that waits on data (posts, a post, the dashboard's posts, the
+  dev mail log) shows it instead of a line of "Loading…" text, and so does
+  the session check before a guarded page. `label` adds a caption and
+  `compact` sizes it for one section of a page.
+- `tylix-ui.css` adds `.tx-loader-label` and `.tx-loader-sm` for your own
+  loaders.
+
+### create-tylix: image uploads work out of the box
+- New projects set `MAX_BODY_BYTES=4194304` (4 MB) in `.env`. Images up to
+  2 MB are sent to `POST /api/uploads` as base64, about a third bigger, so
+  the framework's 1 MB default refused most photos.
+- The starters' upload forms say what to change when the server answers 413.
+  Existing apps: raise `MAX_BODY_BYTES` in `.env` to at least 3 MB.
+
+### Logos
+- New `@tylix/excel` and `@tylix/pdf` logos.
+
+### Fixes
+- `tylix tinker`: `routes()` and `pages()` keep the folder of nested pages.
+  `docs/[slug].tyx` is listed as `/docs/:slug` (it was `/:slug`), and files in
+  `app/pages/components` are no longer shown as page routes.
+- `tylix tinker`: `models()` works at the prompt. It threw `ERR_INVALID_THIS`
+  reading Node's `crypto` global.
+- `tylix tinker --eval`: `models()`, `reload()` and `mail()` work (they threw
+  `Cannot access 'replServer' before initialization`), and the mailer
+  functions `mail()` loads can be called on the following lines.
+
 ## 2.1.0
 
 ### Roles and permissions: `@tylix/permissions`

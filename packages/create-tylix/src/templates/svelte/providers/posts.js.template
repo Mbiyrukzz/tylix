@@ -117,6 +117,7 @@ export function usePost() {
 const MY_POSTS = Symbol('myPosts')
 
 // Writes reload the list afterwards and return null or the error to show.
+// uploadImage saves a cover image and returns { url } or { error }.
 export function useMyPosts() {
   return shared(MY_POSTS, () => {
 // @if ts
@@ -156,6 +157,6 @@ export function useMyPosts() {
       return null
     }
 
-    return { subscribe: state.subscribe, reload: result.reload, create, remove }
+    return { subscribe: state.subscribe, reload: result.reload, create, remove, uploadImage: postsService.uploadImage }
   })
 }

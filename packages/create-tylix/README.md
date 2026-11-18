@@ -35,6 +35,19 @@ Every app gets the same backend layout (`app/controllers`, `models`,
 `.env` documenting every setting. Hosted frontends keep data in
 `providers/` and API calls in `services/`, so pages only render.
 
+React, Vue, Svelte and Angular starters include a `PageLoading` component
+(the Tylix mark, lit stroke by stroke) that every page shows while its data
+loads:
+
+```jsx
+<PageLoading />                                // a whole page
+<PageLoading compact label="Loading posts" />  // one section of a page
+```
+
+Image uploads (up to 2 MB) work out of the box: `.env` sets
+`MAX_BODY_BYTES=4194304` because base64 makes an upload about a third
+bigger than the image.
+
 Use `@latest`: a cached older version would create an app from older
 templates.
 

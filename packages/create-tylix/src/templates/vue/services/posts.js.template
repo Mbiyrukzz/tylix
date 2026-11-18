@@ -33,7 +33,10 @@ export type Post = {
   cover_image: string | null
 }
 
-export type PostInput = { title: string; body: string }
+export type PostInput = { title: string; body: string; cover_image?: string | null }
+
+// What uploadImage resolves to.
+export type UploadResult = { url: string; error?: undefined } | { url?: undefined; error: string }
 
 // @endif
 // URLs read through useApi, so server rendering can load them in-process.
@@ -48,7 +51,56 @@ export const postUrls = {
   mine: '/api/posts',
 }
 
-// Writes. Each returns the api() result: { ok, status, data, error, errors }.
+// Images POST /api/uploads accepts (app/controllers/UploadController).
+// Checked here too, so a wrong file fails before it is sent.
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+// @if ts
+function readAsDataUrl(file: File): Promise<string> {
+// @endif
+// @if !ts
+function readAsDataUrl(file) {
+// @endif
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+// Saves one image to public/uploads. Returns { url } to send as
+// cover_image, or { error } to show. The image travels as base64 JSON,
+// about a third bigger than the file, so MAX_BODY_BYTES in .env must be
+// above ~3 MB (new projects use 4 MB).
+// @if ts
+async function uploadImage(file: File): Promise<UploadResult> {
+// @endif
+// @if !ts
+async function uploadImage(file) {
+// @endif
+  if (!IMAGE_TYPES.includes(file.type)) return { error: 'Use a PNG, JPEG, WebP or GIF image.' }
+  if (file.size > MAX_IMAGE_BYTES) return { error: 'Image must be 2 MB or smaller.' }
+
+  const data = await readAsDataUrl(file).catch(() => null)
+  if (data === null) return { error: "Couldn't read that image." }
+
+// @if ts
+  const result = await api.post<{ url: string }>('/api/uploads', { data })
+// @endif
+// @if !ts
+  const result = await api.post('/api/uploads', { data })
+// @endif
+  if (result.ok && result.data) return { url: result.data.url }
+  if (result.status === 413) {
+    return { error: 'The server refused an image this size. Set MAX_BODY_BYTES=4194304 in .env and restart.' }
+  }
+  return { error: result.error ?? "Couldn't upload that image." }
+}
+
+// Writes. create and remove return the api() result:
+// { ok, status, data, error, errors }. uploadImage returns { url } or { error }.
 export const postsService = {
 // @if ts
   create: (input: PostInput) => api.post<Post>('/api/posts', input),
@@ -58,4 +110,5 @@ export const postsService = {
   create: (input) => api.post('/api/posts', input),
   remove: (id) => api.delete(`/api/posts/${id}`),
 // @endif
+  uploadImage,
 }

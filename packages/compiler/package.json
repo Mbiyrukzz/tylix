@@ -1,6 +1,6 @@
 {
   "name": "@tylix/compiler",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Compiler for Tylix .tyx pages and components: parses, type-checks and compiles them to server-rendered HTML and client JavaScript.",
   "license": "MIT",
   "author": "Mbiyrukzz",

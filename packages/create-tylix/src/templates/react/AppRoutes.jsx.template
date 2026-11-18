@@ -3,7 +3,8 @@ import { Route, Routes } from 'react-router'
 import { GuestOnly, RequireAuth } from '@tylix/react'
 import { RedirectAfterLogin, RedirectToLogin } from './components/Redirects'
 // @endif
-import Layout, { PageLoading } from './components/Layout'
+import Layout from './components/Layout'
+import PageLoading from './components/PageLoading'
 // @if posts
 import { MyPostsProvider, PostProvider, PublicPostsProvider } from './providers/PostsProvider'
 // @endif

@@ -63,6 +63,8 @@ action
         this.coverImage = result.data.url
       } else if result.status is 401 {
         window.location.href = "/login"
+      } else if result.status is 413 {
+        this.error = "The server refused an image this size. Set MAX_BODY_BYTES=4194304 in .env and restart."
       } else {
         this.error = result.error or "Couldn't upload that image."
       }

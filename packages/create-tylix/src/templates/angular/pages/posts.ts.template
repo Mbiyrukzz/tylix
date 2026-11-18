@@ -1,17 +1,18 @@
 import { Component, inject } from '@angular/core'
 import { RouterLink } from '@angular/router'
 import { PublicPostsStore } from '../providers/posts.store'
+import { PageLoading } from '../components/page-loading'
 
 // Everyone's posts, newest first, from PublicPostsStore (providers/).
 @Component({
   selector: 'app-posts',
-  imports: [RouterLink],
+  imports: [RouterLink, PageLoading],
   providers: [PublicPostsStore],
   template: `
     <div class="max-w-3xl mx-auto px-6 py-12">
       <h1 class="text-3xl font-semibold tracking-tight mb-8">Posts</h1>
       @if (store.loading() && store.posts().length === 0) {
-        <p class="text-sm text-muted">Loading posts…</p>
+        <app-page-loading compact label="Loading posts" />
       } @else if (store.error()) {
         <p class="text-sm text-coral">{{ store.error() }}</p>
       } @else if (store.posts().length) {
