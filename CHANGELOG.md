@@ -2,6 +2,18 @@
 
 All Tylix packages share one version number and are released together.
 
+## 2.1.2
+
+### Fixes
+- `tylix tinker`: `routes()` and `pages()` keep the folder of nested pages.
+  `docs/[slug].tyx` is listed as `/docs/:slug` (it was `/:slug`), and files in
+  `app/pages/components` are no longer shown as page routes.
+- `tylix tinker`: `models()` works at the prompt. It threw `ERR_INVALID_THIS`
+  reading Node's `crypto` global.
+- `tylix tinker --eval`: `models()`, `reload()` and `mail()` work (they threw
+  `Cannot access 'replServer' before initialization`), and the mailer
+  functions `mail()` loads can be called on the following lines.
+
 ## 2.1.1
 
 ### create-tylix: a loading indicator on every page
@@ -25,16 +37,6 @@ All Tylix packages share one version number and are released together.
 
 ### Logos
 - New `@tylix/excel` and `@tylix/pdf` logos.
-
-### Fixes
-- `tylix tinker`: `routes()` and `pages()` keep the folder of nested pages.
-  `docs/[slug].tyx` is listed as `/docs/:slug` (it was `/:slug`), and files in
-  `app/pages/components` are no longer shown as page routes.
-- `tylix tinker`: `models()` works at the prompt. It threw `ERR_INVALID_THIS`
-  reading Node's `crypto` global.
-- `tylix tinker --eval`: `models()`, `reload()` and `mail()` work (they threw
-  `Cannot access 'replServer' before initialization`), and the mailer
-  functions `mail()` loads can be called on the following lines.
 
 ## 2.1.0
 
